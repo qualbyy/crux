@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Anthropic Minimal Dark / Claude Code Aesthetic: Square 0px, 1px border -->
+  <rect x="0.5" y="0.5" width="127" height="127" fill="#18181b" stroke="#94a3b8" stroke-width="1"/>
+  
+  <!-- Inner Surface Frame -->
+  <rect x="8.5" y="8.5" width="111" height="111" fill="#262624" stroke="#3f3f46" stroke-width="1"/>
+  
+  <!-- Subtle Grid Accent -->
+  <line x1="8.5" y1="28.5" x2="119.5" y2="28.5" stroke="#3f3f46" stroke-width="1"/>
+  <rect x="14" y="15" width="6" height="6" fill="#10b981"/>
+  <rect x="24" y="15" width="6" height="6" fill="#38bdf8"/>
+  <rect x="34" y="15" width="6" height="6" fill="#fe8019"/>
+  
+  <!-- Monospace Angular 'Z' Monogram in Claude Warm Orange & Slate -->
+  <path d="M 36 44 L 92 44 L 92 54 L 54 84 L 92 84 L 92 94 L 36 94 L 36 84 L 74 54 L 36 54 Z" 
+        fill="#fe8019" />
+  
+  <!-- Terminal Prompt Indicator -->
+  <rect x="40" y="60" width="3" height="12" fill="#94a3b8" />
+</svg>

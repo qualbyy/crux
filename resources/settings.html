@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>zephyrium://settings</title>
+    <style>
+        :root, :root[data-theme="dark"] {
+            --bg-base: #18181b;
+            --bg-surface: #262624;
+            --bg-elevated: #2d2d2a;
+            --border-muted: #3f3f46;
+            --border-active: var(--accent, #fe8019);
+            --text-primary: #d4d4d8;
+            --text-bright: #f5f5f0;
+            --text-muted: #71717a;
+            --accent: #fe8019;
+            --status-success: #10b981;
+            --status-error: #ef4444;
+            --font-mono: "Iosevka Nerd Font", "JetBrains Mono", monospace;
+        }
+
+        :root[data-theme="light"] {
+            --bg-base: #f8fafc;
+            --bg-surface: #ffffff;
+            --bg-elevated: #f1f5f9;
+            --border-muted: #cbd5e1;
+            --border-active: var(--accent, #fe8019);
+            --text-primary: #334155;
+            --text-bright: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            border-radius: 0px !important;
+            margin: 0;
+            padding: 0;
+            box-shadow: none !important;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 32px 20px;
+        }
+
+        .settings-wrapper {
+            width: 100%;
+            max-width: 960px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-muted);
+            padding-bottom: 16px;
+        }
+
+        .logo-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--text-bright);
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-title span {
+            color: var(--accent);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-save-top {
+            background-color: var(--accent);
+            color: #0f172a;
+            font-weight: bold;
+            border: 1px solid var(--accent);
+            padding: 6px 16px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            transition: opacity 0.15s;
+        }
+
+        .btn-save-top:hover {
+            opacity: 0.9;
+        }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* Sidebar Tabs */
+        .sidebar-tabs {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-muted);
+            background-color: var(--bg-surface);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border-muted);
+            border-left: 2px solid transparent;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 500;
+            padding: 12px 14px;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.15s;
+        }
+
+        .tab-btn:hover {
+            background-color: var(--bg-elevated);
+            color: var(--text-bright);
+        }
+
+        .tab-btn.active {
+            background-color: var(--bg-elevated);
+            color: var(--text-bright);
+            border-left: 2px solid var(--accent);
+            font-weight: bold;
+        }
+
+        /* Content Area */
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-muted);
+            padding: 24px;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        .section-header {
+            border-bottom: 1px solid var(--border-muted);
+            padding-bottom: 12px;
+            margin-bottom: 8px;
+        }
+
+        .section-header h2 {
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--accent);
+            letter-spacing: 0.5px;
+        }
+
+        .section-header p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--bg-elevated);
+        }
+
+        .form-row:last-child {
+            border-bottom: none;
+        }
+
+        .label-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .label-title {
+            color: var(--text-bright);
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .label-desc {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        input[type="text"], input[type="password"], input[type="number"], select, textarea {
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-muted);
+            color: var(--text-bright);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            padding: 8px 12px;
+            outline: none;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus, select:focus, textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            gap: 8px;
+        }
+
+        .checkbox-container input {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+        }
+
+        /* Color Swatches */
+        .color-palette {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .color-swatch {
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.15s;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.1);
+        }
+
+        .color-swatch.selected {
+            border-color: var(--text-bright) !important;
+        }
+
+        /* Whitelist Box */
+        .whitelist-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 180px;
+            overflow-y: auto;
+            border: 1px solid var(--border-muted);
+            padding: 8px;
+            background-color: var(--bg-base);
+        }
+
+        .whitelist-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            background-color: var(--bg-elevated);
+            font-size: 12px;
+        }
+
+        .btn-remove-sm {
+            background: transparent;
+            border: 1px solid var(--status-error);
+            color: var(--status-error);
+            padding: 2px 6px;
+            cursor: pointer;
+            font-size: 10px;
+            font-family: var(--font-mono);
+        }
+
+        .btn-action {
+            background-color: var(--bg-elevated);
+            border: 1px solid var(--border-muted);
+            color: var(--text-bright);
+            padding: 8px 14px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-action:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .toast {
+            display: none;
+            background-color: var(--status-success);
+            color: #0f172a;
+            font-weight: bold;
+            padding: 8px 16px;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        table.keybinds-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        table.keybinds-table th, table.keybinds-table td {
+            border: 1px solid var(--border-muted);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        table.keybinds-table th {
+            background-color: var(--bg-elevated);
+            color: var(--text-bright);
+        }
+
+        .key-badge {
+            background-color: var(--bg-elevated);
+            border: 1px solid var(--border-muted);
+            padding: 2px 6px;
+            font-size: 11px;
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* Credentials Vault (Passwords & Cookies) */
+        .vault-nav-tabs {
+            display: flex;
+            gap: 6px;
+            margin: 16px 0 14px 0;
+            border-bottom: 1px solid var(--border-muted);
+            padding-bottom: 6px;
+        }
+
+        .vault-nav-btn {
+            background: transparent;
+            border: 1px solid var(--border-muted);
+            color: var(--text-muted);
+            padding: 6px 14px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .vault-nav-btn.active {
+            border-color: var(--border-muted);
+            border-bottom: 2px solid var(--accent);
+            color: var(--accent);
+            background-color: var(--bg-elevated);
+        }
+
+        .vault-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .vault-search-input {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .vault-actions-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .vault-table-wrapper {
+            border: 1px solid var(--border-muted);
+            background-color: var(--bg-base);
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        table.vault-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        table.vault-table th, table.vault-table td {
+            border-bottom: 1px solid var(--border-muted);
+            padding: 8px 10px;
+            text-align: left;
+            word-break: break-all;
+        }
+
+        table.vault-table th {
+            background-color: var(--bg-elevated);
+            color: var(--text-bright);
+            font-size: 10px;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        table.vault-table tr:hover td {
+            background-color: var(--bg-surface);
+        }
+
+        .btn-table-sm {
+            background: transparent;
+            border: 1px solid var(--border-muted);
+            color: var(--text-primary);
+            padding: 3px 8px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .btn-table-sm:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-table-del {
+            background: transparent;
+            border: 1px solid var(--status-error);
+            color: var(--status-error);
+            padding: 3px 8px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .vault-empty {
+            padding: 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-wrapper">
+        <div class="top-header">
+            <div class="logo-title">
+                ZEPHYRIUM <span>//</span> <span data-i18n="title_settings">PREFERENCES & CONFIGURATION</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn-save-top" onclick="saveAndApply()" data-i18n="btn_save">SAVE AND APPLY</button>
+            </div>
+        </div>
+
+        <div id="toastMessage" class="toast" data-i18n="toast_saved">
+            Settings saved and dynamically applied across Zephyrium.
+        </div>
+
+        <div class="layout-grid">
+            <!-- Sidebar Navigation -->
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" data-tab="general" onclick="switchTab('general')" data-i18n="tab_general">
+                    [01] GENERAL
+                </button>
+                <button class="tab-btn" data-tab="appearance" onclick="switchTab('appearance')" data-i18n="tab_appearance">
+                    [02] APPEARANCE
+                </button>
+                <button class="tab-btn" data-tab="adblock" onclick="switchTab('adblock')" data-i18n="tab_adblock">
+                    [03] PRIVACY & ADBLOCK
+                </button>
+                <button class="tab-btn" data-tab="downloads" onclick="switchTab('downloads')" data-i18n="tab_downloads">
+                    [04] DOWNLOADS
+                </button>
+                <button class="tab-btn" data-tab="vault" onclick="switchTab('vault')" data-i18n="tab_vault">
+                    [05] PASSWORDS & VAULT
+                </button>
+                <button class="tab-btn" data-tab="ai" onclick="switchTab('ai')" data-i18n="tab_ai">
+                    [06] AI ASSISTANT
+                </button>
+                <button class="tab-btn" data-tab="shortcuts" onclick="switchTab('shortcuts')" data-i18n="tab_shortcuts">
+                    [07] KEYBINDS
+                </button>
+                <button class="tab-btn" data-tab="about" onclick="switchTab('about')" data-i18n="tab_about">
+                    [08] ABOUT
+                </button>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="content-container">
+                <!-- GENERAL -->
+                <div id="tab-general" class="tab-content active">
+                    <div class="section-header">
+                        <h2 data-i18n="header_general">GENERAL CONFIGURATION</h2>
+                        <p data-i18n="desc_general">Core browser localization, startup behavior, and search engine.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_language">Display Language</span>
+                            <span class="label-desc" data-i18n="desc_language">Interface language for omnibar, menus, AI assistant, and settings.</span>
+                        </div>
+                        <select id="setting-language" style="width: 200px;" onchange="applyLanguage(this.value)">
+                            <option value="ru">Русский (ru)</option>
+                            <option value="en">English (en)</option>
+                            <option value="zh">简体中文 (zh)</option>
+                            <option value="es">Español (es)</option>
+                            <option value="de">Deutsch (de)</option>
+                            <option value="fr">Français (fr)</option>
+                            <option value="ja">日本語 (ja)</option>
+                            <option value="pt">Português (pt)</option>
+                            <option value="it">Italiano (it)</option>
+                            <option value="tr">Türkçe (tr)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_homepage">Homepage URL</span>
+                            <span class="label-desc" data-i18n="desc_homepage">URL opened in new tabs and on startup.</span>
+                        </div>
+                        <input type="text" id="setting-homepage" value="zephyrium://startpage" style="width: 280px;">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_search_engine">Default Search Engine</span>
+                            <span class="label-desc" data-i18n="desc_search_engine">Search provider when queries are entered in the omnibar.</span>
+                        </div>
+                        <select id="setting-search-engine" style="width: 200px;">
+                            <option value="https://duckduckgo.com/?q={query}">DuckDuckGo</option>
+                            <option value="https://www.google.com/search?q={query}">Google</option>
+                            <option value="https://www.bing.com/search?q={query}">Bing</option>
+                            <option value="https://www.startpage.com/sp/search?query={query}">StartPage</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_restore_session">Restore Open Tabs on Launch</span>
+                            <span class="label-desc" data-i18n="desc_restore_session">Automatically restore active workspace tabs after closing the browser.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-restore-session">
+                            <span class="label-title" data-i18n="lbl_enabled">Enabled</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- APPEARANCE -->
+                <div id="tab-appearance" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_appearance">APPEARANCE & MODES</h2>
+                        <p data-i18n="desc_appearance">Customize themes, key colors, layout modes, and typography.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_color_theme">Color Theme</span>
+                            <span class="label-desc" data-i18n="desc_color_theme">Select dark or light paper aesthetic.</span>
+                        </div>
+                        <select id="setting-theme" style="width: 200px;" onchange="applyPreviewTheme(this.value)">
+                            <option value="dark" data-i18n="opt_theme_dark">Minimal Dark (Zinc 900)</option>
+                            <option value="light" data-i18n="opt_theme_light">Clean Paper Light</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_accent">Key Accent Color</span>
+                            <span class="label-desc" data-i18n="desc_accent">Primary highlight color across tabs, buttons, and badges.</span>
+                        </div>
+                        <div class="color-palette">
+                            <div class="color-swatch selected" style="background-color: #fe8019;" data-color="#fe8019" onclick="selectAccent('#fe8019', this)"></div>
+                            <div class="color-swatch" style="background-color: #10b981;" data-color="#10b981" onclick="selectAccent('#10b981', this)"></div>
+                            <div class="color-swatch" style="background-color: #38bdf8;" data-color="#38bdf8" onclick="selectAccent('#38bdf8', this)"></div>
+                            <div class="color-swatch" style="background-color: #a855f7;" data-color="#a855f7" onclick="selectAccent('#a855f7', this)"></div>
+                            <div class="color-swatch" style="background-color: #f43f5e;" data-color="#f43f5e" onclick="selectAccent('#f43f5e', this)"></div>
+                            <div class="color-swatch" style="background-color: #94a3b8;" data-color="#94a3b8" onclick="selectAccent('#94a3b8', this)"></div>
+                        </div>
+                        <input type="hidden" id="setting-accent" value="#fe8019">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_ui_mode">UI Layout Mode</span>
+                            <span class="label-desc" data-i18n="desc_ui_mode">Minimal browser controls or Vim normal mode navigation.</span>
+                        </div>
+                        <select id="setting-ui-mode" style="width: 200px;">
+                            <option value="minimal" data-i18n="opt_mode_minimal">Minimal</option>
+                            <option value="vim" data-i18n="opt_mode_vim">Vim Mode</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_tab_orient">Tab Layout Orientation</span>
+                            <span class="label-desc" data-i18n="desc_tab_orient">Choose between vertical sidebar tabs or traditional top horizontal tabs.</span>
+                        </div>
+                        <select id="setting-tab-orientation" style="width: 200px;">
+                            <option value="vertical" data-i18n="opt_tab_vert">Vertical Tabs (Sidebar)</option>
+                            <option value="horizontal" data-i18n="opt_tab_horiz">Horizontal Tabs (Top Bar)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_sidebar_width">Vertical Sidebar Width (px)</span>
+                            <span class="label-desc" data-i18n="desc_sidebar_width">Width of vertical tab sidebar (200px - 360px).</span>
+                        </div>
+                        <input type="number" id="setting-sidebar-width" min="200" max="360" value="240" style="width: 100px;">
+                    </div>
+                </div>
+
+                <!-- PRIVACY & ADBLOCK -->
+                <div id="tab-adblock" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_adblock">PRIVACY & ADBLOCK</h2>
+                        <p data-i18n="desc_adblock">High-efficiency network interceptor, tracker removal, and whitelisted domains.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_enable_adblock">Enable Native Network AdBlock</span>
+                            <span class="label-desc" data-i18n="desc_enable_adblock">Intercepts ad, telemetry, and tracking requests at network tier.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-adblock-enabled" checked>
+                            <span class="label-title" data-i18n="lbl_active">Active</span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_clean_urls">Strip Tracking Parameters (Clean URLs)</span>
+                            <span class="label-desc" data-i18n="desc_clean_urls">Automatically removes utm_*, fbclid, gclid from visited URLs.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-clean-urls" checked>
+                            <span class="label-title" data-i18n="lbl_active">Active</span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_send_dnt">Send 'Do Not Track' (DNT: 1)</span>
+                            <span class="label-desc" data-i18n="desc_send_dnt">Emits standard privacy headers on all outgoing HTTP requests.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-send-dnt" checked>
+                            <span class="label-title" data-i18n="lbl_active">Active</span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_prevent_webrtc">Prevent WebRTC IP Leaks</span>
+                            <span class="label-desc" data-i18n="desc_prevent_webrtc">Restricts local IP address disclosure via WebRTC peer connections.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-prevent-webrtc" checked>
+                            <span class="label-title" data-i18n="lbl_active">Active</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 14px;">
+                        <span class="label-title" data-i18n="lbl_whitelist">AdBlock Whitelisted Domains (Filter Bypass)</span>
+                        <div style="display: flex; gap: 8px; margin-top: 6px;">
+                            <input type="text" id="whitelist-input" placeholder="e.g. example.com" style="flex: 1;" data-i18n="placeholder_domain">
+                            <button class="btn-action" onclick="addWhitelistDomain()" data-i18n="btn_add_domain">+ ADD DOMAIN</button>
+                        </div>
+                        <div id="whitelist-box" class="whitelist-list" style="margin-top: 8px;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DOWNLOADS -->
+                <div id="tab-downloads" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_downloads">DOWNLOADS CONFIGURATION</h2>
+                        <p data-i18n="desc_downloads">Manage default download path and access download records.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_download_dir">Downloads Directory</span>
+                            <span class="label-desc" data-i18n="desc_download_dir">Path where downloaded files will be saved.</span>
+                        </div>
+                        <input type="text" id="setting-download-dir" value="" style="width: 320px;">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_open_downloads">Open Full Downloads Page</span>
+                            <span class="label-desc" data-i18n="desc_open_downloads">View all past and active file downloads in dedicated tab.</span>
+                        </div>
+                        <a href="zephyrium://downloads" class="btn-action" style="text-decoration: none;" data-i18n="btn_open_downloads">OPEN ALL DOWNLOADS</a>
+                    </div>
+                </div>
+
+                <!-- PASSWORDS & VAULT -->
+                <div id="tab-vault" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_vault">CREDENTIALS VAULT</h2>
+                        <p data-i18n="desc_vault">Stored logins, credentials, and autofill management.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_autofill">Autofill Credentials</span>
+                            <span class="label-desc" data-i18n="desc_autofill">Automatically suggest and fill saved usernames and passwords on login forms.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-autofill-enabled" checked>
+                            <span class="label-title">Enabled</span>
+                        </label>
+                    </div>
+
+                    <!-- Sub-tabs: Passwords vs Cookies -->
+                    <div class="vault-nav-tabs">
+                        <button type="button" id="btn-vault-tab-pwd" class="vault-nav-btn active" onclick="switchVaultSubTab('passwords')" data-i18n="subtab_passwords">PASSWORDS</button>
+                        <button type="button" id="btn-vault-tab-cookies" class="vault-nav-btn" onclick="switchVaultSubTab('cookies')" data-i18n="subtab_cookies">COOKIES</button>
+                    </div>
+
+                    <!-- SUB-PAGE: Passwords -->
+                    <div id="vault-view-passwords">
+                        <div class="vault-toolbar">
+                            <input type="text" id="vault-pwd-search" class="vault-search-input" placeholder="Filter passwords by domain or username..." oninput="filterVaultPasswords()" data-i18n="placeholder_filter_pwd">
+                            <div class="vault-actions-group">
+                                <button type="button" class="btn-action" onclick="exportPasswordsCSV()" data-i18n="btn_export_csv">EXPORT CSV</button>
+                                <button type="button" class="btn-action" onclick="exportPasswordsJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
+                            </div>
+                        </div>
+
+                        <div class="vault-table-wrapper">
+                            <table class="vault-table" id="table-vault-passwords">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 35%;" data-i18n="col_domain">DOMAIN / URL</th>
+                                        <th style="width: 25%;" data-i18n="col_username">USERNAME</th>
+                                        <th style="width: 20%;" data-i18n="col_password">PASSWORD</th>
+                                        <th style="width: 20%;" data-i18n="col_actions">ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vault-passwords-body">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                            <div id="vault-pwd-empty" class="vault-empty" style="display: none;" data-i18n="empty_passwords">
+                                No credentials saved in vault.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PAGE: Cookies -->
+                    <div id="vault-view-cookies" style="display: none;">
+                        <div class="vault-toolbar">
+                            <input type="text" id="vault-cookies-search" class="vault-search-input" placeholder="Filter cookies by domain or name..." oninput="filterVaultCookies()" data-i18n="placeholder_filter_cookies">
+                            <div class="vault-actions-group">
+                                <button type="button" class="btn-action" onclick="exportCookiesNetscape()" data-i18n="btn_export_netscape">EXPORT NETSCAPE TXT</button>
+                                <button type="button" class="btn-action" onclick="exportCookiesJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
+                            </div>
+                        </div>
+
+                        <div class="vault-table-wrapper">
+                            <table class="vault-table" id="table-vault-cookies">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 25%;" data-i18n="col_host">DOMAIN / HOST</th>
+                                        <th style="width: 20%;" data-i18n="col_name">NAME</th>
+                                        <th style="width: 15%;" data-i18n="col_path">PATH</th>
+                                        <th style="width: 10%;" data-i18n="col_secure">SECURE</th>
+                                        <th style="width: 18%;" data-i18n="col_value">VALUE</th>
+                                        <th style="width: 12%;" data-i18n="col_actions">ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vault-cookies-body">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                            <div id="vault-cookies-empty" class="vault-empty" style="display: none;" data-i18n="empty_cookies">
+                                No cookies stored.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI ASSISTANT -->
+                <div id="tab-ai" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_ai">GEMINI AI ASSISTANT</h2>
+                        <p data-i18n="desc_ai">Direct API integration, dynamic model selection, and prompt configuration.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_gemini_key">Gemini API Key</span>
+                            <span class="label-desc" data-i18n="desc_gemini_key">Google AI Studio API key used for in-browser sidebar inference.</span>
+                        </div>
+                        <input type="password" id="setting-gemini-key" placeholder="AQ.Ab8... / AIzaSy..." style="width: 320px;" data-i18n="placeholder_gemini_key">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_ai_model">Active AI Model</span>
+                            <span class="label-desc" data-i18n="desc_ai_model">Recommended: gemini-2.5-flash for fastest speed and high reasoning.</span>
+                        </div>
+                        <select id="setting-ai-model" style="width: 240px;">
+                            <option value="gemini-2.5-flash">gemini-2.5-flash [RECOMMENDED]</option>
+                            <option value="gemini-flash-lite-latest">gemini-flash-lite-latest [LIGHT & FAST]</option>
+                            <option value="gemini-2.5-pro">gemini-2.5-pro [DEEP REASONING]</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 10px;">
+                        <span class="label-title" data-i18n="lbl_ai_persona">AI Persona / System Instruction</span>
+                        <textarea id="setting-ai-persona" rows="3" style="width: 100%; margin-top: 6px;">You are an intelligent, engineer-focused AI assistant in Zephyrium Browser.</textarea>
+                    </div>
+                </div>
+
+                <!-- KEYBINDS -->
+                <div id="tab-shortcuts" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_shortcuts">KEYBOARD SHORTCUTS</h2>
+                        <p data-i18n="desc_shortcuts">Fast command palette and navigation hotkeys.</p>
+                    </div>
+
+                    <table class="keybinds-table">
+                        <thead>
+                            <tr>
+                                <th data-i18n="col_keybind">KEYBIND</th>
+                                <th data-i18n="col_action">ACTION</th>
+                                <th data-i18n="col_context">CONTEXT</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + K</span></td>
+                                <td data-i18n="act_palette">Command Palette & Omnibar Focus</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + T</span></td>
+                                <td data-i18n="act_new_tab">New Tab</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + W</span></td>
+                                <td data-i18n="act_close_tab">Close Current Tab</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + \</span></td>
+                                <td data-i18n="act_split_screen">Toggle Split Screen</td>
+                                <td data-i18n="ctx_tab_manager">Tab Manager</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + B</span></td>
+                                <td data-i18n="act_ai_notes">Toggle AI Assistant & Notes Sidebar</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + Alt + T</span></td>
+                                <td data-i18n="act_switch_orient">Switch Vertical / Horizontal Tab Orientation</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + M</span></td>
+                                <td data-i18n="act_toggle_mode">Toggle UI Mode (Minimal / Vim)</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + ,</span></td>
+                                <td data-i18n="act_open_settings">Open Preferences & Settings</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                            <tr>
+                                <td><span class="key-badge">Ctrl + Shift + D</span></td>
+                                <td data-i18n="act_open_downloads">Open Downloads Dropdown / Page</td>
+                                <td data-i18n="ctx_global">Global</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ABOUT -->
+                <div id="tab-about" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_about">ABOUT ZEPHYRIUM</h2>
+                        <p data-i18n="desc_about">Minimal, Engineer-Grade Web Browser</p>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.6;">
+                        <p data-i18n="about_body" data-i18n-html="true">
+                            <strong>Zephyrium</strong> is a lightweight, keyboard-driven browser engineered with a strict 
+                            Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
+                        </p>
+                        <p>
+                            <span data-i18n="about_version">Version:</span> <strong>1.0.0 (Release)</strong><br>
+                            <span data-i18n="about_engine">Engine:</span> <strong>Chromium // Qt6WebEngine</strong><br>
+                            <span data-i18n="about_arch">Architecture:</span> <strong>x86_64 Linux</strong>
+                        </p>
+                        <div style="display: flex; gap: 12px; margin-top: 12px;">
+                            <button type="button" class="btn-action" onclick="openExternalUrl('https://github.com/qualbyy/zephyrium')" data-i18n="btn_github">GITHUB</button>
+                            <button type="button" class="btn-action" onclick="openExternalUrl('https://t.me/qualbyy')" data-i18n="btn_telegram">TELEGRAM</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentWhitelist = [];
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabId);
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === 'tab-' + tabId);
+            });
+            window.location.hash = tabId;
+        }
+
+        // Preview Theme
+        function applyPreviewTheme(th) {
+            document.documentElement.setAttribute('data-theme', th);
+        }
+
+        // Accent Selection
+        function selectAccent(color, el) {
+            document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('setting-accent').value = color;
+            document.documentElement.style.setProperty('--accent', color);
+        }
+
+        // Whitelist UI
+        function renderWhitelist() {
+            const box = document.getElementById('whitelist-box');
+            box.innerHTML = '';
+            if (currentWhitelist.length === 0) {
+                box.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">No domains currently whitelisted.</span>';
+                return;
+            }
+            currentWhitelist.forEach(domain => {
+                const item = document.createElement('div');
+                item.className = 'whitelist-item';
+                item.innerHTML = `
+                    <span>${domain}</span>
+                    <button class="btn-remove-sm" onclick="removeWhitelistDomain('${domain}')">REMOVE</button>
+                `;
+                box.appendChild(item);
+            });
+        }
+
+        function addWhitelistDomain() {
+            const input = document.getElementById('whitelist-input');
+            const d = input.value.trim().toLowerCase();
+            if (d && !currentWhitelist.includes(d)) {
+                currentWhitelist.push(d);
+                input.value = '';
+                renderWhitelist();
+            }
+        }
+
+        function removeWhitelistDomain(domain) {
+            currentWhitelist = currentWhitelist.filter(d => d !== domain);
+            renderWhitelist();
+        }
+
+        function openExternalUrl(url) {
+            window.location.href = "zephyrium://new-tab?url=" + encodeURIComponent(url);
+        }
+        window.openExternalUrl = openExternalUrl;
+
+        // --- I18N DICTIONARIES ---
+        const I18N = {
+            ru: {
+                title_settings: "НАСТРОЙКИ И КОНФИГУРАЦИЯ",
+                btn_save: "СОХРАНИТЬ И ПРИМЕНИТЬ",
+                toast_saved: "Настройки успешно сохранены и применены в Zephyrium.",
+                tab_general: "[01] ОБЩИЕ",
+                tab_appearance: "[02] ВНЕШНИЙ ВИД",
+                tab_adblock: "[03] ПРИВАТНОСТЬ И БЛОКИРОВЩИК",
+                tab_downloads: "[04] ЗАГРУЗКИ",
+                tab_vault: "[05] ПАРОЛИ И ХРАНИЛИЩЕ",
+                tab_ai: "[06] AI АССИСТЕНТ",
+                tab_shortcuts: "[07] ГОРЯЧИЕ КЛАВИШИ",
+                tab_about: "[08] О БРАУЗЕРЕ",
+                header_general: "ОБЩАЯ КОНФИГУРАЦИЯ",
+                desc_general: "Локализация браузера, поведение при запуске и поисковая система.",
+                lbl_language: "Язык интерфейса",
+                desc_language: "Язык адресной строки, меню, AI-ассистента и настроек.",
+                lbl_homepage: "Домашняя страница",
+                desc_homepage: "URL-адрес, открываемый в новых вкладках и при запуске.",
+                lbl_search_engine: "Поисковая система по умолчанию",
+                desc_search_engine: "Поисковый провайдер при вводе запросов в адресную строку.",
+                lbl_restore_session: "Восстановление сессии",
+                desc_restore_session: "Автоматически восстанавливать открытые вкладки при перезапуске.",
+                lbl_enabled: "Включено",
+                lbl_active: "Активно",
+                header_appearance: "ВНЕШНИЙ ВИД И ИНТЕРФЕЙС",
+                desc_appearance: "Настройка минималистичной цветовой схемы, темы и ориентации вкладок.",
+                lbl_color_theme: "Цветовая тема",
+                desc_color_theme: "Темная палитра или светлая бумага (Clean Paper Light).",
+                opt_theme_dark: "Minimal Dark (Zinc 900)",
+                opt_theme_light: "Clean Paper Light",
+                lbl_accent: "Ключевой акцентный цвет",
+                desc_accent: "Основной цвет подсветки активных элементов, вкладок и рамок.",
+                lbl_ui_mode: "Режим интерфейса",
+                desc_ui_mode: "Минималистичный (с элементами управления) или Vim-режим.",
+                opt_mode_minimal: "Минималистичный",
+                opt_mode_vim: "Vim Mode",
+                lbl_tab_orient: "Ориентация вкладок",
+                desc_tab_orient: "Вертикальные вкладки в боковой панели или горизонтальные сверху.",
+                opt_tab_vert: "Вертикальные вкладки (Боковая панель)",
+                opt_tab_horiz: "Горизонтальные вкладки (Сверху)",
+                lbl_sidebar_width: "Ширина боковой панели (px)",
+                desc_sidebar_width: "Ширина боковой панели вертикальных вкладок (200px - 360px).",
+                header_adblock: "ПРИВАТНОСТЬ И БЛОКИРОВКА РЕКЛАМЫ",
+                desc_adblock: "Встроенная сетевая фильтрация, очистка ссылок и защита от трекеров.",
+                lbl_enable_adblock: "Встроенный блокировщик рекламы",
+                desc_enable_adblock: "Блокировка баннеров, трекеров и вредоносных скриптов.",
+                lbl_clean_urls: "Очистка URL-адресов от трекинга",
+                desc_clean_urls: "Автоматическое удаление трекинговых меток (utm_*, fbclid, gclid).",
+                lbl_send_dnt: "Заголовок 'Do Not Track'",
+                desc_send_dnt: "Отправка заголовка DNT: 1 со всеми веб-запросами.",
+                lbl_prevent_webrtc: "Предотвращение утечки WebRTC",
+                desc_prevent_webrtc: "Защита локального и публичного IP от утечки через WebRTC.",
+                lbl_whitelist: "Белый список доменов AdBlock (обход фильтрации)",
+                desc_whitelist: "Домены, на которых блокировка рекламы отключена.",
+                placeholder_domain: "например, example.com",
+                btn_add_domain: "+ ДОБАВИТЬ ДОМЕН",
+                header_downloads: "УПРАВЛЕНИЕ ЗАГРУЗКАМИ",
+                desc_downloads: "Каталог сохранения файлов и история загрузок.",
+                lbl_download_dir: "Папка сохранения файлов",
+                desc_download_dir: "Локальный путь для сохранения скачанных файлов.",
+                lbl_open_downloads: "Страница загрузок",
+                desc_open_downloads: "Просмотр всех активных и завершенных загрузок в отдельной вкладке.",
+                btn_open_downloads: "ОТКРЫТЬ ВСЕ ЗАГРУЗКИ",
+                header_vault: "ХРАНИЛИЩЕ УЧЕТНЫХ ДАННЫХ",
+                desc_vault: "Сохраненные логины, пароли и куки-файлы.",
+                lbl_autofill: "Автозаполнение учетных данных",
+                desc_autofill: "Автоматически предлагать сохраненные логины и пароли в формах входа.",
+                subtab_passwords: "ПАРОЛИ",
+                subtab_cookies: "КУКИ",
+                placeholder_filter_pwd: "Поиск паролей по домену или логину...",
+                placeholder_filter_cookies: "Поиск куки по домену или имени...",
+                btn_export_csv: "ЭКСПОРТ В CSV",
+                btn_export_json: "ЭКСПОРТ В JSON",
+                btn_export_netscape: "ЭКСПОРТ В NETSCAPE TXT",
+                col_domain: "ДОМЕН / URL",
+                col_username: "ЛОГИН / ПОЛЬЗОВАТЕЛЬ",
+                col_password: "ПАРОЛЬ",
+                col_actions: "ДЕЙСТВИЯ",
+                col_host: "ДОМЕН / ХОСТ",
+                col_name: "ИМЯ",
+                col_path: "ПУТЬ",
+                col_secure: "SECURE",
+                col_value: "ЗНАЧЕНИЕ",
+                empty_passwords: "Нет сохраненных паролей в хранилище.",
+                empty_cookies: "Нет сохраненных куки-файлов.",
+                header_ai: "AI АССИСТЕНТ GEMINI",
+                desc_ai: "Интеграция с Google Gemini API для помощи и анализа страниц.",
+                lbl_gemini_key: "API ключ Gemini",
+                desc_gemini_key: "Ключ Google AI Studio для работы встроенного ассистента.",
+                placeholder_gemini_key: "AQ.Ab8... / AIzaSy...",
+                lbl_ai_model: "Модель AI",
+                desc_ai_model: "Рекомендуется gemini-2.5-flash для максимальной скорости.",
+                lbl_ai_persona: "Системный промпт / персона AI",
+                desc_ai_persona: "Базовые инструкции поведения и стиля ответов ассистента.",
+                header_shortcuts: "ГОРЯЧИЕ КЛАВИШИ",
+                desc_shortcuts: "Быстрые комбинации клавиш для эффективного управления.",
+                col_keybind: "КОМБИНАЦИЯ",
+                col_action: "ДЕЙСТВИЕ",
+                col_context: "КОНТЕКСТ",
+                act_palette: "Командная строка и фокус поиска",
+                act_new_tab: "Новая вкладка",
+                act_close_tab: "Закрыть текущую вкладку",
+                act_split_screen: "Разделить экран (Split Screen)",
+                act_ai_notes: "Боковая панель AI и заметок",
+                act_switch_orient: "Переключение ориентации вкладок",
+                act_toggle_mode: "Переключение режима (Минимальный / Vim)",
+                act_open_settings: "Открыть настройки браузера",
+                act_open_downloads: "Открыть меню / страницу загрузок",
+                ctx_global: "Глобально",
+                ctx_tab_manager: "Менеджер вкладок",
+                header_about: "О БРАУЗЕРЕ ZEPHYRIUM",
+                desc_about: "Минималистичный инженерный веб-браузер",
+                about_body: "<strong>Zephyrium</strong> — легковесный браузер с клавиатурным управлением, строгой эстетикой Anthropic Minimal Dark, квадратным дизайном (0px скругления), моноширинным шрифтом и полной локализацией.",
+                about_version: "Версия:",
+                about_engine: "Движок:",
+                about_arch: "Архитектура:",
+                btn_github: "GITHUB",
+                btn_telegram: "TELEGRAM"
+            },
+            en: {
+                title_settings: "PREFERENCES & CONFIGURATION",
+                btn_save: "SAVE AND APPLY",
+                toast_saved: "Settings saved and dynamically applied across Zephyrium.",
+                tab_general: "[01] GENERAL",
+                tab_appearance: "[02] APPEARANCE",
+                tab_adblock: "[03] PRIVACY & ADBLOCK",
+                tab_downloads: "[04] DOWNLOADS",
+                tab_vault: "[05] PASSWORDS & VAULT",
+                tab_ai: "[06] AI ASSISTANT",
+                tab_shortcuts: "[07] KEYBINDS",
+                tab_about: "[08] ABOUT",
+                header_general: "GENERAL CONFIGURATION",
+                desc_general: "Core browser localization, startup behavior, and search engine.",
+                lbl_language: "Display Language",
+                desc_language: "Interface language for omnibar, menus, AI assistant, and settings.",
+                lbl_homepage: "Homepage URL",
+                desc_homepage: "URL opened in new tabs and on startup.",
+                lbl_search_engine: "Default Search Engine",
+                desc_search_engine: "Search provider when queries are entered in the omnibar.",
+                lbl_restore_session: "Restore Session",
+                desc_restore_session: "Automatically restore open tabs upon browser launch.",
+                lbl_enabled: "Enabled",
+                lbl_active: "Active",
+                header_appearance: "APPEARANCE & UI MODES",
+                desc_appearance: "Fine-tune minimal color schemes, themes, and tab layouts.",
+                lbl_color_theme: "Color Theme",
+                desc_color_theme: "Choose between Minimal Dark or Clean Paper Light.",
+                opt_theme_dark: "Minimal Dark (Zinc 900)",
+                opt_theme_light: "Clean Paper Light",
+                lbl_accent: "Primary Accent Color",
+                desc_accent: "Highlight color for active tabs, borders, and focused elements.",
+                lbl_ui_mode: "UI Layout Mode",
+                desc_ui_mode: "Minimal (omnibar + buttons) or Vim mode (borderless).",
+                opt_mode_minimal: "Minimal",
+                opt_mode_vim: "Vim Mode",
+                lbl_tab_orient: "Tab Layout Orientation",
+                desc_tab_orient: "Choose between vertical tabs (sidebar) or horizontal tabs (top bar).",
+                opt_tab_vert: "Vertical Tabs (Sidebar)",
+                opt_tab_horiz: "Horizontal Tabs (Top Bar)",
+                lbl_sidebar_width: "Vertical Sidebar Width (px)",
+                desc_sidebar_width: "Width in pixels for vertical tabs sidebar.",
+                header_adblock: "PRIVACY & ADBLOCK",
+                desc_adblock: "Built-in network filtering, tracking parameter removal, and privacy controls.",
+                lbl_enable_adblock: "Native Network AdBlock",
+                desc_enable_adblock: "Block intrusive advertisements, analytics, and tracking scripts.",
+                lbl_clean_urls: "Clean URL Tracking Parameters",
+                desc_clean_urls: "Automatically strip tracking parameters (utm_*, fbclid, gclid) from visited links.",
+                lbl_send_dnt: "Send 'Do Not Track' Header",
+                desc_send_dnt: "Transmit DNT: 1 header with every outgoing HTTP request.",
+                lbl_prevent_webrtc: "Prevent WebRTC IP Leaks",
+                desc_prevent_webrtc: "Enforce proxy routing and prevent public IP leakage via WebRTC.",
+                lbl_whitelist: "AdBlock Whitelist Domains",
+                desc_whitelist: "Domains exempted from ad and tracker blocking.",
+                placeholder_domain: "e.g. example.com",
+                btn_add_domain: "+ ADD DOMAIN",
+                header_downloads: "DOWNLOADS MANAGEMENT",
+                desc_downloads: "File storage destination and download history options.",
+                lbl_download_dir: "Default Download Directory",
+                desc_download_dir: "Local filesystem path where downloaded files are saved.",
+                lbl_open_downloads: "Open Full Downloads Page",
+                desc_open_downloads: "View all past and active file downloads in dedicated tab.",
+                btn_open_downloads: "OPEN ALL DOWNLOADS",
+                header_vault: "CREDENTIALS VAULT",
+                desc_vault: "Stored logins, credentials, and autofill management.",
+                lbl_autofill: "Autofill Credentials",
+                desc_autofill: "Automatically suggest and fill saved usernames and passwords on login forms.",
+                subtab_passwords: "PASSWORDS",
+                subtab_cookies: "COOKIES",
+                placeholder_filter_pwd: "Filter passwords by domain or username...",
+                placeholder_filter_cookies: "Filter cookies by domain or name...",
+                btn_export_csv: "EXPORT CSV",
+                btn_export_json: "EXPORT JSON",
+                btn_export_netscape: "EXPORT NETSCAPE TXT",
+                col_domain: "DOMAIN / URL",
+                col_username: "USERNAME",
+                col_password: "PASSWORD",
+                col_actions: "ACTIONS",
+                col_host: "DOMAIN / HOST",
+                col_name: "NAME",
+                col_path: "PATH",
+                col_secure: "SECURE",
+                col_value: "VALUE",
+                empty_passwords: "No credentials saved in vault.",
+                empty_cookies: "No cookies stored.",
+                header_ai: "GEMINI AI ASSISTANT",
+                desc_ai: "Direct API integration, dynamic model selection, and prompt configuration.",
+                lbl_gemini_key: "Gemini API Key",
+                desc_gemini_key: "Google AI Studio API key used for in-browser sidebar inference.",
+                placeholder_gemini_key: "AQ.Ab8... / AIzaSy...",
+                lbl_ai_model: "Active AI Model",
+                desc_ai_model: "Recommended: gemini-2.5-flash for fastest speed and high reasoning.",
+                lbl_ai_persona: "System Prompt / Persona",
+                desc_ai_persona: "Custom behavioral instructions for the AI assistant.",
+                header_shortcuts: "KEYBOARD SHORTCUTS",
+                desc_shortcuts: "Essential key combinations for keyboard-driven navigation.",
+                col_keybind: "KEYBIND",
+                col_action: "ACTION",
+                col_context: "CONTEXT",
+                act_palette: "Command Palette & Omnibar Focus",
+                act_new_tab: "New Tab",
+                act_close_tab: "Close Current Tab",
+                act_split_screen: "Toggle Split Screen",
+                act_ai_notes: "Toggle AI Assistant & Notes Sidebar",
+                act_switch_orient: "Switch Vertical / Horizontal Tab Orientation",
+                act_toggle_mode: "Toggle UI Mode (Minimal / Vim)",
+                act_open_settings: "Open Preferences & Settings",
+                act_open_downloads: "Open Downloads Dropdown / Page",
+                ctx_global: "Global",
+                ctx_tab_manager: "Tab Manager",
+                header_about: "ABOUT ZEPHYRIUM",
+                desc_about: "Minimal, Engineer-Grade Web Browser",
+                about_body: "<strong>Zephyrium</strong> is a lightweight, keyboard-driven browser engineered with a strict Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.",
+                about_version: "Version:",
+                about_engine: "Engine:",
+                about_arch: "Architecture:",
+                btn_github: "GITHUB",
+                btn_telegram: "TELEGRAM"
+            }
+        };
+
+        function applyLanguage(lang) {
+            const dict = I18N[lang] || I18N['en'];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) {
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        el.placeholder = dict[key];
+                    } else if (el.hasAttribute('data-i18n-html')) {
+                        el.innerHTML = dict[key];
+                    } else {
+                        el.textContent = dict[key];
+                    }
+                }
+            });
+        }
+        window.applyLanguage = applyLanguage;
+
+        // --- CREDENTIALS VAULT (PASSWORDS & COOKIES) ---
+        let currentPasswords = [];
+        let currentCookies = [];
+
+        function switchVaultSubTab(sub) {
+            document.getElementById('btn-vault-tab-pwd').classList.toggle('active', sub === 'passwords');
+            document.getElementById('btn-vault-tab-cookies').classList.toggle('active', sub === 'cookies');
+            document.getElementById('vault-view-passwords').style.display = (sub === 'passwords' ? 'block' : 'none');
+            document.getElementById('vault-view-cookies').style.display = (sub === 'cookies' ? 'block' : 'none');
+        }
+
+        function renderVaultPasswords(items) {
+            const tbody = document.getElementById('vault-passwords-body');
+            tbody.innerHTML = '';
+            const empty = document.getElementById('vault-pwd-empty');
+            if (!items || items.length === 0) {
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+
+            items.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+                const rawPwd = item.password || '';
+                tr.innerHTML = `
+                    <td style="color: var(--accent); font-weight: bold;">${escapeHtml(item.url || '')}</td>
+                    <td>${escapeHtml(item.username || '')}</td>
+                    <td><span id="pwd-val-${idx}">••••••••</span></td>
+                    <td>
+                        <div style="display: flex; gap: 4px;">
+                            <button type="button" class="btn-table-sm" id="btn-toggle-pwd-${idx}" onclick="togglePasswordVisibility(${idx}, '${escapeHtml(rawPwd)}')">SHOW</button>
+                            <button type="button" class="btn-table-sm" onclick="copyToClipboard(this, '${escapeHtml(rawPwd)}')">COPY</button>
+                            <button type="button" class="btn-table-del" onclick="deletePassword('${encodeURIComponent(item.url || '')}', '${encodeURIComponent(item.username || '')}')">DEL</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function togglePasswordVisibility(idx, rawPwd) {
+            const span = document.getElementById(`pwd-val-${idx}`);
+            const btn = document.getElementById(`btn-toggle-pwd-${idx}`);
+            if (span.textContent === '••••••••') {
+                span.textContent = rawPwd;
+                btn.textContent = 'HIDE';
+            } else {
+                span.textContent = '••••••••';
+                btn.textContent = 'SHOW';
+            }
+        }
+
+        function copyToClipboard(btn, text) {
+            navigator.clipboard.writeText(text);
+            const orig = btn.textContent;
+            btn.textContent = 'COPIED!';
+            btn.style.color = 'var(--status-success)';
+            btn.style.borderColor = 'var(--status-success)';
+            setTimeout(() => {
+                btn.textContent = orig;
+                btn.style.color = '';
+                btn.style.borderColor = '';
+            }, 1400);
+        }
+
+        function deletePassword(encDomain, encUser) {
+            if (confirm("Delete this saved credential?")) {
+                window.location.href = `zephyrium://action/delete-password?domain=${encDomain}&username=${encUser}`;
+            }
+        }
+
+        function filterVaultPasswords() {
+            const q = document.getElementById('vault-pwd-search').value.toLowerCase().trim();
+            if (!q) {
+                renderVaultPasswords(currentPasswords);
+                return;
+            }
+            const filtered = currentPasswords.filter(p => 
+                (p.url && p.url.toLowerCase().includes(q)) || 
+                (p.username && p.username.toLowerCase().includes(q))
+            );
+            renderVaultPasswords(filtered);
+        }
+
+        function renderVaultCookies(items) {
+            const tbody = document.getElementById('vault-cookies-body');
+            tbody.innerHTML = '';
+            const empty = document.getElementById('vault-cookies-empty');
+            if (!items || items.length === 0) {
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+
+            items.slice(0, 500).forEach((c) => {
+                const tr = document.createElement('tr');
+                const rawVal = c.value || '';
+                const truncVal = rawVal.length > 25 ? rawVal.substring(0, 25) + '...' : rawVal;
+                tr.innerHTML = `
+                    <td style="color: var(--accent);">${escapeHtml(c.host || '')}</td>
+                    <td style="font-weight: bold;">${escapeHtml(c.name || '')}</td>
+                    <td>${escapeHtml(c.path || '/')}</td>
+                    <td>${c.secure ? '<span style="color: var(--status-success);">YES</span>' : '<span style="color: var(--text-muted);">NO</span>'}</td>
+                    <td title="${escapeHtml(rawVal)}"><code style="font-size: 10px;">${escapeHtml(truncVal)}</code></td>
+                    <td>
+                        <div style="display: flex; gap: 4px;">
+                            <button type="button" class="btn-table-sm" onclick="copyToClipboard(this, '${escapeHtml(rawVal)}')">COPY</button>
+                            <button type="button" class="btn-table-del" onclick="deleteCookie('${encodeURIComponent(c.host || '')}', '${encodeURIComponent(c.name || '')}')">DEL</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function deleteCookie(encHost, encName) {
+            if (confirm("Delete this cookie?")) {
+                window.location.href = `zephyrium://action/delete-cookie?host=${encHost}&name=${encName}`;
+            }
+        }
+
+        function filterVaultCookies() {
+            const q = document.getElementById('vault-cookies-search').value.toLowerCase().trim();
+            if (!q) {
+                renderVaultCookies(currentCookies);
+                return;
+            }
+            const filtered = currentCookies.filter(c => 
+                (c.host && c.host.toLowerCase().includes(q)) || 
+                (c.name && c.name.toLowerCase().includes(q))
+            );
+            renderVaultCookies(filtered);
+        }
+
+        function exportPasswordsCSV() {
+            if (!currentPasswords || currentPasswords.length === 0) {
+                alert("No passwords to export.");
+                return;
+            }
+            let csv = "domain,username,password\n";
+            currentPasswords.forEach(p => {
+                const d = (p.url || "").replace(/"/g, '""');
+                const u = (p.username || "").replace(/"/g, '""');
+                const pw = (p.password || "").replace(/"/g, '""');
+                csv += `"${d}","${u}","${pw}"\n`;
+            });
+            downloadBlob(csv, "passwords.csv", "text/csv");
+        }
+
+        function exportPasswordsJSON() {
+            if (!currentPasswords || currentPasswords.length === 0) {
+                alert("No passwords to export.");
+                return;
+            }
+            const jsonStr = JSON.stringify(currentPasswords, null, 2);
+            downloadBlob(jsonStr, "passwords.json", "application/json");
+        }
+
+        function exportCookiesJSON() {
+            if (!currentCookies || currentCookies.length === 0) {
+                alert("No cookies to export.");
+                return;
+            }
+            const jsonStr = JSON.stringify(currentCookies, null, 2);
+            downloadBlob(jsonStr, "cookies.json", "application/json");
+        }
+
+        function exportCookiesNetscape() {
+            if (!currentCookies || currentCookies.length === 0) {
+                alert("No cookies to export.");
+                return;
+            }
+            let txt = "# Netscape HTTP Cookie File\n# http://curl.haxx.se/rfc/cookie_spec.html\n# Generated by Zephyrium\n\n";
+            currentCookies.forEach(c => {
+                const domain = c.host || "";
+                const flag = domain.startsWith(".") ? "TRUE" : "FALSE";
+                const path = c.path || "/";
+                const secure = c.secure ? "TRUE" : "FALSE";
+                const expiry = c.expiry || 2147483647;
+                const name = c.name || "";
+                const value = c.value || "";
+                txt += `${domain}\t${flag}\t${path}\t${secure}\t${expiry}\t${name}\t${value}\n`;
+            });
+            downloadBlob(txt, "cookies.txt", "text/plain");
+        }
+
+        function downloadBlob(content, filename, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                })[m];
+            });
+        }
+
+        // Init settings from Python
+        window.initSettings = function(data) {
+            if (!data) return;
+            const s = data.settings || {};
+            const lang = s.language || 'ru';
+            if (s.language) document.getElementById('setting-language').value = s.language;
+            applyLanguage(lang);
+
+            if (s.homepage) document.getElementById('setting-homepage').value = s.homepage;
+            if (s.theme) {
+                document.getElementById('setting-theme').value = s.theme;
+                applyPreviewTheme(s.theme);
+            }
+            if (s.accent_color) {
+                document.getElementById('setting-accent').value = s.accent_color;
+                document.documentElement.style.setProperty('--accent', s.accent_color);
+                document.querySelectorAll('.color-swatch').forEach(sw => {
+                    sw.classList.toggle('selected', sw.dataset.color === s.accent_color);
+                });
+            }
+            if (s.ui_mode) document.getElementById('setting-ui-mode').value = s.ui_mode;
+            if (s.tab_orientation) document.getElementById('setting-tab-orientation').value = s.tab_orientation;
+            if (s.sidebar_width) document.getElementById('setting-sidebar-width').value = s.sidebar_width;
+            if (s.adblock_enabled !== undefined) document.getElementById('setting-adblock-enabled').checked = s.adblock_enabled;
+            if (s.clean_urls !== undefined) document.getElementById('setting-clean-urls').checked = s.clean_urls;
+            if (s.send_dnt !== undefined) document.getElementById('setting-send-dnt').checked = s.send_dnt;
+            if (s.prevent_webrtc_leak !== undefined) document.getElementById('setting-prevent-webrtc').checked = s.prevent_webrtc_leak;
+            if (s.download_dir) document.getElementById('setting-download-dir').value = s.download_dir;
+            if (s.gemini_api_key) document.getElementById('setting-gemini-key').value = s.gemini_api_key;
+            if (s.ai_model) document.getElementById('setting-ai-model').value = s.ai_model;
+            if (s.ai_persona) document.getElementById('setting-ai-persona').value = s.ai_persona;
+            if (s.restore_session !== undefined) document.getElementById('setting-restore-session').checked = s.restore_session;
+
+            if (data.whitelist) {
+                currentWhitelist = data.whitelist;
+                renderWhitelist();
+            }
+
+            if (data.passwords) {
+                currentPasswords = data.passwords;
+                renderVaultPasswords(currentPasswords);
+            }
+
+            if (data.cookies) {
+                currentCookies = data.cookies;
+                renderVaultCookies(currentCookies);
+            }
+        };
+
+        // Save & Apply
+        function saveAndApply() {
+            const lang = document.getElementById('setting-language').value;
+            const theme = document.getElementById('setting-theme').value;
+            const accent = document.getElementById('setting-accent').value;
+
+            // Apply immediately in current page
+            applyPreviewTheme(theme);
+            document.documentElement.style.setProperty('--accent', accent);
+            applyLanguage(lang);
+
+            const params = new URLSearchParams();
+            params.set('language', lang);
+            params.set('homepage', document.getElementById('setting-homepage').value);
+            params.set('theme', theme);
+            params.set('accent_color', accent);
+            params.set('ui_mode', document.getElementById('setting-ui-mode').value);
+            params.set('tab_orientation', document.getElementById('setting-tab-orientation').value);
+            params.set('sidebar_width', document.getElementById('setting-sidebar-width').value);
+            params.set('adblock_enabled', document.getElementById('setting-adblock-enabled').checked ? 'true' : 'false');
+            params.set('clean_urls', document.getElementById('setting-clean-urls').checked ? 'true' : 'false');
+            params.set('send_dnt', document.getElementById('setting-send-dnt').checked ? 'true' : 'false');
+            params.set('prevent_webrtc_leak', document.getElementById('setting-prevent-webrtc').checked ? 'true' : 'false');
+            params.set('download_dir', document.getElementById('setting-download-dir').value);
+            params.set('gemini_api_key', document.getElementById('setting-gemini-key').value);
+            params.set('ai_model', document.getElementById('setting-ai-model').value);
+            params.set('ai_persona', document.getElementById('setting-ai-persona').value);
+            params.set('restore_session', document.getElementById('setting-restore-session').checked ? 'true' : 'false');
+            params.set('whitelist', currentWhitelist.join(','));
+
+            const toast = document.getElementById('toastMessage');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+
+            // Execute dynamically in Qt
+            window.location.href = "zephyrium://apply-settings?" + params.toString();
+        }
+
+        // On Load Check URL params & hash
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tabParam = urlParams.get('tab') || window.location.hash.replace('#', '');
+            if (tabParam) {
+                switchTab(tabParam);
+            }
+            const themeParam = urlParams.get('theme');
+            if (themeParam) applyPreviewTheme(themeParam);
+            const accentParam = urlParams.get('accent');
+            if (accentParam) {
+                document.documentElement.style.setProperty('--accent', accentParam);
+            }
+            const langParam = urlParams.get('lang');
+            if (langParam) {
+                applyLanguage(langParam);
+                document.getElementById('setting-language').value = langParam;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+[Desktop Entry]
+Version=1.0
+Name=Zephyrium
+GenericName=Web Browser
+Comment=Fast, keyboard-driven web browser for Arch Linux
+Exec=/home/qualbyy/.local/bin/zephyrium %u
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=zephyrium
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/zephyrium;
+StartupWMClass=zephyrium
+StartupNotify=true
+Actions=NewTab;Incognito;Work;Dev;
+
+[Desktop Action NewTab]
+Name=New Tab
+Exec=/home/qualbyy/.local/bin/zephyrium zephyrium://startpage
+
+[Desktop Action Incognito]
+Name=Open in Incognito Container
+Exec=/home/qualbyy/.local/bin/zephyrium --container incognito
+
+[Desktop Action Work]
+Name=Open in Work Container
+Exec=/home/qualbyy/.local/bin/zephyrium --container work
+
+[Desktop Action Dev]
+Name=Open in Dev Container
+Exec=/home/qualbyy/.local/bin/zephyrium --container dev

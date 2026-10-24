@@ -1,0 +1,24 @@
+"""
+Minimalist Clean Icons & Badges for Zephyrium
+Clean ASCII / Geometric UI indicators (No emojis or oversized symbols)
+"""
+
+class Icons:
+    BACK = "←"
+    FORWARD = "→"
+    RELOAD = "⟳"
+    STOP = "×"
+    NEW_TAB = "+"
+    CLOSE = "×"
+    SPLIT = "SPLIT"
+    AI = "AI"
+    NOTES = "NOTES"
+    COMMAND = "CMD"
+    DOWNLOADS = "DL"
+    LOCK_SECURE = "HTTPS"
+    LOCK_INSECURE = "HTTP"
+    ADBLOCK = "ADS"
+    CONTAINER = "PROFILE"
+    PIN = "PIN"
+    SEARCH = "SEARCH"
+    MENU = "MENU"

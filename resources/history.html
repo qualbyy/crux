@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>zephyrium://history</title>
+    <style>
+        :root, :root[data-theme="dark"] {
+            --bg-base: #18181b;
+            --bg-surface: #262624;
+            --bg-elevated: #2d2d2a;
+            --border-muted: #3f3f46;
+            --border-active: var(--accent, #fe8019);
+            --text-primary: #d4d4d8;
+            --text-bright: #f5f5f0;
+            --text-muted: #71717a;
+            --accent: #fe8019;
+            --status-error: #ef4444;
+            --font-mono: "Iosevka Nerd Font", "JetBrains Mono", monospace;
+        }
+
+        :root[data-theme="light"] {
+            --bg-base: #f8fafc;
+            --bg-surface: #ffffff;
+            --bg-elevated: #f1f5f9;
+            --border-muted: #cbd5e1;
+            --border-active: var(--accent, #fe8019);
+            --text-primary: #334155;
+            --text-bright: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            border-radius: 0px !important;
+            margin: 0;
+            padding: 0;
+            box-shadow: none !important;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 32px 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 960px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-muted);
+            padding-bottom: 16px;
+        }
+
+        .title {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--text-bright);
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title span {
+            color: var(--accent);
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .search-input {
+            flex: 1;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-muted);
+            color: var(--text-bright);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            padding: 10px 14px;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent);
+        }
+
+        .btn-action {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-muted);
+            color: var(--text-bright);
+            padding: 8px 16px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.15s;
+        }
+
+        .btn-action:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-danger {
+            border-color: var(--status-error);
+            color: var(--status-error);
+        }
+
+        .btn-danger:hover {
+            background-color: var(--status-error);
+            color: #ffffff;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-muted);
+            background-color: var(--bg-surface);
+        }
+
+        .history-item {
+            display: grid;
+            grid-template-columns: 140px 1fr auto;
+            gap: 16px;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--bg-elevated);
+            transition: background-color 0.1s;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-item:hover {
+            background-color: var(--bg-elevated);
+        }
+
+        .item-time {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        .item-details {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            overflow: hidden;
+        }
+
+        .item-title {
+            color: var(--text-bright);
+            font-weight: 500;
+            text-decoration: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .item-title:hover {
+            color: var(--accent);
+            text-decoration: underline;
+        }
+
+        .item-url {
+            color: var(--text-muted);
+            font-size: 11px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            background: transparent;
+            border: 1px solid var(--border-muted);
+            color: var(--text-muted);
+            font-size: 10px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+        }
+
+        .btn-sm:hover {
+            border-color: var(--text-bright);
+            color: var(--text-bright);
+        }
+
+        .empty-state {
+            padding: 48px 16px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">
+                ZEPHYRIUM <span>//</span> <span data-i18n="title_history">BROWSING HISTORY</span>
+            </div>
+            <div class="actions">
+                <button class="btn-action btn-danger" onclick="clearAllHistory()" data-i18n="btn_clear_all">CLEAR ENTIRE HISTORY</button>
+            </div>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search history by title, domain, or URL..." oninput="filterHistory()" data-i18n="search_placeholder">
+        </div>
+
+        <div id="historyList" class="history-list">
+            <div class="empty-state" data-i18n="empty_loading">Loading browsing history...</div>
+        </div>
+    </div>
+
+    <script>
+        const I18N_HISTORY = {
+            ru: {
+                title_history: "ИСТОРИЯ ПОСЕЩЕНИЙ",
+                btn_clear_all: "ОЧИСТИТЬ ВСЮ ИСТОРИЮ",
+                search_placeholder: "Поиск по названию, домену или ссылке...",
+                empty_loading: "Загрузка истории...",
+                empty_none: "История посещений пуста.",
+                btn_copy: "КОПИРОВАТЬ",
+                btn_delete: "УДАЛИТЬ",
+                confirm_clear: "Вы уверены, что хотите полностью очистить историю браузера?"
+            },
+            en: {
+                title_history: "BROWSING HISTORY",
+                btn_clear_all: "CLEAR ENTIRE HISTORY",
+                search_placeholder: "Search history by title, domain, or URL...",
+                empty_loading: "Loading browsing history...",
+                empty_none: "No browsing history found.",
+                btn_copy: "COPY",
+                btn_delete: "DELETE",
+                confirm_clear: "Are you sure you want to clear your entire browsing history?"
+            }
+        };
+
+        let currentLang = 'ru';
+
+        function applyLanguage(lang) {
+            currentLang = lang || 'ru';
+            const dict = I18N_HISTORY[currentLang] || I18N_HISTORY['en'];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) {
+                    if (el.tagName === 'INPUT') el.placeholder = dict[key];
+                    else el.textContent = dict[key];
+                }
+            });
+            if (allHistory.length > 0) displayItems(allHistory);
+        }
+        window.applyLanguage = applyLanguage;
+
+        let allHistory = [];
+
+        function formatTimestamp(ts) {
+            if (!ts) return "";
+            const d = new Date(ts * 1000);
+            return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        window.renderHistory = function(items) {
+            allHistory = items || [];
+            displayItems(allHistory);
+        };
+
+        function displayItems(items) {
+            const container = document.getElementById('historyList');
+            container.innerHTML = '';
+            const dict = I18N_HISTORY[currentLang] || I18N_HISTORY['en'];
+
+            if (items.length === 0) {
+                container.innerHTML = `<div class="empty-state">${dict.empty_none}</div>`;
+                return;
+            }
+
+            items.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'history-item';
+                el.innerHTML = `
+                    <div class="item-time">${formatTimestamp(item.timestamp)}</div>
+                    <div class="item-details">
+                        <a href="${item.url}" class="item-title">${escapeHtml(item.title || item.url)}</a>
+                        <span class="item-url">${escapeHtml(item.url)}</span>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn-sm" onclick="copyLink('${item.url}')">${dict.btn_copy}</button>
+                        <button class="btn-sm" style="color: var(--status-error); border-color: var(--status-error);" onclick="deleteItem('${encodeURIComponent(item.url)}')">${dict.btn_delete}</button>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        function filterHistory() {
+            const q = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (!q) {
+                displayItems(allHistory);
+                return;
+            }
+            const filtered = allHistory.filter(item => 
+                (item.title && item.title.toLowerCase().includes(q)) || 
+                (item.url && item.url.toLowerCase().includes(q))
+            );
+            displayItems(filtered);
+        }
+
+        function copyLink(url) {
+            navigator.clipboard.writeText(url);
+        }
+
+        function deleteItem(encUrl) {
+            window.location.href = `zephyrium://action/delete-history?url=${encUrl}`;
+        }
+
+        function clearAllHistory() {
+            const dict = I18N_HISTORY[currentLang] || I18N_HISTORY['en'];
+            if (confirm(dict.confirm_clear)) {
+                window.location.href = "zephyrium://action/clear-history";
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                return ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                })[m];
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const themeParam = urlParams.get('theme');
+            if (themeParam) document.documentElement.setAttribute('data-theme', themeParam);
+            const accentParam = urlParams.get('accent');
+            if (accentParam) document.documentElement.style.setProperty('--accent', accentParam);
+            const langParam = urlParams.get('lang');
+            if (langParam) applyLanguage(langParam);
+        });
+    </script>
+</body>
+</html>
