@@ -3,6 +3,7 @@ Native Onboarding Dialog for Zephyrium Browser
 Modal, clean, engineer-focused initial setup on top of the browser window.
 Guarantees zero crashes and prevents bypassing via new tabs.
 """
+import sys
 from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
