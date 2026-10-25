@@ -204,6 +204,17 @@ def capture_visuals():
     pix10.save(str(path10), "PNG")
     print(f"Captured: {path10}", flush=True)
 
+    # 11. Test PasswordSaveBanner prompt
+    win.show_password_save_prompt("https://github.com/login", "qualbyy", "supersecret123")
+    app.processEvents()
+    QTest.qWait(600)
+    app.processEvents()
+    assert win.password_save_banner.isVisible(), "PasswordSaveBanner should be visible"
+    pix11 = win.grab()
+    path11 = screenshot_dir / "verify_password_save_prompt.png"
+    pix11.save(str(path11), "PNG")
+    print(f"Captured: {path11}", flush=True)
+
     win.close()
     app.processEvents()
     print("All verification screenshots captured successfully.", flush=True)

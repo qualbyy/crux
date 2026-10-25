@@ -176,6 +176,9 @@ class ZincWebView(QWebEngineView):
                 js = PasswordAutofillManager.generate_injection_js(matches)
                 if js:
                     self.page().runJavaScript(js)
+            capture_js = PasswordAutofillManager.generate_capture_js()
+            if capture_js:
+                self.page().runJavaScript(capture_js)
         except Exception as e:
             print(f"[Autofill Error] {e}")
 
@@ -586,6 +589,15 @@ class ZincWebView(QWebEngineView):
                         print(f"Error deleting cookie: {e}")
                 payload = json.dumps(cks)
                 self.page().runJavaScript(f"if (window.onCookieDeleted) window.onCookieDeleted({payload});")
+            elif action == "prompt-save-password":
+                url_param = qs.get("url", [""])[0]
+                user_param = qs.get("username", [""])[0]
+                pwd_param = qs.get("password", [""])[0]
+                from core.password_autofill import PasswordAutofillManager
+                if PasswordAutofillManager.should_prompt_save(url_param, user_param, pwd_param):
+                    win = self._get_main_window()
+                    if win and hasattr(win, "show_password_save_prompt"):
+                        win.show_password_save_prompt(url_param, user_param, pwd_param)
         except Exception as e:
             print(f"Error handling action: {e}")
 

@@ -9,6 +9,7 @@ from typing import List, Dict, Optional
 from config import CONFIG_DIR
 
 PASSWORDS_FILE = CONFIG_DIR / "passwords.json"
+NEVER_SAVE_FILE = CONFIG_DIR / "never_save_passwords.json"
 
 class PasswordAutofillManager:
     @staticmethod
@@ -24,6 +25,69 @@ class PasswordAutofillManager:
             return []
 
     @staticmethod
+    def load_never_save() -> List[str]:
+        if not NEVER_SAVE_FILE.exists():
+            return []
+        try:
+            with open(NEVER_SAVE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return [str(d).lower().strip() for d in data if d] if isinstance(data, list) else []
+        except Exception as e:
+            print(f"[Autofill] Failed to load never_save: {e}")
+            return []
+
+    @staticmethod
+    def _extract_domain(url_or_domain: str) -> str:
+        s = str(url_or_domain or "").strip().lower()
+        if "://" in s:
+            try:
+                parsed = urllib.parse.urlparse(s)
+                return parsed.netloc.lower() or s
+            except Exception:
+                return s
+        return s
+
+    @staticmethod
+    def is_never_save(url_or_domain: str) -> bool:
+        if not url_or_domain:
+            return False
+        domain = PasswordAutofillManager._extract_domain(url_or_domain)
+        never_list = PasswordAutofillManager.load_never_save()
+        for item in never_list:
+            if item == domain or domain.endswith("." + item) or item.endswith("." + domain):
+                return True
+        return False
+
+    @staticmethod
+    def add_never_save(url_or_domain: str) -> bool:
+        if not url_or_domain:
+            return False
+        try:
+            domain = PasswordAutofillManager._extract_domain(url_or_domain)
+            never_list = PasswordAutofillManager.load_never_save()
+            if domain not in never_list:
+                never_list.append(domain)
+                with open(NEVER_SAVE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(never_list, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"[Autofill] Failed to add never_save: {e}")
+            return False
+
+    @staticmethod
+    def remove_never_save(domain: str) -> bool:
+        try:
+            domain_clean = str(domain or "").strip().lower()
+            never_list = PasswordAutofillManager.load_never_save()
+            never_list = [d for d in never_list if d.lower() != domain_clean]
+            with open(NEVER_SAVE_FILE, "w", encoding="utf-8") as f:
+                json.dump(never_list, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"[Autofill] Failed to remove never_save: {e}")
+            return False
+
+    @staticmethod
     def save_credential(url: str, username: str, password: str = "") -> bool:
         if not url or not username:
             return False
@@ -34,6 +98,8 @@ class PasswordAutofillManager:
                 if entry.get("url") == url and entry.get("username") == username:
                     if password:
                         entry["password"] = password
+                    with open(PASSWORDS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(vault, f, indent=2, ensure_ascii=False)
                     return True
 
             import time
@@ -49,6 +115,26 @@ class PasswordAutofillManager:
         except Exception as e:
             print(f"[Autofill] Failed to save credential: {e}")
             return False
+
+    @staticmethod
+    def should_prompt_save(url: str, username: str, password: str) -> bool:
+        if not url or url.startswith(("zephyrium://", "zinc://", "about:")):
+            return False
+        if not password or len(password.strip()) == 0:
+            return False
+        if PasswordAutofillManager.is_never_save(url):
+            return False
+
+        domain = PasswordAutofillManager._extract_domain(url)
+        vault = PasswordAutofillManager.load_passwords()
+        for entry in vault:
+            entry_domain = PasswordAutofillManager._extract_domain(entry.get("url", ""))
+            # If domain matches, username matches, and password is identical, do not prompt
+            if (entry_domain == domain or domain.endswith("." + entry_domain) or entry_domain.endswith("." + domain)) and \
+               entry.get("username", "").strip() == username.strip() and \
+               entry.get("password", "") == password:
+                return False
+        return True
 
     @staticmethod
     def get_matches_for_url(url: str) -> List[Dict]:
@@ -193,3 +279,89 @@ class PasswordAutofillManager:
         }})();
         """
         return js_code
+
+    @staticmethod
+    def generate_capture_js() -> str:
+        return """
+        (function() {
+            if (window.__zephyrium_capture_injected) return;
+            window.__zephyrium_capture_injected = true;
+
+            function findUsername(pwdInput) {
+                const form = pwdInput.form || pwdInput.closest('form');
+                if (form) {
+                    const inputs = Array.from(form.querySelectorAll('input'));
+                    const pIndex = inputs.indexOf(pwdInput);
+                    // Search backwards from password input for the nearest text/email input
+                    for (let i = pIndex - 1; i >= 0; i--) {
+                        const inp = inputs[i];
+                        const t = (inp.type || 'text').toLowerCase();
+                        if (['text', 'email', 'tel'].includes(t) && inp.value && inp.value.trim().length > 0) {
+                            return inp.value.trim();
+                        }
+                    }
+                    // Search forward if not found
+                    for (let inp of inputs) {
+                        const t = (inp.type || 'text').toLowerCase();
+                        if (['text', 'email', 'tel'].includes(t) && inp.value && inp.value.trim().length > 0) {
+                            return inp.value.trim();
+                        }
+                    }
+                }
+                // Fallback: look globally on page for any filled username/email
+                const candidates = document.querySelectorAll('input[type="email"], input[name*="user" i], input[name*="login" i], input[id*="user" i], input[id*="login" i], input[autocomplete="username" i], input[type="text"]');
+                for (let inp of candidates) {
+                    if (inp.value && inp.value.trim().length > 0 && inp !== pwdInput) {
+                        return inp.value.trim();
+                    }
+                }
+                return "";
+            }
+
+            function sendCapture(pwdInput) {
+                if (!pwdInput || !pwdInput.value) return;
+                const pwd = pwdInput.value;
+                const user = findUsername(pwdInput);
+                const url = window.location.href;
+                if (!pwd || pwd.length === 0) return;
+
+                const cmd = "zephyrium://action/prompt-save-password?url=" + encodeURIComponent(url) +
+                            "&username=" + encodeURIComponent(user) +
+                            "&password=" + encodeURIComponent(pwd);
+                console.log("ZEPHYRIUM_IPC:" + cmd);
+            }
+
+            // 1. Listen on form submit
+            document.addEventListener('submit', function(e) {
+                const form = e.target;
+                if (form && form.querySelector) {
+                    const pwd = form.querySelector('input[type="password"]');
+                    if (pwd && pwd.value) {
+                        sendCapture(pwd);
+                    }
+                }
+            }, true);
+
+            // 2. Listen on Enter key in password field
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    const t = e.target;
+                    if (t && t.type === 'password' && t.value) {
+                        sendCapture(t);
+                    }
+                }
+            }, true);
+
+            // 3. Listen on click of submit / login buttons
+            document.addEventListener('click', function(e) {
+                const btn = e.target.closest('button, input[type="submit"], [role="button"]');
+                if (btn) {
+                    const form = btn.form || btn.closest('form');
+                    const pwd = form ? form.querySelector('input[type="password"]') : document.querySelector('input[type="password"]');
+                    if (pwd && pwd.value) {
+                        setTimeout(() => sendCapture(pwd), 50);
+                    }
+                }
+            }, true);
+        })();
+        """

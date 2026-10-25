@@ -42,7 +42,9 @@ def test_i18n():
         "profile_btn", "url_placeholder", "ready", "loading_status", "settings_saved_msg",
         "internal_page", "collapse_sidebar", "expand_sidebar", "split_screen", "downloads",
         "ai_assistant_tooltip", "keybinds_tooltip", "settings_tooltip", "vertical_btn",
-        "ai_chat_tab", "scratchpad_tab", "select_container"
+        "ai_chat_tab", "scratchpad_tab", "select_container",
+        "save_pwd_title", "save_pwd_site", "btn_save_cred", "btn_never_save", "btn_not_now",
+        "pwd_saved_status", "never_saved_status", "show_pwd", "hide_pwd"
     ]
 
     for lang in LANGUAGES.keys():
@@ -263,7 +265,53 @@ def test_password_autofill_and_palette():
         assert any(m.get("username") == "qualbyy" for m in matches_gh)
         print("  ✓ PasswordAutofillManager correctly matches GitHub logins.")
 
-    # 2. Test Command Palette suggestions worker
+    # 2. Test never_save blacklist and should_prompt_save logic
+    test_site = "https://test-site-never.org/login"
+    test_user = "testuser"
+    test_pass = "secret123"
+
+    # Should prompt initially
+    assert PasswordAutofillManager.should_prompt_save(test_site, test_user, test_pass) is True
+
+    # Add to never_save
+    PasswordAutofillManager.add_never_save(test_site)
+    assert PasswordAutofillManager.is_never_save(test_site) is True
+    assert PasswordAutofillManager.should_prompt_save(test_site, test_user, test_pass) is False
+
+    # Remove from never_save
+    PasswordAutofillManager.remove_never_save("test-site-never.org")
+    assert PasswordAutofillManager.is_never_save(test_site) is False
+    assert PasswordAutofillManager.should_prompt_save(test_site, test_user, test_pass) is True
+
+    # Test capture JS generator
+    capture_js = PasswordAutofillManager.generate_capture_js()
+    assert "__zephyrium_capture_injected" in capture_js
+    assert "prompt-save-password" in capture_js
+
+    # 3. Test PasswordSaveBanner UI component
+    from core.password_prompt import PasswordSaveBanner
+    from PyQt6.QtWidgets import QApplication, QLineEdit
+    app = QApplication.instance() or QApplication([])
+    banner = PasswordSaveBanner()
+    banner.set_credentials("https://example.com/login", "john_doe", "pass456")
+    assert banner.current_url == "https://example.com/login"
+    assert banner.input_user.text() == "john_doe"
+    assert banner.input_pwd.text() == "pass456"
+
+    # Toggle peek password
+    assert banner.input_pwd.echoMode() == QLineEdit.EchoMode.Password
+    banner.btn_toggle_pwd.click()
+    assert banner.input_pwd.echoMode() == QLineEdit.EchoMode.Normal
+    banner.btn_toggle_pwd.click()
+    assert banner.input_pwd.echoMode() == QLineEdit.EchoMode.Password
+
+    # Test update_theme and retranslate_ui
+    banner.update_theme("light", "#10b981")
+    banner.retranslate_ui()
+    banner.close()
+    print("  ✓ Password prompt and blacklist functionality passed.")
+
+    # 4. Test Command Palette suggestions worker
     from core.command_palette import SearchSuggestWorker
     worker = SearchSuggestWorker("python")
     assert worker.query == "python"

@@ -25,6 +25,7 @@ from sidebar.panel import SidePanel
 from utils.icons import Icons
 from utils.bookmarks import DataStore
 from core.onboarding import OnboardingDialog
+from core.password_prompt import PasswordSaveBanner
 from core.i18n import t
 
 class BrowserWindow(QMainWindow):
@@ -96,6 +97,10 @@ class BrowserWindow(QMainWindow):
         # 5. Command Palette Dialog
         self.command_palette = CommandPalette(self)
         self.command_palette.command_executed.connect(self._handle_command_action)
+
+        # Floating Password Save Prompt Banner
+        self.password_save_banner = PasswordSaveBanner(self)
+        self.password_save_banner.hide()
 
         # 6. Global Shortcuts
         self._init_shortcuts()
@@ -378,6 +383,24 @@ class BrowserWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if hasattr(self, "password_save_banner") and self.password_save_banner.isVisible():
+            bx = self.width() - self.password_save_banner.width() - 20
+            by = (self.top_bar.height() + 8) if (self.ui_mode != "vim" and self.top_bar.isVisible()) else 12
+            self.password_save_banner.move(bx, by)
+
+    def show_password_save_prompt(self, url: str, username: str, password: str) -> None:
+        if not hasattr(self, "password_save_banner"):
+            return
+        bx = self.width() - self.password_save_banner.width() - 20
+        by = (self.top_bar.height() + 8) if (self.ui_mode != "vim" and self.top_bar.isVisible()) else 12
+        self.password_save_banner.move(bx, by)
+        self.password_save_banner.set_credentials(url, username, password)
+        th = self.settings.get("theme", "dark")
+        acc = self.settings.get("accent_color", "#fe8019")
+        self.password_save_banner.update_theme(th, acc)
+        self.password_save_banner.retranslate_ui()
+        self.password_save_banner.show()
+        self.password_save_banner.raise_()
 
     def _apply_theme_style(self, mode: str = "minimal") -> None:
         th = self.settings.get("theme", "dark")
@@ -449,6 +472,8 @@ class BrowserWindow(QMainWindow):
                     color: {btn_bg};
                 }}
             """)
+        if hasattr(self, "password_save_banner"):
+            self.password_save_banner.update_theme(th, acc)
         self._reload_startpages()
 
     def _reload_startpages(self) -> None:
@@ -517,6 +542,8 @@ class BrowserWindow(QMainWindow):
             self.tab_manager.retranslate_ui()
         if hasattr(self, "side_panel"):
             self.side_panel.retranslate_ui()
+        if hasattr(self, "password_save_banner"):
+            self.password_save_banner.retranslate_ui()
 
     def _cycle_modes(self) -> None:
         modes = ["minimal", "vim"]
