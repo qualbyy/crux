@@ -34,7 +34,7 @@ jobs:
         run: |
           pyinstaller zephyrium.spec --noconfirm --clean
 
-      - name: Verify build artifacts
+      - name: Verify build artifacts and smoke test
         shell: pwsh
         run: |
           if (-not (Test-Path "dist/zephyrium/zephyrium.exe")) {
@@ -42,6 +42,13 @@ jobs:
             exit 1
           }
           Write-Host "Found dist/zephyrium/zephyrium.exe successfully."
+          # Run headless smoke test with --help to verify all DLLs (including QtCore) load without crashing
+          $proc = Start-Process -FilePath "dist/zephyrium/zephyrium.exe" -ArgumentList "--help" -PassThru -Wait
+          Write-Host "Smoke test process exit code: $($proc.ExitCode)"
+          if ($proc.ExitCode -ne 0) {
+            Write-Error "Smoke test failed! DLL or startup exception occurred."
+            exit 1
+          }
 
       - name: Package portable ZIP and compute SHA-256
         shell: pwsh
@@ -53,11 +60,27 @@ jobs:
           Write-Host "Archive created: dist/$zipName"
           Write-Host "SHA-256: $hash"
 
-      - name: Upload artifact
+      - name: Build Windows Installer with Inno Setup
+        shell: pwsh
+        run: |
+          iscc installer.iss
+          $installerName = "zephyrium-installer-windows-x86_64.exe"
+          if (-not (Test-Path "dist/$installerName")) {
+            Write-Error "Installer was not created!"
+            exit 1
+          }
+          $instHash = (Get-FileHash -Algorithm SHA256 dist/$installerName).Hash
+          Set-Content -Path dist/$installerName.sha256 -Value $instHash
+          Write-Host "Installer created: dist/$installerName"
+          Write-Host "SHA-256: $instHash"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: zephyrium-windows-x86_64
           path: |
+            dist/zephyrium-installer-windows-x86_64.exe
+            dist/zephyrium-installer-windows-x86_64.exe.sha256
             dist/zephyrium-windows-x86_64.zip
             dist/zephyrium-windows-x86_64.zip.sha256
 
@@ -66,6 +89,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/zephyrium-installer-windows-x86_64.exe
+            dist/zephyrium-installer-windows-x86_64.exe.sha256
             dist/zephyrium-windows-x86_64.zip
             dist/zephyrium-windows-x86_64.zip.sha256
         env:

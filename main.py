@@ -46,8 +46,34 @@ if hasattr(sys, "_MEIPASS"):
     candidates.insert(0, Path(sys._MEIPASS))
     candidates.insert(0, Path(sys._MEIPASS) / "PyQt6" / "Qt6")
 if getattr(sys, "frozen", False):
-    candidates.insert(0, Path(sys.executable).parent)
-    candidates.insert(0, Path(sys.executable).parent / "PyQt6" / "Qt6")
+    exe_dir = Path(sys.executable).parent
+    candidates.insert(0, exe_dir)
+    candidates.insert(0, exe_dir / "_internal")
+    candidates.insert(0, exe_dir / "PyQt6" / "Qt6")
+    candidates.insert(0, exe_dir / "_internal" / "PyQt6" / "Qt6")
+
+# Windows DLL directory registration for Python 3.8+ (fixes DLL load failed while importing QtCore)
+if sys.platform == "win32":
+    win_bin_dirs = []
+    if hasattr(sys, "_MEIPASS"):
+        win_bin_dirs.append(Path(sys._MEIPASS) / "PyQt6" / "Qt6" / "bin")
+        win_bin_dirs.append(Path(sys._MEIPASS))
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        win_bin_dirs.append(exe_dir / "_internal" / "PyQt6" / "Qt6" / "bin")
+        win_bin_dirs.append(exe_dir / "PyQt6" / "Qt6" / "bin")
+        win_bin_dirs.append(exe_dir / "_internal")
+        win_bin_dirs.append(exe_dir)
+    for p in Path(sys.prefix).glob("**/site-packages/PyQt6/Qt6/bin"):
+        win_bin_dirs.append(p)
+
+    for bdir in win_bin_dirs:
+        if bdir.is_dir():
+            try:
+                os.add_dll_directory(str(bdir))
+            except Exception:
+                pass
+            os.environ["PATH"] = str(bdir) + os.pathsep + os.environ.get("PATH", "")
 
 for venv_candidate in candidates:
     res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
@@ -55,11 +81,17 @@ for venv_candidate in candidates:
         win_res = venv_candidate / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "resources"
         if win_res.exists():
             res_path = win_res
-    if not res_path and (venv_candidate / "resources" / "qtwebengine_resources.pak").exists():
-        res_path = venv_candidate / "resources"
+    if not res_path:
+        win_res2 = venv_candidate / "bin"
+        if (venv_candidate / "resources" / "qtwebengine_resources.pak").exists():
+            res_path = venv_candidate / "resources"
+        elif (venv_candidate / "qtwebengine_resources.pak").exists():
+            res_path = venv_candidate
     if res_path and res_path.is_dir():
         os.environ.setdefault("QTWEBENGINE_RESOURCES_PATH", str(res_path))
         locales_path = res_path.parent / "translations" / "qtwebengine_locales"
+        if not locales_path.is_dir():
+            locales_path = res_path / "translations" / "qtwebengine_locales"
         if locales_path.is_dir():
             os.environ.setdefault("QTWEBENGINE_LOCALES_PATH", str(locales_path))
         break
