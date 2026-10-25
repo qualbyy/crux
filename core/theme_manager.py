@@ -389,7 +389,7 @@ def generate_stylesheet(theme: str = "dark", accent: str = "#fe8019") -> str:
         border-radius: 0px;
         padding: 0px 8px;
         height: 26px;
-        min-width: 90px;
+        min-width: 34px;
         max-width: 220px;
         font-size: 11px;
         margin-right: 2px;

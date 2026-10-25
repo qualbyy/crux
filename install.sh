@@ -22,7 +22,7 @@ fi
 
 LATEST_TAG=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | head -n 1 | cut -d '"' -f 4)
 if [ -z "$LATEST_TAG" ]; then
-    LATEST_TAG="v1.1.0"
+    LATEST_TAG="v1.2.0"
 fi
 VERSION="${LATEST_TAG#v}"
 TAR_NAME="zephyrium-v${VERSION}-linux-x86_64.tar.gz"

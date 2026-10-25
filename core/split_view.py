@@ -64,6 +64,8 @@ class SplitViewContainer(QWidget):
         self.is_split = False
         self.active_view = self.primary_view
         self.primary_view.setFocus()
+        self.title_changed.emit(self.primary_view.title())
+        self.url_changed.emit(self.primary_view.url())
 
     def toggle_split(self, url: QUrl = None) -> bool:
         if self.is_split:

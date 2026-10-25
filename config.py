@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Base Paths
 APP_NAME = "Zephyrium"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 if sys.platform == "win32":
     CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Zephyrium"
@@ -32,9 +32,11 @@ DEFAULT_SETTINGS = {
     "ui_mode": "minimal",       # "minimal", "vim"
     "tab_orientation": "vertical",  # "vertical", "horizontal"
     "theme": "dark",            # "dark", "light"
+    "website_theme": "light",   # "light" (standard clean web), "dark" (CSS prefers-color-scheme: dark), "system"
     "accent_color": "#fe8019",  # Orange (#fe8019), Emerald (#10b981), Blue (#38bdf8), Purple (#a855f7), Rose (#f43f5e), Slate (#94a3b8)
     "language": "ru",
     "homepage": "zephyrium://startpage",
+    "new_tab_url": "zephyrium://startpage",
     "download_dir": str(Path.home() / "Downloads"),
     "restore_session": False,
     "adblock_enabled": True,

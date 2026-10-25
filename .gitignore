@@ -48,6 +48,7 @@ passwords.json
 cookies.json
 adblock_whitelist.json
 settings.json
+zephyrium_full_context.json
 history.json
 bookmarks.json
 *.sqlite

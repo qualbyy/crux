@@ -24,3 +24,6 @@ class Icons:
     MENU = "MENU"
     READER = "READER"
     PIP = "PIP"
+    MORE = "»"
+    AUDIO = "🔊"
+    MUTED = "🔇"

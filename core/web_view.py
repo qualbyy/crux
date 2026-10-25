@@ -321,6 +321,115 @@ class ZincWebView(QWebEngineView):
 
         if not u or u.startswith("zephyrium://") or u.startswith("zinc://") or u.startswith("about:"):
             return
+
+        # Website theme preference and PiP video overlay injection
+        try:
+            from config import load_settings
+            s = load_settings()
+            ws_theme = s.get("website_theme", "light")
+            if ws_theme in ["light", "dark"]:
+                theme_js = f"""
+                (function() {{
+                    let meta = document.querySelector('meta[name="color-scheme"]');
+                    if (!meta) {{
+                        meta = document.createElement('meta');
+                        meta.name = 'color-scheme';
+                        document.head.appendChild(meta);
+                    }}
+                    meta.content = '{ws_theme}';
+                }})();
+                """
+                self.page().runJavaScript(theme_js)
+
+            pip_overlay_js = """
+            (function() {
+                function setupVideoPiP(video) {
+                    if (video.__pip_btn_attached) return;
+                    video.__pip_btn_attached = true;
+
+                    const btn = document.createElement('button');
+                    btn.innerHTML = '⧉ PiP';
+                    btn.title = 'Picture-in-Picture';
+                    btn.style.cssText = `
+                        position: absolute;
+                        top: 10px;
+                        right: 10px;
+                        z-index: 2147483647;
+                        background: rgba(24, 24, 27, 0.85);
+                        color: #fe8019;
+                        border: 1px solid #fe8019;
+                        border-radius: 0px;
+                        padding: 3px 7px;
+                        font-size: 11px;
+                        font-family: monospace;
+                        font-weight: bold;
+                        cursor: pointer;
+                        opacity: 0;
+                        transition: opacity 0.2s ease;
+                        pointer-events: auto;
+                    `;
+
+                    const parent = video.parentElement;
+                    if (parent) {
+                        const computed = window.getComputedStyle(parent);
+                        if (computed.position === 'static') {
+                            parent.style.position = 'relative';
+                        }
+                        parent.appendChild(btn);
+
+                        const showBtn = () => { btn.style.opacity = '0.9'; };
+                        const hideBtn = () => { btn.style.opacity = '0'; };
+
+                        parent.addEventListener('mouseenter', showBtn);
+                        parent.addEventListener('mouseleave', hideBtn);
+                        video.addEventListener('mouseenter', showBtn);
+                        video.addEventListener('mouseleave', hideBtn);
+                        btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+                    }
+
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        try {
+                            video.disablePictureInPicture = false;
+                            if (document.pictureInPictureElement) {
+                                await document.exitPictureInPicture();
+                            } else if (video.requestPictureInPicture) {
+                                await video.requestPictureInPicture();
+                            }
+                        } catch(err) {
+                            console.error('PiP Error:', err);
+                        }
+                    });
+                }
+
+                function findVideos(root = document) {
+                    let list = Array.from(root.querySelectorAll('video'));
+                    try {
+                        root.querySelectorAll('*').forEach(el => {
+                            if (el.shadowRoot) {
+                                list = list.concat(findVideos(el.shadowRoot));
+                            }
+                        });
+                    } catch(e) {}
+                    return list;
+                }
+
+                function scanVideos() {
+                    findVideos().forEach(setupVideoPiP);
+                }
+
+                scanVideos();
+                const observer = new MutationObserver(scanVideos);
+                if (document.body) {
+                    observer.observe(document.body, { childList: true, subtree: true });
+                }
+            })();
+            """
+            self.page().runJavaScript(pip_overlay_js)
+        except Exception as e:
+            print(f"[Theme/PiP Injection Error] {e}")
+
         try:
             from core.password_autofill import PasswordAutofillManager
             matches = PasswordAutofillManager.get_matches_for_url(u)
@@ -376,7 +485,23 @@ class ZincWebView(QWebEngineView):
         th = s.get("theme", "dark")
         acc = s.get("accent_color", "#fe8019")
         lang = s.get("language", "ru")
-        self.page().setBackgroundColor(QColor("#18181b" if th == "dark" else "#f8fafc"))
+        ws_th = s.get("website_theme", "light")
+
+        is_internal = (url_clean.startswith("zephyrium://") or
+                       url_clean.startswith("zinc://") or
+                       url_clean.startswith("about:") or
+                       "startpage.html" in url_clean or
+                       "settings.html" in url_clean or
+                       "history.html" in url_clean or
+                       "downloads.html" in url_clean)
+
+        if is_internal:
+            self.page().setBackgroundColor(QColor("#18181b" if th == "dark" else "#ffffff"))
+        else:
+            if ws_th == "dark":
+                self.page().setBackgroundColor(QColor("#121212"))
+            else:
+                self.page().setBackgroundColor(QColor("#ffffff"))
 
         if url_clean in ["zephyrium://startpage", "zinc://startpage", "about:blank"]:
             self.load(QUrl("zephyrium://startpage"))
@@ -553,7 +678,15 @@ class ZincWebView(QWebEngineView):
                         win.set_tab_orientation(val)
                 elif key == "sidebar_width":
                     if hasattr(win, "tab_manager") and hasattr(win.tab_manager, "sidebar"):
-                        win.tab_manager.sidebar.setFixedWidth(s.get("sidebar_width", 240))
+                        sb = win.tab_manager.sidebar
+                        try:
+                            val = int(s.get("sidebar_width", 240))
+                            if hasattr(sb, "set_expanded_width"):
+                                sb.set_expanded_width(val)
+                            elif not getattr(sb, "is_compact", False):
+                                sb.setFixedWidth(val)
+                        except Exception:
+                            pass
                 elif key == "adblock_enabled":
                     if hasattr(win, "adblocker"):
                         win.adblocker.enabled = s.get("adblock_enabled", True)
@@ -605,6 +738,10 @@ class ZincWebView(QWebEngineView):
                 s["ai_persona"] = params["ai_persona"][0]
             if "restore_session" in params:
                 s["restore_session"] = params["restore_session"][0].lower() in ["true", "1"]
+            if "website_theme" in params:
+                s["website_theme"] = params["website_theme"][0]
+            if "new_tab_url" in params:
+                s["new_tab_url"] = params["new_tab_url"][0]
 
             save_settings(s)
 
@@ -813,13 +950,26 @@ class ZincWebView(QWebEngineView):
         js = """
         (async function() {
             try {
-                const video = document.querySelector('video');
+                function findVideos(root = document) {
+                    let list = Array.from(root.querySelectorAll('video'));
+                    try {
+                        root.querySelectorAll('*').forEach(el => {
+                            if (el.shadowRoot) {
+                                list = list.concat(findVideos(el.shadowRoot));
+                            }
+                        });
+                    } catch(e) {}
+                    return list;
+                }
+                const videos = findVideos();
+                let video = videos.find(v => !v.paused && v.currentTime > 0) || videos[0];
                 if (!video) return 'no_video';
+                video.disablePictureInPicture = false;
                 if (document.pictureInPictureElement) {
                     await document.exitPictureInPicture();
                     return 'exited';
                 }
-                if (document.pictureInPictureEnabled) {
+                if (video.requestPictureInPicture) {
                     await video.requestPictureInPicture();
                     return 'entered';
                 }
@@ -981,7 +1131,7 @@ class ZincWebView(QWebEngineView):
 
     def _copy_as_curl(self) -> None:
         u = self.url().toString()
-        curl_cmd = f"curl -sL '{u}' -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Zephyrium/1.1.0'"
+        curl_cmd = f"curl -sL '{u}' -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Zephyrium/1.2.0'"
         from_pyqt_clipboard(curl_cmd)
 
     def _inspect_element(self) -> None:

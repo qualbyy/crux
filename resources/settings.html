@@ -570,9 +570,17 @@
                     <div class="form-row">
                         <div class="label-wrap">
                             <span class="label-title" data-i18n="lbl_homepage">Homepage URL</span>
-                            <span class="label-desc" data-i18n="desc_homepage">URL opened in new tabs and on startup.</span>
+                            <span class="label-desc" data-i18n="desc_homepage">URL opened on startup.</span>
                         </div>
                         <input type="text" id="setting-homepage" value="zephyrium://startpage" style="width: 280px;">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_new_tab_url">New Tab URL</span>
+                            <span class="label-desc" data-i18n="desc_new_tab_url">URL opened when opening a new tab.</span>
+                        </div>
+                        <input type="text" id="setting-new-tab-url" value="zephyrium://startpage" style="width: 280px;">
                     </div>
 
                     <div class="form-row">
@@ -615,6 +623,18 @@
                         <select id="setting-theme" style="width: 200px;" onchange="applySettingLive('theme', this.value)">
                             <option value="dark" data-i18n="opt_theme_dark">Minimal Dark (Zinc 900)</option>
                             <option value="light" data-i18n="opt_theme_light">Clean Paper Light</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_website_theme">Website Theme</span>
+                            <span class="label-desc" data-i18n="desc_website_theme">Theme style for visited websites (prefers-color-scheme).</span>
+                        </div>
+                        <select id="setting-website-theme" style="width: 200px;" onchange="applySettingLive('website_theme', this.value)">
+                            <option value="light" data-i18n="opt_ws_light">Clean Light (Default)</option>
+                            <option value="dark" data-i18n="opt_ws_dark">Dark Mode</option>
+                            <option value="system" data-i18n="opt_ws_system">Follow System</option>
                         </select>
                     </div>
 
@@ -974,9 +994,9 @@
                             Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
                         </p>
                         <p>
-                            <span data-i18n="about_version">Version:</span> <strong>1.0.0 (Release)</strong><br>
+                            <span data-i18n="about_version">Version:</span> <strong>1.2.0 (Release)</strong><br>
                             <span data-i18n="about_engine">Engine:</span> <strong>Chromium // Qt6WebEngine</strong><br>
-                            <span data-i18n="about_arch">Architecture:</span> <strong>x86_64 Linux</strong>
+                            <span data-i18n="about_arch">Architecture:</span> <strong>x86_64 Desktop</strong>
                         </p>
                         <div style="display: flex; gap: 12px; margin-top: 12px;">
                             <button type="button" class="btn-action" onclick="openExternalUrl('https://github.com/qualbyy/zephyrium')" data-i18n="btn_github">GITHUB</button>
@@ -1109,7 +1129,9 @@
                 lbl_language: "Язык интерфейса",
                 desc_language: "Язык адресной строки, меню, AI-ассистента и настроек.",
                 lbl_homepage: "Домашняя страница",
-                desc_homepage: "URL-адрес, открываемый в новых вкладках и при запуске.",
+                desc_homepage: "URL-адрес, открываемый при запуске браузера.",
+                lbl_new_tab_url: "Страница новой вкладки",
+                desc_new_tab_url: "URL-адрес, открываемый при создании новой вкладки.",
                 lbl_search_engine: "Поисковая система по умолчанию",
                 desc_search_engine: "Поисковый провайдер при вводе запросов в адресную строку.",
                 lbl_restore_session: "Восстановление сессии",
@@ -1122,6 +1144,11 @@
                 desc_color_theme: "Темная палитра или светлая бумага (Clean Paper Light).",
                 opt_theme_dark: "Minimal Dark (Zinc 900)",
                 opt_theme_light: "Clean Paper Light",
+                lbl_website_theme: "Тема веб-сайтов",
+                desc_website_theme: "Тема оформления открываемых страниц (prefers-color-scheme).",
+                opt_ws_light: "Светлая (по умолчанию)",
+                opt_ws_dark: "Темная тема",
+                opt_ws_system: "Системная",
                 lbl_accent: "Ключевой акцентный цвет",
                 desc_accent: "Основной цвет подсветки активных элементов, вкладок и рамок.",
                 lbl_ui_mode: "Режим интерфейса",
@@ -1236,7 +1263,9 @@
                 lbl_language: "Display Language",
                 desc_language: "Interface language for omnibar, menus, AI assistant, and settings.",
                 lbl_homepage: "Homepage URL",
-                desc_homepage: "URL opened in new tabs and on startup.",
+                desc_homepage: "URL opened on browser launch.",
+                lbl_new_tab_url: "New Tab Page",
+                desc_new_tab_url: "URL opened when creating a new tab.",
                 lbl_search_engine: "Default Search Engine",
                 desc_search_engine: "Search provider when queries are entered in the omnibar.",
                 lbl_restore_session: "Restore Session",
@@ -1249,6 +1278,11 @@
                 desc_color_theme: "Choose between Minimal Dark or Clean Paper Light.",
                 opt_theme_dark: "Minimal Dark (Zinc 900)",
                 opt_theme_light: "Clean Paper Light",
+                lbl_website_theme: "Website Theme",
+                desc_website_theme: "Color scheme for visited web pages (prefers-color-scheme).",
+                opt_ws_light: "Clean Light (Default)",
+                opt_ws_dark: "Dark Mode",
+                opt_ws_system: "Follow System",
                 lbl_accent: "Primary Accent Color",
                 desc_accent: "Highlight color for active tabs, borders, and focused elements.",
                 lbl_ui_mode: "UI Layout Mode",
@@ -1696,10 +1730,12 @@
             applyLanguage(lang);
 
             if (s.homepage) document.getElementById('setting-homepage').value = s.homepage;
+            if (s.new_tab_url) document.getElementById('setting-new-tab-url').value = s.new_tab_url;
             if (s.theme) {
                 document.getElementById('setting-theme').value = s.theme;
                 applyPreviewTheme(s.theme);
             }
+            if (s.website_theme) document.getElementById('setting-website-theme').value = s.website_theme;
             if (s.accent_color) {
                 document.getElementById('setting-accent').value = s.accent_color;
                 document.documentElement.style.setProperty('--accent', s.accent_color);
@@ -1750,7 +1786,9 @@
             const params = new URLSearchParams();
             params.set('language', lang);
             params.set('homepage', document.getElementById('setting-homepage').value);
+            params.set('new_tab_url', document.getElementById('setting-new-tab-url').value);
             params.set('theme', theme);
+            params.set('website_theme', document.getElementById('setting-website-theme').value);
             params.set('accent_color', accent);
             params.set('ui_mode', document.getElementById('setting-ui-mode').value);
             params.set('tab_orientation', document.getElementById('setting-tab-orientation').value);

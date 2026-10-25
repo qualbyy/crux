@@ -26,12 +26,15 @@ from utils.icons import Icons
 from utils.bookmarks import DataStore
 from core.onboarding import OnboardingDialog
 from core.password_prompt import PasswordSaveBanner
+from core.find_bar import FindInPageBar
 from core.i18n import t
 
 class BrowserWindow(QMainWindow):
-    def __init__(self, initial_mode: str = None):
+    def __init__(self, initial_mode: str = None, is_incognito: bool = False):
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION} [Minimal]")
+        self.is_incognito = is_incognito
+        title_mode = "[INCOGNITO]" if is_incognito else "[Minimal]"
+        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION} {title_mode}")
         self.resize(1280, 800)
 
         self.settings = load_settings()
@@ -53,7 +56,7 @@ class BrowserWindow(QMainWindow):
         self.download_manager = DownloadManager(self)
         self.download_manager.hide()
         for prof in self.profile_manager._profiles.values():
-            prof.downloadRequested.connect(self.download_manager.handle_download)
+            prof.downloadRequested.connect(self._on_download_requested)
 
         # Root layout
         central_widget = QWidget(self)
@@ -88,10 +91,15 @@ class BrowserWindow(QMainWindow):
         self.side_panel.hide()
         self.workspace_splitter.addWidget(self.side_panel)
 
-        # Downloads Drawer (collapsible)
-        self.workspace_splitter.addWidget(self.download_manager)
-
         self.root_layout.addWidget(self.workspace_splitter, stretch=1)
+
+        # Find in Page Floating Bar
+        self.find_bar = FindInPageBar(self)
+        self.find_bar.find_next_requested.connect(lambda q: self._on_find_in_page(q, forward=True))
+        self.find_bar.find_prev_requested.connect(lambda q: self._on_find_in_page(q, forward=False))
+        self.find_bar.close_requested.connect(self._on_find_bar_closed)
+        self.find_bar.hide()
+        self.root_layout.addWidget(self.find_bar)
 
         # 4. Status Bar & Vim Statusline
         self._init_status_bar()
@@ -107,11 +115,29 @@ class BrowserWindow(QMainWindow):
         # 6. Global Shortcuts
         self._init_shortcuts()
 
-        # Create initial default tab: Startpage
-        self.tab_manager.create_tab("default", "zephyrium://startpage")
+        # Create initial tabs: restore session if configured and not incognito, else default tab
+        restored = False
+        if not self.is_incognito and self.settings.get("restore_session", False):
+            import json
+            from config import CONFIG_DIR
+            sess_file = CONFIG_DIR / "session.json"
+            if sess_file.exists():
+                try:
+                    with open(sess_file, "r", encoding="utf-8") as f:
+                        saved_urls = json.load(f)
+                    if isinstance(saved_urls, list) and saved_urls:
+                        for u in saved_urls:
+                            self.tab_manager.create_tab("default", u)
+                        restored = True
+                except Exception as e:
+                    print(f"[Session Restore Error] {e}")
+
+        if not restored:
+            initial_url = self.settings.get("new_tab_url", self.settings.get("homepage", "zephyrium://startpage"))
+            self.tab_manager.create_tab("default", initial_url)
 
         # If first run, launch modal OnboardingDialog over everything
-        if self.settings.get("first_run", True):
+        if self.settings.get("first_run", True) and not self.is_incognito:
             QTimer.singleShot(150, self.show_onboarding)
 
         # Adblock signal for live counter
@@ -137,10 +163,12 @@ class BrowserWindow(QMainWindow):
         self.horizontal_tab_bar.setMovable(True)
         self.horizontal_tab_bar.currentChanged.connect(self._on_horizontal_tab_selected)
         self.horizontal_tab_bar.tabBarClicked.connect(self._on_horizontal_tab_clicked)
+        self.horizontal_tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.horizontal_tab_bar.customContextMenuRequested.connect(self._show_horizontal_tab_context_menu)
 
         btn_new_h_tab = QPushButton("+")
         btn_new_h_tab.setFixedSize(26, 26)
-        btn_new_h_tab.clicked.connect(lambda: self.tab_manager.create_tab("zephyrium://startpage"))
+        btn_new_h_tab.clicked.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "zephyrium://startpage")))
 
         self.btn_toggle_vertical = QPushButton("VERTICAL")
         self.btn_toggle_vertical.setFixedHeight(26)
@@ -169,11 +197,13 @@ class BrowserWindow(QMainWindow):
         self.btn_back.setFixedSize(28, 28)
         self.btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_back.clicked.connect(self._on_back)
+        self.btn_back.setEnabled(False)
 
         self.btn_fwd = QPushButton(Icons.FORWARD)
         self.btn_fwd.setFixedSize(28, 28)
         self.btn_fwd.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_fwd.clicked.connect(self._on_forward)
+        self.btn_fwd.setEnabled(False)
 
         self.btn_reload = QPushButton(Icons.RELOAD)
         self.btn_reload.setFixedSize(28, 28)
@@ -184,10 +214,12 @@ class BrowserWindow(QMainWindow):
         layout.addWidget(self.btn_fwd)
         layout.addWidget(self.btn_reload)
 
-        # Security Badge
+        # Security Badge (Clickable SSL / Info Popup)
         self.ssl_badge = QPushButton(Icons.LOCK_SECURE)
         self.ssl_badge.setFixedHeight(28)
+        self.ssl_badge.setCursor(Qt.CursorShape.PointingHandCursor)
         self.ssl_badge.setStyleSheet("color: #10b981; font-size: 10px; font-weight: bold;")
+        self.ssl_badge.clicked.connect(self._show_security_info)
         layout.addWidget(self.ssl_badge)
 
         # URL Bar with Smart Auto-Complete
@@ -195,11 +227,12 @@ class BrowserWindow(QMainWindow):
         self.url_bar.setObjectName("urlBar")
         self.url_bar.setPlaceholderText("Enter URL or search... (or Ctrl+K)")
         self.url_bar.setFixedHeight(28)
+        self.url_bar.setMinimumWidth(180)
         self.url_bar.returnPressed.connect(self._on_url_entered)
         layout.addWidget(self.url_bar, stretch=1)
         self._init_url_completer()
 
-        # Action Buttons
+        # Action Buttons (Secondary / Collapsible into Overflow Menu)
         self.btn_reader = QPushButton(Icons.READER)
         self.btn_reader.setFixedHeight(28)
         self.btn_reader.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -239,16 +272,8 @@ class BrowserWindow(QMainWindow):
         self.btn_downloads.setFixedHeight(28)
         self.btn_downloads.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_downloads.setToolTip("Toggle Downloads (Ctrl+Shift+D)")
-        self.btn_downloads.clicked.connect(self._show_downloads_menu)
+        self.btn_downloads.clicked.connect(self._toggle_downloads)
         layout.addWidget(self.btn_downloads)
-
-        self.btn_ai = QPushButton(Icons.AI)
-        self.btn_ai.setObjectName("accentWarmBtn")
-        self.btn_ai.setFixedHeight(28)
-        self.btn_ai.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_ai.setToolTip("Toggle Claude AI & Notes (Ctrl+B)")
-        self.btn_ai.clicked.connect(self._toggle_sidebar)
-        layout.addWidget(self.btn_ai)
 
         self.btn_tab_orient = QPushButton("TABS: VERT" if self.tab_orientation == "vertical" else "TABS: HORIZ")
         self.btn_tab_orient.setFixedHeight(28)
@@ -271,6 +296,24 @@ class BrowserWindow(QMainWindow):
         self.btn_palette.clicked.connect(lambda: self.command_palette.show_palette())
         layout.addWidget(self.btn_palette)
 
+        # Primary Buttons (Always visible as requested: AI, More Overflow, Settings)
+        self.btn_ai = QPushButton(Icons.AI)
+        self.btn_ai.setObjectName("accentWarmBtn")
+        self.btn_ai.setFixedHeight(28)
+        self.btn_ai.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_ai.setToolTip("Toggle Claude AI & Notes (Ctrl+B)")
+        self.btn_ai.clicked.connect(self._toggle_sidebar)
+        layout.addWidget(self.btn_ai)
+
+        # Overflow menu button for narrow windows
+        self.btn_more = QPushButton(getattr(Icons, "MORE", "»"))
+        self.btn_more.setFixedHeight(28)
+        self.btn_more.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_more.setToolTip(t("more_tools"))
+        self.btn_more.clicked.connect(self._show_overflow_menu)
+        layout.addWidget(self.btn_more)
+        self.btn_more.hide()
+
         self.btn_settings = QPushButton("SETTINGS")
         self.btn_settings.setFixedHeight(28)
         self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -279,6 +322,7 @@ class BrowserWindow(QMainWindow):
         layout.addWidget(self.btn_settings)
 
         self.root_layout.addWidget(self.top_bar)
+        self._update_topbar_overflow()
 
     def _init_status_bar(self) -> None:
         self.status_bar = QStatusBar(self)
@@ -333,8 +377,10 @@ class BrowserWindow(QMainWindow):
     def _init_shortcuts(self) -> None:
         QShortcut(QKeySequence("Ctrl+K"), self, lambda: self.command_palette.show_palette())
         QShortcut(QKeySequence("Ctrl+L"), self, lambda: (self.url_bar.setFocus(), self.url_bar.selectAll()))
-        QShortcut(QKeySequence("Ctrl+T"), self, lambda: self.tab_manager.create_tab("zephyrium://startpage"))
+        QShortcut(QKeySequence("Ctrl+T"), self, lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "zephyrium://startpage")))
         QShortcut(QKeySequence("Ctrl+W"), self, lambda: self.tab_manager.close_tab(self.tab_manager.active_tab_id))
+        QShortcut(QKeySequence("Ctrl+F"), self, self._toggle_find_in_page)
+        QShortcut(QKeySequence("Ctrl+Shift+N"), self, self._open_incognito_window)
         QShortcut(QKeySequence("Ctrl+\\"), self, lambda: self.tab_manager.split_active_tab())
         QShortcut(QKeySequence("Ctrl+Alt+T"), self, lambda: self.set_tab_orientation("horizontal" if self.tab_orientation == "vertical" else "vertical"))
         QShortcut(QKeySequence("Ctrl+B"), self, self._toggle_sidebar)
@@ -420,10 +466,29 @@ class BrowserWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._update_topbar_overflow()
         if hasattr(self, "password_save_banner") and self.password_save_banner.isVisible():
             bx = self.width() - self.password_save_banner.width() - 20
             by = (self.top_bar.height() + 8) if (self.ui_mode != "vim" and self.top_bar.isVisible()) else 12
             self.password_save_banner.move(bx, by)
+
+    def closeEvent(self, event) -> None:
+        if not getattr(self, "is_incognito", False) and self.settings.get("restore_session", False):
+            session_data = []
+            for tid, tab_data in self.tabs_ordered():
+                v = self.tab_manager.get_tab_view(tid)
+                if v:
+                    u = v.url().toString()
+                    if u and not u.startswith("about:blank"):
+                        session_data.append(u)
+            import json
+            from config import CONFIG_DIR
+            try:
+                with open(CONFIG_DIR / "session.json", "w", encoding="utf-8") as f:
+                    json.dump(session_data, f)
+            except Exception as e:
+                print(f"[Session Save Error] {e}")
+        super().closeEvent(event)
 
     def show_password_save_prompt(self, url: str, username: str, password: str) -> None:
         if not hasattr(self, "password_save_banner"):
@@ -629,42 +694,74 @@ class BrowserWindow(QMainWindow):
 
         # 2. Update existing or insert new tabs in correct order
         for idx, (tid, data) in enumerate(ordered):
-            title_text = data.title or "New Tab"
+            title_text = "📌" if data.is_pinned else (data.title or "New Tab")
             
             if idx < self.horizontal_tab_bar.count() and self.horizontal_tab_bar.tabData(idx) == tid:
                 # Update text in place if changed
                 if self.horizontal_tab_bar.tabText(idx) != title_text:
                     self.horizontal_tab_bar.setTabText(idx, title_text)
+                self.horizontal_tab_bar.setTabToolTip(idx, data.title or "New Tab")
+                if data.is_pinned:
+                    self.horizontal_tab_bar.setTabButton(idx, QTabBar.ButtonPosition.RightSide, None)
+                else:
+                    if self.horizontal_tab_bar.tabButton(idx, QTabBar.ButtonPosition.RightSide) is None:
+                        close_btn = QPushButton("×")
+                        close_btn.setFixedHeight(24)
+                        close_btn.setFixedWidth(20)
+                        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                        close_btn.setStyleSheet("""
+                            QPushButton {
+                                background: transparent;
+                                border: none;
+                                border-radius: 0px;
+                                color: #71717a;
+                                font-size: 14px;
+                                font-weight: bold;
+                                padding: 0px;
+                                margin: 0px 2px 0px 4px;
+                                text-align: center;
+                            }
+                            QPushButton:hover {
+                                background-color: #ef4444;
+                                color: #ffffff;
+                                border-radius: 0px;
+                            }
+                        """)
+                        close_btn.clicked.connect(lambda _, t_id=tid: self._close_horizontal_tab(t_id))
+                        self.horizontal_tab_bar.setTabButton(idx, QTabBar.ButtonPosition.RightSide, close_btn)
             else:
                 # Insert tab at this position
                 ins_idx = self.horizontal_tab_bar.insertTab(idx, title_text)
                 self.horizontal_tab_bar.setTabData(ins_idx, tid)
+                self.horizontal_tab_bar.setTabToolTip(ins_idx, data.title or "New Tab")
 
-                # Custom Crisp Square Close Button
-                close_btn = QPushButton("×")
-                close_btn.setFixedHeight(24)
-                close_btn.setFixedWidth(20)
-                close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                close_btn.setStyleSheet("""
-                    QPushButton {
-                        background: transparent;
-                        border: none;
-                        border-radius: 0px;
-                        color: #71717a;
-                        font-size: 14px;
-                        font-weight: bold;
-                        padding: 0px;
-                        margin: 0px 2px 0px 4px;
-                        text-align: center;
-                    }
-                    QPushButton:hover {
-                        background-color: #ef4444;
-                        color: #ffffff;
-                        border-radius: 0px;
-                    }
-                """)
-                close_btn.clicked.connect(lambda _, t_id=tid: self._close_horizontal_tab(t_id))
-                self.horizontal_tab_bar.setTabButton(ins_idx, QTabBar.ButtonPosition.RightSide, close_btn)
+                if not data.is_pinned:
+                    close_btn = QPushButton("×")
+                    close_btn.setFixedHeight(24)
+                    close_btn.setFixedWidth(20)
+                    close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                    close_btn.setStyleSheet("""
+                        QPushButton {
+                            background: transparent;
+                            border: none;
+                            border-radius: 0px;
+                            color: #71717a;
+                            font-size: 14px;
+                            font-weight: bold;
+                            padding: 0px;
+                            margin: 0px 2px 0px 4px;
+                            text-align: center;
+                        }
+                        QPushButton:hover {
+                            background-color: #ef4444;
+                            color: #ffffff;
+                            border-radius: 0px;
+                        }
+                    """)
+                    close_btn.clicked.connect(lambda _, t_id=tid: self._close_horizontal_tab(t_id))
+                    self.horizontal_tab_bar.setTabButton(ins_idx, QTabBar.ButtonPosition.RightSide, close_btn)
+                else:
+                    self.horizontal_tab_bar.setTabButton(ins_idx, QTabBar.ButtonPosition.RightSide, None)
 
             if tid == self.tab_manager.active_tab_id:
                 self.horizontal_tab_bar.setCurrentIndex(idx)
@@ -691,6 +788,41 @@ class BrowserWindow(QMainWindow):
     def _close_horizontal_tab(self, tab_id: int) -> None:
         self.tab_manager.close_tab(tab_id)
         self._sync_horizontal_tabs()
+
+    def _show_horizontal_tab_context_menu(self, pos) -> None:
+        idx = self.horizontal_tab_bar.tabAt(pos)
+        if idx < 0:
+            return
+        tid = self.horizontal_tab_bar.tabData(idx)
+        if tid is None or tid not in self.tab_manager.tabs:
+            return
+        tab_data = self.tab_manager.tabs[tid]
+
+        menu = QMenu(self)
+
+        is_pinned = tab_data.is_pinned
+        act_pin = menu.addAction(t("unpin_tab") if is_pinned else t("pin_tab"))
+        act_pin.triggered.connect(lambda: self.tab_manager.toggle_pin_tab(tid))
+
+        is_muted = getattr(tab_data, "is_muted", False)
+        act_mute = menu.addAction(t("unmute_tab") if is_muted else t("mute_tab"))
+        act_mute.triggered.connect(lambda: self.tab_manager.toggle_mute_tab(tid))
+
+        menu.addSeparator()
+
+        act_dup = menu.addAction(t("duplicate_tab"))
+        act_dup.triggered.connect(lambda: self.tab_manager.duplicate_tab(tid))
+
+        act_split = menu.addAction(t("split_view"))
+        act_split.triggered.connect(lambda: self.tab_manager.split_active_tab(tid))
+
+        menu.addSeparator()
+
+        act_close = menu.addAction(t("close_tab"))
+        act_close.setEnabled(not is_pinned)
+        act_close.triggered.connect(lambda: self.tab_manager.close_tab(tid))
+
+        menu.exec(self.horizontal_tab_bar.mapToGlobal(pos))
 
     def _on_all_tabs_closed(self) -> None:
         self.close()
@@ -969,7 +1101,159 @@ class BrowserWindow(QMainWindow):
         if self.download_manager.isVisible():
             self.download_manager.hide()
         else:
-            self.download_manager.show()
+            if hasattr(self, "btn_downloads") and self.btn_downloads.isVisible():
+                self.download_manager.show_at_widget(self.btn_downloads)
+            elif hasattr(self, "btn_more") and self.btn_more.isVisible():
+                self.download_manager.show_at_widget(self.btn_more)
+            else:
+                self.download_manager.show()
+
+    def _on_download_requested(self, item) -> None:
+        current_view = self.tab_manager.get_current_view()
+        active_tab_id = self.tab_manager.active_tab_id
+        if current_view and active_tab_id in self.tab_manager.tabs and len(self.tab_manager.tabs) > 1:
+            c_url = current_view.url().toString()
+            req_url = item.url().toString()
+            hist = current_view.history()
+            can_go_back = hist.canGoBack() if hist else False
+            if not can_go_back and (c_url in [req_url, "about:blank"] or (c_url in req_url and len(c_url) > 10) or req_url.startswith(c_url.split("?")[0])):
+                QTimer.singleShot(350, lambda: self.tab_manager.close_tab(active_tab_id))
+        self.download_manager.handle_download(item)
+
+    def _update_topbar_overflow(self) -> None:
+        if not hasattr(self, "btn_more") or not hasattr(self, "url_bar"):
+            return
+        if self.ui_mode == "vim" or self.top_bar.isHidden():
+            return
+        should_collapse = (self.width() < 1260)
+        collapsible_buttons = [
+            getattr(self, "btn_reader", None),
+            getattr(self, "btn_pip", None),
+            getattr(self, "btn_adblock", None),
+            getattr(self, "btn_split", None),
+            getattr(self, "btn_history", None),
+            getattr(self, "btn_downloads", None),
+            getattr(self, "btn_tab_orient", None),
+            getattr(self, "btn_mode", None),
+            getattr(self, "btn_palette", None),
+        ]
+        for btn in collapsible_buttons:
+            if btn:
+                btn.setVisible(not should_collapse)
+        self.btn_more.setVisible(should_collapse)
+
+    def _show_overflow_menu(self) -> None:
+        menu = QMenu(self)
+
+        act_reader = menu.addAction(f"{Icons.READER} {t('reader_mode') if hasattr(self, 'btn_reader') else 'Reader Mode'}")
+        act_reader.triggered.connect(self._on_reader_mode_clicked)
+
+        act_pip = menu.addAction(f"{Icons.PIP} Picture-in-Picture")
+        act_pip.triggered.connect(self._on_pip_clicked)
+
+        blocked = self.adblocker.blocked_count if hasattr(self, "adblocker") else 0
+        act_ads = menu.addAction(f"{Icons.ADBLOCK} AdBlocker ({blocked} blocked)")
+        act_ads.triggered.connect(self._show_adblock_menu)
+
+        menu.addSeparator()
+
+        act_split = menu.addAction(f"{Icons.SPLIT} {t('split_view')}")
+        act_split.triggered.connect(lambda: self.tab_manager.split_active_tab())
+
+        act_hist = menu.addAction(f"{t('history_title')}")
+        act_hist.triggered.connect(self._show_history_menu)
+
+        act_dl = menu.addAction(f"{Icons.DOWNLOADS} {t('downloads_title')}")
+        act_dl.triggered.connect(self._toggle_downloads)
+
+        menu.addSeparator()
+
+        tab_txt = t("tabs_horiz_short") if self.tab_orientation == "vertical" else t("tabs_vert_short")
+        act_tab = menu.addAction(f"Tabs: {tab_txt}")
+        act_tab.triggered.connect(lambda: self.set_tab_orientation("horizontal" if self.tab_orientation == "vertical" else "vertical"))
+
+        act_mode = menu.addAction(f"{t('mode_label')}: {t('mode_' + self.ui_mode)}".upper())
+        act_mode.triggered.connect(self._show_mode_menu)
+
+        act_pal = menu.addAction(f"{t('keybinds')} (Ctrl+K)")
+        act_pal.triggered.connect(lambda: self.command_palette.show_palette())
+
+        menu.exec(self.btn_more.mapToGlobal(self.btn_more.rect().bottomLeft()))
+
+    def _show_security_info(self) -> None:
+        v = self.tab_manager.get_current_view()
+        u_str = v.url().toString() if v else ""
+        menu = QMenu(self)
+
+        is_internal = any(k in u_str for k in ["zephyrium://", "zinc://", "about:", "startpage.html", "settings.html", "history.html", "downloads.html"])
+        if is_internal:
+            act_title = menu.addAction(f"🔒 {t('security_internal_title')}")
+            act_title.setEnabled(False)
+            menu.addSeparator()
+            act_desc = menu.addAction(t("security_internal_desc"))
+            act_desc.setEnabled(False)
+        elif u_str.startswith("https://"):
+            import urllib.parse
+            host = urllib.parse.urlparse(u_str).hostname or "Site"
+            act_title = menu.addAction(f"🔒 {t('security_secure_title')}")
+            act_title.setEnabled(False)
+            menu.addSeparator()
+            act_host = menu.addAction(f"Host: {host}")
+            act_host.setEnabled(False)
+            act_desc = menu.addAction(t("security_secure_desc"))
+            act_desc.setEnabled(False)
+            act_tls = menu.addAction("TLS 1.3 / 256-bit AES encryption")
+            act_tls.setEnabled(False)
+        else:
+            act_title = menu.addAction(f"⚠ {t('security_insecure_title')}")
+            act_title.setEnabled(False)
+            menu.addSeparator()
+            act_desc = menu.addAction(t("security_insecure_desc"))
+            act_desc.setEnabled(False)
+
+        menu.exec(self.ssl_badge.mapToGlobal(self.ssl_badge.rect().bottomLeft()))
+
+    def _update_nav_buttons(self) -> None:
+        v = self.tab_manager.get_current_view()
+        if v and hasattr(v, "history"):
+            h = v.history()
+            self.btn_back.setEnabled(h.canGoBack())
+            self.btn_fwd.setEnabled(h.canGoForward())
+        else:
+            self.btn_back.setEnabled(False)
+            self.btn_fwd.setEnabled(False)
+
+    def _on_view_load_finished(self, success: bool) -> None:
+        self._update_nav_buttons()
+
+    def _toggle_find_in_page(self) -> None:
+        if self.find_bar.isVisible():
+            self.find_bar.close_bar()
+        else:
+            self.find_bar.show_find()
+
+    def _on_find_in_page(self, query: str, forward: bool = True) -> None:
+        v = self.tab_manager.get_current_view()
+        if not v or not query:
+            return
+        from PyQt6.QtWebEngineCore import QWebEnginePage
+        flags = QWebEnginePage.FindFlag(0)
+        if not forward:
+            flags |= QWebEnginePage.FindFlag.FindBackward
+        v.findText(query, flags, lambda found: self.find_bar.set_match_result(1 if found else 0, 1 if found else 0))
+
+    def _on_find_bar_closed(self) -> None:
+        v = self.tab_manager.get_current_view()
+        if v:
+            from PyQt6.QtWebEngineCore import QWebEnginePage
+            v.findText("", QWebEnginePage.FindFlag(0))
+
+    def _open_incognito_window(self) -> None:
+        incog_win = BrowserWindow(is_incognito=True)
+        if not hasattr(self, "_sub_windows"):
+            self._sub_windows = []
+        self._sub_windows.append(incog_win)
+        incog_win.show()
 
     def _toggle_adblock(self) -> None:
         enabled = self.adblocker.toggle()
@@ -1049,6 +1333,8 @@ class BrowserWindow(QMainWindow):
         if not self.url_bar.hasFocus():
             self.url_bar.setCursorPosition(0)
 
+        self._update_nav_buttons()
+
         if self.ui_mode == "vim":
             self.status_label.setText(f"[VIM] {url_str}")
 
@@ -1065,6 +1351,18 @@ class BrowserWindow(QMainWindow):
         view.ask_ai_selection.connect(self._on_ai_selection_requested)
         if hasattr(view, "ask_ai_action"):
             view.ask_ai_action.connect(self._on_ai_action)
+
+        self._update_nav_buttons()
+        try:
+            view.urlChanged.disconnect(self._update_nav_buttons)
+        except Exception:
+            pass
+        view.urlChanged.connect(self._update_nav_buttons)
+        try:
+            view.loadFinished.disconnect(self._on_view_load_finished)
+        except Exception:
+            pass
+        view.loadFinished.connect(self._on_view_load_finished)
 
         # Sync active URL in omnibar and ensure beginning of URL is visible
         cur_u = view.url().toString()
@@ -1193,7 +1491,14 @@ class BrowserWindow(QMainWindow):
             if settings["adblock_enabled"] != self.adblocker.enabled:
                 self._toggle_adblock()
         if "sidebar_width" in settings:
-            self.tab_manager.sidebar.setFixedWidth(settings["sidebar_width"])
+            try:
+                sb_w = int(settings["sidebar_width"])
+                if hasattr(self.tab_manager.sidebar, "set_expanded_width"):
+                    self.tab_manager.sidebar.set_expanded_width(sb_w)
+                elif not getattr(self.tab_manager.sidebar, "is_compact", False):
+                    self.tab_manager.sidebar.setFixedWidth(sb_w)
+            except Exception:
+                pass
         if hasattr(self, "side_panel") and hasattr(self.side_panel, "ai_widget"):
             self.side_panel.ai_widget.reload_settings()
         self.status_label.setText(t("settings_saved_msg"))

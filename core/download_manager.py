@@ -128,29 +128,49 @@ class DownloadItemWidget(QFrame):
 
 class DownloadManager(QWidget):
     def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("downloadsDrawer")
-        self.setMinimumWidth(320)
-        self.setMaximumWidth(400)
+        super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.setObjectName("downloadsPopup")
+        self.setFixedWidth(360)
+        self.setMinimumHeight(180)
+        self.setMaximumHeight(420)
         self.accent = "#fe8019"
+        self.theme = "dark"
         if parent and hasattr(parent, "settings"):
             self.accent = parent.settings.get("accent_color", "#fe8019")
+            self.theme = parent.settings.get("theme", "dark")
 
+        self._init_ui()
+        self.update_style()
+
+    def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(8)
 
         # Header
         header = QHBoxLayout()
-        title = QLabel("DOWNLOADS // MANAGER")
-        title.setStyleSheet("font-size: 11px; font-weight: bold; color: #71717a; letter-spacing: 1px;")
-        
+        title = QLabel("DOWNLOADS // ACTIVE")
+        title.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {self.accent}; letter-spacing: 1px;")
+
+        self.btn_open_folder = QPushButton("FOLDER")
+        self.btn_open_folder.setFixedHeight(22)
+        self.btn_open_folder.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open_folder.clicked.connect(self._open_folder)
+
+        self.btn_clear = QPushButton("CLEAR")
+        self.btn_clear.setFixedHeight(22)
+        self.btn_clear.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_clear.clicked.connect(self._clear_completed)
+
         self.close_btn = QPushButton("×")
         self.close_btn.setFixedSize(22, 22)
+        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.close_btn.clicked.connect(self.hide)
 
         header.addWidget(title)
         header.addStretch()
+        header.addWidget(self.btn_open_folder)
+        header.addWidget(self.btn_clear)
         header.addWidget(self.close_btn)
         main_layout.addLayout(header)
 
@@ -158,21 +178,94 @@ class DownloadManager(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("background: transparent; border: none;")
-        
+
         self.items_container = QWidget()
         self.items_layout = QVBoxLayout(self.items_container)
         self.items_layout.setContentsMargins(0, 0, 0, 0)
         self.items_layout.setSpacing(6)
+
+        self.empty_label = QLabel("No active downloads")
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet("color: #71717a; font-size: 12px; padding: 20px 0;")
+        self.items_layout.addWidget(self.empty_label)
+
         self.items_layout.addStretch()
 
         self.scroll.setWidget(self.items_container)
         main_layout.addWidget(self.scroll)
 
+    def update_style(self, theme: str = None, accent: str = None) -> None:
+        if theme:
+            self.theme = theme
+        if accent:
+            self.accent = accent
+        bg = "#18181b" if self.theme == "dark" else "#ffffff"
+        border = self.accent
+        text = "#f5f5f0" if self.theme == "dark" else "#0f172a"
+        self.setStyleSheet(f"""
+            #downloadsPopup {{
+                background-color: {bg};
+                border: 1px solid {border};
+            }}
+            QPushButton {{
+                background-color: transparent;
+                border: 1px solid #3f3f46;
+                color: {text};
+                font-size: 10px;
+                padding: 2px 6px;
+            }}
+            QPushButton:hover {{
+                border-color: {self.accent};
+                color: {self.accent};
+            }}
+        """)
+
+    def _open_folder(self) -> None:
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        default_dir = str(Path.home() / "Downloads")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(default_dir))
+
+    def _clear_completed(self) -> None:
+        # Remove completed or cancelled items from view
+        to_remove = []
+        for i in range(self.items_layout.count()):
+            widget = self.items_layout.itemAt(i).widget()
+            if isinstance(widget, DownloadItemWidget):
+                state = widget.item.state()
+                if state in [QWebEngineDownloadRequest.DownloadState.DownloadCompleted,
+                             QWebEngineDownloadRequest.DownloadState.DownloadCancelled,
+                             QWebEngineDownloadRequest.DownloadState.DownloadInterrupted]:
+                    to_remove.append(widget)
+        for w in to_remove:
+            self.items_layout.removeWidget(w)
+            w.deleteLater()
+        self._check_empty()
+
+    def _check_empty(self) -> None:
+        count = sum(1 for i in range(self.items_layout.count()) if isinstance(self.items_layout.itemAt(i).widget(), DownloadItemWidget))
+        if count == 0:
+            self.empty_label.show()
+        else:
+            self.empty_label.hide()
+
+    def show_at_widget(self, target_widget: QWidget) -> None:
+        if not target_widget:
+            self.show()
+            return
+        g_pos = target_widget.mapToGlobal(target_widget.rect().bottomLeft())
+        x = g_pos.x() - (self.width() - target_widget.width())
+        y = g_pos.y() + 4
+        if x < 10:
+            x = 10
+        self.move(x, y)
+        self.show()
+        self.raise_()
+
     def handle_download(self, item: QWebEngineDownloadRequest) -> None:
-        # Prompt or use default Downloads directory
         default_dir = str(Path.home() / "Downloads")
         os.makedirs(default_dir, exist_ok=True)
-        
+
         target_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save File",
@@ -187,6 +280,14 @@ class DownloadManager(QWidget):
         item.setDownloadFileName(Path(target_path).name)
         item.accept()
 
+        self.empty_label.hide()
         widget = DownloadItemWidget(item, accent=getattr(self, "accent", "#fe8019"))
         self.items_layout.insertWidget(0, widget)
-        self.show()
+
+        parent = self.parent()
+        if parent and hasattr(parent, "btn_downloads") and parent.btn_downloads.isVisible():
+            self.show_at_widget(parent.btn_downloads)
+        elif parent and hasattr(parent, "btn_more") and parent.btn_more.isVisible():
+            self.show_at_widget(parent.btn_more)
+        else:
+            self.show()

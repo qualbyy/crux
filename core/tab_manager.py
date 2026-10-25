@@ -8,7 +8,8 @@ from typing import List, Dict, Optional
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QSize, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
-    QListWidgetItem, QLabel, QStackedWidget, QMenu, QFrame, QSizePolicy
+    QListWidgetItem, QLabel, QStackedWidget, QMenu, QFrame, QSizePolicy,
+    QAbstractItemView
 )
 from core.split_view import SplitViewContainer
 from core.web_view import ZincWebView
@@ -26,12 +27,15 @@ class TabItemData:
         self.url = ""
         self.is_suspended = False
         self.is_pinned = False
+        self.is_audible = False
+        self.is_muted = False
         self.group = ""
         self.last_active_time = time.time()
 
 
 class TabItemWidget(QWidget):
     close_clicked = pyqtSignal(int)
+    mute_clicked = pyqtSignal(int)
 
     def __init__(self, tab_data: TabItemData, parent=None):
         super().__init__(parent)
@@ -69,6 +73,23 @@ class TabItemWidget(QWidget):
         self.title_label.setStyleSheet("color: #d4d4d8; font-size: 13px; font-weight: 500; border: none; background: transparent;")
         self._layout.addWidget(self.title_label, stretch=1)
 
+        # Audio / Mute indicator button
+        self.audio_btn = QPushButton("🔊")
+        self.audio_btn.setFixedSize(18, 18)
+        self.audio_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.audio_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #fe8019;
+                font-size: 11px;
+                padding: 0;
+            }
+        """)
+        self.audio_btn.clicked.connect(lambda: self.mute_clicked.emit(self.tab_data.tab_id))
+        self.audio_btn.hide()
+        self._layout.addWidget(self.audio_btn)
+
         # Close button
         self.close_btn = QPushButton("×")
         self.close_btn.setFixedSize(20, 20)
@@ -103,6 +124,14 @@ class TabItemWidget(QWidget):
             self.indicator.setText("▪")
             self.indicator.setFixedWidth(16)
             self.close_btn.show()
+
+        if getattr(self.tab_data, "is_audible", False) or getattr(self.tab_data, "is_muted", False):
+            self.audio_btn.setText("🔇" if self.tab_data.is_muted else "🔊")
+            self.audio_btn.setStyleSheet(f"background: transparent; border: none; color: {self.accent}; font-size: 11px; padding: 0;")
+            self.audio_btn.setToolTip(t("unmute_tab") if self.tab_data.is_muted else t("mute_tab"))
+            self.audio_btn.show()
+        else:
+            self.audio_btn.hide()
 
         self.set_title(self.tab_data.title)
 
@@ -181,15 +210,62 @@ class TabItemWidget(QWidget):
             self.indicator.setFixedSize(26, 26)
             self.set_active(self.is_active)
             self.setToolTip(f"{self.tab_data.title}\n{self.tab_data.url}")
+            if getattr(self.tab_data, "is_audible", False) or getattr(self.tab_data, "is_muted", False):
+                self.indicator.hide()
+                self.audio_btn.show()
+            else:
+                self.indicator.show()
+                self.audio_btn.hide()
         else:
             self.title_label.show()
             self.close_btn.show()
+            self.indicator.show()
             self._layout.setContentsMargins(6, 2, 6, 2)
-            self._layout.setSpacing(8)
+            self._layout.setSpacing(6)
             self._layout.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             self.indicator.setFixedSize(16, 18)
             self.set_active(self.is_active)
             self.setToolTip("")
+            self.refresh_ui()
+
+
+class DraggableTabListWidget(QListWidget):
+    tab_reordered = pyqtSignal(int, int)  # from_row, to_row
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+
+    def move_tab_row(self, from_row: int, to_row: int) -> None:
+        if from_row == to_row or from_row < 0 or to_row < 0 or from_row >= self.count() or to_row >= self.count():
+            return
+        it = self.takeItem(from_row)
+        w = getattr(it, "_stored_widget", None)
+        self.insertItem(to_row, it)
+        if w:
+            self.setItemWidget(it, w)
+        self.setCurrentRow(to_row)
+
+    def dropEvent(self, event):
+        source_row = self.currentRow()
+        pos = event.position().toPoint()
+        target_item = self.itemAt(pos)
+        target_row = self.row(target_item) if target_item else (self.count() - 1)
+        if source_row >= 0 and target_row >= 0 and source_row != target_row:
+            it = self.takeItem(source_row)
+            w = getattr(it, "_stored_widget", None)
+            self.insertItem(target_row, it)
+            if w:
+                self.setItemWidget(it, w)
+            self.setCurrentRow(target_row)
+            event.accept()
+            self.tab_reordered.emit(source_row, target_row)
+        else:
+            event.ignore()
 
 
 class VerticalTabSidebar(QWidget):
@@ -200,6 +276,7 @@ class VerticalTabSidebar(QWidget):
     split_tab_requested = pyqtSignal(int)
     suspend_tab_requested = pyqtSignal(int)
     pin_tab_requested = pyqtSignal(int)
+    mute_tab_requested = pyqtSignal(int)
     set_tab_group_requested = pyqtSignal(int, str)
 
     def __init__(self, parent=None):
@@ -207,6 +284,7 @@ class VerticalTabSidebar(QWidget):
         self.setObjectName("verticalTabsPanel")
         self.setFixedWidth(240)
         self.is_compact = False
+        self.expanded_width = 240
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(8, 8, 8, 8)
@@ -256,7 +334,7 @@ class VerticalTabSidebar(QWidget):
         self._main_layout.addWidget(self.row_compact)
 
         # Tabs List
-        self.list_widget = QListWidget()
+        self.list_widget = DraggableTabListWidget(self)
         self.list_widget.setObjectName("verticalTabsList")
         self.list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.list_widget.setHorizontalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
@@ -270,15 +348,29 @@ class VerticalTabSidebar(QWidget):
         self.current_accent = "#fe8019"
         self.update_theme(self.current_theme, self.current_accent)
 
+    def set_expanded_width(self, width: int) -> None:
+        try:
+            self.expanded_width = int(width)
+        except Exception:
+            return
+        if not self.is_compact:
+            self.setFixedWidth(self.expanded_width)
+            for row in range(self.list_widget.count()):
+                item = self.list_widget.item(row)
+                if item:
+                    item.setSizeHint(QSize(max(180, self.expanded_width - 20), 36))
+
     def toggle_compact(self) -> bool:
         self.is_compact = not self.is_compact
+        target_w = 50 if self.is_compact else getattr(self, "expanded_width", 240)
+
         if self.is_compact:
             self.setFixedWidth(50)
             self._main_layout.setContentsMargins(4, 6, 4, 6)
             self.row_expanded.hide()
             self.row_compact.show()
         else:
-            self.setFixedWidth(240)
+            self.setFixedWidth(getattr(self, "expanded_width", 240))
             self._main_layout.setContentsMargins(8, 8, 8, 8)
             self.row_compact.hide()
             self.row_expanded.show()
@@ -288,10 +380,11 @@ class VerticalTabSidebar(QWidget):
             if self.is_compact:
                 item.setSizeHint(QSize(42, 36))
             else:
-                item.setSizeHint(QSize(220, 36))
+                item.setSizeHint(QSize(max(180, getattr(self, "expanded_width", 240) - 20), 36))
             widget = self.list_widget.itemWidget(item)
             if isinstance(widget, TabItemWidget):
                 widget.set_compact(self.is_compact)
+
         return self.is_compact
 
     def _on_row_changed(self, row: int) -> None:
@@ -340,6 +433,11 @@ class VerticalTabSidebar(QWidget):
         act_new_group.triggered.connect(lambda: self._prompt_new_group(tab_id))
 
         menu.addSeparator()
+
+        # Mute / Unmute
+        is_muted = tab_data.is_muted if tab_data else False
+        act_mute = menu.addAction(t("unmute_tab") if is_muted else t("mute_tab"))
+        act_mute.triggered.connect(lambda: self.mute_tab_requested.emit(tab_id))
 
         act_dup = menu.addAction(t("duplicate_tab"))
         act_dup.triggered.connect(lambda: self.duplicate_tab_requested.emit(tab_id))
@@ -448,7 +546,9 @@ class TabManager(QWidget):
         self.sidebar.split_tab_requested.connect(self.split_active_tab)
         self.sidebar.suspend_tab_requested.connect(self.suspend_tab)
         self.sidebar.pin_tab_requested.connect(self.toggle_pin_tab)
+        self.sidebar.mute_tab_requested.connect(self.toggle_mute_tab)
         self.sidebar.set_tab_group_requested.connect(self.set_tab_group)
+        self.sidebar.list_widget.tab_reordered.connect(self._on_tabs_reordered)
         main_layout.addWidget(self.sidebar)
 
         # Center Stacked Widget
@@ -478,6 +578,20 @@ class TabManager(QWidget):
                 target_url = args[0]
         if "url" in kwargs and kwargs["url"]:
             target_url = kwargs["url"]
+
+        if target_url in ["zephyrium://startpage", "default"]:
+            win = self.parent()
+            pref_url = ""
+            if win and hasattr(win, "settings"):
+                pref_url = win.settings.get("new_tab_url", "")
+            if not pref_url:
+                try:
+                    from config import load_settings
+                    pref_url = load_settings().get("new_tab_url", "")
+                except Exception:
+                    pass
+            if pref_url and pref_url.strip():
+                target_url = pref_url.strip()
 
         self.tab_counter += 1
         tab_id = self.tab_counter
@@ -518,6 +632,8 @@ class TabManager(QWidget):
         item_widget = TabItemWidget(tab_data, self.sidebar.list_widget)
         item_widget.update_theme(getattr(self, "current_theme", "dark"), getattr(self, "current_accent", "#fe8019"))
         item_widget.close_clicked.connect(self.close_tab)
+        item_widget.mute_clicked.connect(self.toggle_mute_tab)
+        item._stored_widget = item_widget
 
         if self.sidebar.is_compact:
             item.setSizeHint(QSize(42, 36))
@@ -533,6 +649,7 @@ class TabManager(QWidget):
         split_container.url_changed.connect(lambda u: self._on_url_changed(tab_id, u))
         web_view.titleChanged.connect(lambda t: self._on_title_changed(tab_id, t))
         web_view.urlChanged.connect(lambda u: self._on_url_changed(tab_id, u))
+        web_view.page().recentlyAudibleChanged.connect(lambda aud, tid=tab_id: self._on_audible_changed(tid, aud))
 
         # Navigate
         web_view.navigate(target_url)
@@ -545,8 +662,53 @@ class TabManager(QWidget):
         if tab_id in self.tabs:
             td = self.tabs[tab_id]
             td.is_pinned = not td.is_pinned
+
+            # Reorder: pinned tabs always stay at the top of the list!
+            curr_row = -1
+            for row in range(self.sidebar.list_widget.count()):
+                item = self.sidebar.list_widget.item(row)
+                if item and item.data(Qt.ItemDataRole.UserRole) == tab_id:
+                    curr_row = row
+                    break
+
+            if curr_row >= 0:
+                if td.is_pinned:
+                    target_row = 0
+                    for row in range(self.sidebar.list_widget.count()):
+                        if row == curr_row:
+                            continue
+                        other_item = self.sidebar.list_widget.item(row)
+                        other_id = other_item.data(Qt.ItemDataRole.UserRole)
+                        if other_id in self.tabs and self.tabs[other_id].is_pinned:
+                            target_row += 1
+                    if curr_row != target_row:
+                        self.sidebar.list_widget.move_tab_row(curr_row, target_row)
+                else:
+                    pinned_count = sum(1 for t in self.tabs.values() if t.is_pinned)
+                    if curr_row < pinned_count:
+                        self.sidebar.list_widget.move_tab_row(curr_row, pinned_count)
+
             self._refresh_tab_item_widget(tab_id)
             self.tabs_updated.emit()
+
+    def toggle_mute_tab(self, tab_id: int) -> None:
+        if tab_id in self.tabs:
+            td = self.tabs[tab_id]
+            td.is_muted = not td.is_muted
+            view = self.get_tab_view(tab_id)
+            if view and hasattr(view, "page"):
+                view.page().setAudioMuted(td.is_muted)
+            self._refresh_tab_item_widget(tab_id)
+            self.tabs_updated.emit()
+
+    def _on_audible_changed(self, tab_id: int, audible: bool) -> None:
+        if tab_id in self.tabs:
+            self.tabs[tab_id].is_audible = audible
+            self._refresh_tab_item_widget(tab_id)
+            self.tabs_updated.emit()
+
+    def _on_tabs_reordered(self, from_row: int, to_row: int) -> None:
+        self.tabs_updated.emit()
 
     def set_tab_group(self, tab_id: int, group_name: str) -> None:
         if tab_id in self.tabs:

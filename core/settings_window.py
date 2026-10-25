@@ -188,6 +188,11 @@ class SettingsWindow(QDialog):
         self.input_homepage = QLineEdit(self.settings.get("homepage", "zephyrium://startpage"))
         layout.addWidget(self.input_homepage)
 
+        # New Tab URL
+        layout.addWidget(QLabel("URL новой вкладки (New Tab URL):"))
+        self.input_new_tab_url = QLineEdit(self.settings.get("new_tab_url", self.settings.get("homepage", "zephyrium://startpage")))
+        layout.addWidget(self.input_new_tab_url)
+
         # Search Engine
         layout.addWidget(QLabel(t("search_engine")))
         self.combo_search = QComboBox()
@@ -829,6 +834,17 @@ class SettingsWindow(QDialog):
             self.combo_theme.setCurrentIndex(t_idx)
         layout.addWidget(self.combo_theme)
 
+        # Website Theme (Separate from UI theme, default light)
+        layout.addWidget(QLabel(t("website_theme_label")))
+        self.combo_website_theme = QComboBox()
+        self.combo_website_theme.addItem(t("website_theme_light"), "light")
+        self.combo_website_theme.addItem(t("website_theme_dark"), "dark")
+        self.combo_website_theme.addItem(t("website_theme_system"), "system")
+        w_idx = self.combo_website_theme.findData(self.settings.get("website_theme", "light"))
+        if w_idx >= 0:
+            self.combo_website_theme.setCurrentIndex(w_idx)
+        layout.addWidget(self.combo_website_theme)
+
         # Accent Color
         layout.addWidget(QLabel(t("primary_accent")))
         self.combo_accent = QComboBox()
@@ -1190,6 +1206,8 @@ class SettingsWindow(QDialog):
     # =========================================================================
     def _save_all(self):
         self.settings["homepage"] = self.input_homepage.text().strip()
+        if hasattr(self, "input_new_tab_url"):
+            self.settings["new_tab_url"] = self.input_new_tab_url.text().strip() or self.input_homepage.text().strip()
         self.settings["download_dir"] = self.input_download_dir.text().strip()
         self.settings["restore_session"] = self.chk_restore_session.isChecked()
         self.settings["adblock_enabled"] = self.chk_adblock.isChecked()
@@ -1197,6 +1215,8 @@ class SettingsWindow(QDialog):
         self.settings["send_dnt"] = self.chk_dnt.isChecked()
         self.settings["prevent_webrtc_leak"] = self.chk_webrtc.isChecked()
         self.settings["theme"] = self.combo_theme.currentData() or "dark"
+        if hasattr(self, "combo_website_theme"):
+            self.settings["website_theme"] = self.combo_website_theme.currentData() or "light"
         self.settings["accent_color"] = self.combo_accent.currentData() or "#fe8019"
         self.settings["font_family"] = self.combo_font.currentText()
         self.settings["font_size"] = self.spin_font_size.value()

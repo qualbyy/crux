@@ -60,7 +60,7 @@ if existing_flags:
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(flags)
 
 # Auto-locate Chromium/QtWebEngine resource and locale paths to prevent ICU data errors
-candidates = [Path(sys.prefix)]
+candidates = [Path(sys.prefix), Path.home() / ".local"]
 if sys.platform != "win32" and (PROJECT_ROOT / ".venv").is_dir():
     candidates.insert(0, PROJECT_ROOT / ".venv")
 elif sys.platform == "win32" and (PROJECT_ROOT / ".venv" / "Scripts").is_dir():
