@@ -135,7 +135,8 @@ zephyrium --container dev https://github.com
 ### Running from Source
 
 ```bash
-cd /home/qualbyy/.gemini/antigravity/scratch/zinc-browser
+git clone https://github.com/qualbyy/zephyrium.git
+cd zephyrium
 ./run.sh
 ```
 
