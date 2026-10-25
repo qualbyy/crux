@@ -38,10 +38,33 @@ flags = [
 ]
 if sys.platform.startswith("linux"):
     flags.append("--ozone-platform-hint=auto")
+if sys.platform == "win32":
+    flags.extend([
+        "--no-sandbox",
+        "--disable-gpu-sandbox",
+        "--disable-features=RendererCodeIntegrity",
+        "--disable-gpu-process-crash-limit",
+    ])
+    try:
+        import ctypes
+        if hasattr(ctypes.cdll.ntdll, "wine_get_version"):
+            flags.append("--disable-gpu")
+    except Exception:
+        pass
+
+existing_flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+if existing_flags:
+    for ef in existing_flags.split():
+        if ef not in flags:
+            flags.append(ef)
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(flags)
 
 # Auto-locate Chromium/QtWebEngine resource and locale paths to prevent ICU data errors
-candidates = [PROJECT_ROOT / ".venv", Path(sys.prefix)]
+candidates = [Path(sys.prefix)]
+if sys.platform != "win32" and (PROJECT_ROOT / ".venv").is_dir():
+    candidates.insert(0, PROJECT_ROOT / ".venv")
+elif sys.platform == "win32" and (PROJECT_ROOT / ".venv" / "Scripts").is_dir():
+    candidates.insert(0, PROJECT_ROOT / ".venv")
 if hasattr(sys, "_MEIPASS"):
     candidates.insert(0, Path(sys._MEIPASS))
     candidates.insert(0, Path(sys._MEIPASS) / "PyQt6" / "Qt6")
@@ -90,11 +113,13 @@ if sys.platform == "win32":
         pass
 
 for venv_candidate in candidates:
-    res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
-    if not res_path:
+    res_path = None
+    if sys.platform == "win32":
         win_res = venv_candidate / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "resources"
         if win_res.exists():
             res_path = win_res
+    else:
+        res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
     if not res_path:
         win_res2 = venv_candidate / "bin"
         if (venv_candidate / "resources" / "qtwebengine_resources.pak").exists():
@@ -118,6 +143,7 @@ for s_name in [b"zephyrium", b"zinc"]:
     scheme.setSyntax(QWebEngineUrlScheme.Syntax.Path)
     scheme.setDefaultPort(QWebEngineUrlScheme.SpecialPort.PortUnspecified.value)
     scheme.setFlags(
+        QWebEngineUrlScheme.Flag.SecureScheme |
         QWebEngineUrlScheme.Flag.LocalScheme |
         QWebEngineUrlScheme.Flag.LocalAccessAllowed |
         QWebEngineUrlScheme.Flag.CorsEnabled |

@@ -10,6 +10,7 @@ Includes:
 - Advanced & Network Configuration
 """
 import os
+import sys
 import json
 import time
 import subprocess
@@ -22,7 +23,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QFileDialog, QFrame, QSpinBox, QTextEdit, QTableWidget,
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox
 )
-from config import load_settings, save_settings, COLORS, CONFIG_DIR, ACCENT_PRESETS
+from config import load_settings, save_settings, COLORS, CONFIG_DIR, ACCENT_PRESETS, APP_NAME, APP_VERSION
 from core.importer import BrowserImporter, BrowserProfile, PASSWORDS_FILE, COOKIES_FILE
 from core.adblock import WHITELIST_FILE, AdBlockerInterceptor
 from core.i18n import t, LANGUAGES, set_language, get_current_language

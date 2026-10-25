@@ -1,27 +1,47 @@
 """
-Custom QWebEngineView for Zinc Browser
-Handles zoom, custom context menus, zinc:// internal schemes, status reporting,
-URL cleaner, and Copy as cURL.
+Custom QWebEngineView for Zephyrium Browser
+Handles zoom, custom context menus, zephyrium:// internal schemes via native SchemeHandler,
+status reporting, URL cleaner, Reader Mode, PiP, and AI Quick Actions.
 """
 from pathlib import Path
-from PyQt6.QtCore import pyqtSignal, QUrl, Qt
+import sys
+import urllib.parse
+from PyQt6.QtCore import pyqtSignal, QUrl, Qt, QBuffer, QIODevice
 from PyQt6.QtWidgets import QMenu, QApplication
 from PyQt6.QtGui import QAction
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import (
     QWebEnginePage, QWebEngineProfile, QWebEngineSettings,
-    QWebEngineFullScreenRequest
+    QWebEngineFullScreenRequest, QWebEngineUrlSchemeHandler,
+    QWebEngineUrlRequestJob
 )
 from config import DEFAULT_HOME_URL
 from core.adblock import clean_tracking_parameters
 
-import sys
-
 def get_resource_path(filename: str) -> Path:
+    # 1. PyInstaller onefile or onedir _MEIPASS
     if hasattr(sys, "_MEIPASS"):
-        p = Path(sys._MEIPASS) / "resources" / filename
-        if p.exists():
-            return p
+        for cand in [Path(sys._MEIPASS) / "resources" / filename, Path(sys._MEIPASS) / filename]:
+            if cand.exists():
+                return cand
+    # 2. Frozen executable directory (_internal or adjacent)
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        for cand in [
+            exe_dir / "_internal" / "resources" / filename,
+            exe_dir / "resources" / filename,
+            exe_dir / filename
+        ]:
+            if cand.exists():
+                return cand
+    # 3. Source directory
+    base = Path(__file__).resolve().parent.parent
+    for cand in [
+        base / "resources" / filename,
+        base / filename
+    ]:
+        if cand.exists():
+            return cand
     return Path(__file__).resolve().parent.parent / "resources" / filename
 
 STARTPAGE_PATH = get_resource_path("startpage.html")
@@ -29,6 +49,111 @@ WELCOME_PATH = get_resource_path("welcome.html")
 SETTINGS_PATH = get_resource_path("settings.html")
 HISTORY_PATH = get_resource_path("history.html")
 DOWNLOADS_PATH = get_resource_path("downloads.html")
+
+
+class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
+    """
+    Native URL scheme handler for zephyrium:// and zinc:// internal pages.
+    Serves HTML/assets directly through Chromium's network stack without file:// restrictions.
+    """
+    def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:
+        try:
+            url = job.requestUrl()
+            host = url.host().lower()
+            path = url.path().strip("/")
+            resource = host or path
+
+            filename = None
+            mime = b"text/html; charset=utf-8"
+
+            if resource in ["startpage", "start", "new-tab", "open-tab"]:
+                filename = "startpage.html"
+            elif resource in ["settings", "preferences", "config", "vault", "about"]:
+                filename = "settings.html"
+            elif resource in ["history"]:
+                filename = "history.html"
+            elif resource in ["downloads"]:
+                filename = "downloads.html"
+            elif resource in ["welcome"]:
+                filename = "welcome.html"
+            elif resource.endswith(".svg"):
+                filename = resource.split("/")[-1]
+                mime = b"image/svg+xml"
+            elif resource.endswith(".png"):
+                filename = resource.split("/")[-1]
+                mime = b"image/png"
+            elif resource.endswith(".ico"):
+                filename = resource.split("/")[-1]
+                mime = b"image/x-icon"
+            elif resource.endswith(".css"):
+                filename = resource.split("/")[-1]
+                mime = b"text/css"
+            elif resource.endswith(".js"):
+                filename = resource.split("/")[-1]
+                mime = b"application/javascript"
+
+            if not filename:
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+                return
+
+            file_path = get_resource_path(filename)
+            if not file_path.exists():
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+                return
+
+            with open(file_path, "rb") as f:
+                content = f.read()
+
+            if mime.startswith(b"text/html"):
+                from config import load_settings
+                s = load_settings()
+                th = s.get("theme", "dark")
+                acc = s.get("accent_color", "#fe8019")
+                lang = s.get("language", "ru")
+
+                tab = ""
+                query = url.query()
+                if query:
+                    qs = urllib.parse.parse_qs(query)
+                    if "tab" in qs:
+                        tab = qs["tab"][0]
+                if resource in ["vault", "about"]:
+                    tab = resource
+
+                inject_js = f"""
+                <script>
+                    window.ZEPHYRIUM_THEME = "{th}";
+                    window.ZEPHYRIUM_ACCENT = "{acc}";
+                    window.ZEPHYRIUM_LANG = "{lang}";
+                    window.ZEPHYRIUM_TAB = "{tab}";
+                    try {{
+                        if (!window.location.search) {{
+                            let _q = [];
+                            if ('{th}') _q.push('theme=' + encodeURIComponent('{th}'));
+                            if ('{acc}') _q.push('accent=' + encodeURIComponent('{acc}'));
+                            if ('{lang}') _q.push('lang=' + encodeURIComponent('{lang}'));
+                            if ('{tab}') _q.push('tab=' + encodeURIComponent('{tab}'));
+                            history.replaceState(null, '', '?' + _q.join('&') + window.location.hash);
+                        }}
+                    }} catch(e) {{}}
+                </script>
+                """
+                content_str = content.decode("utf-8", errors="replace")
+                if "<head>" in content_str:
+                    content_str = content_str.replace("<head>", f"<head>{inject_js}", 1)
+                elif "<html>" in content_str:
+                    content_str = content_str.replace("<html>", f"<html><head>{inject_js}</head>", 1)
+                else:
+                    content_str = inject_js + content_str
+                content = content_str.encode("utf-8")
+
+            buf = QBuffer(job)
+            buf.setData(content)
+            buf.open(QIODevice.OpenModeFlag.ReadOnly)
+            job.reply(mime, buf)
+        except Exception as e:
+            print(f"Error serving zephyrium resource: {e}")
+            job.fail(QWebEngineUrlRequestJob.Error.RequestFailed)
 
 class ZincWebPage(QWebEnginePage):
     link_hovered = pyqtSignal(str)
@@ -74,8 +199,8 @@ class ZincWebPage(QWebEnginePage):
                         v.handle_host_cmd(url_str)
                         return False
                     # Real page navigation (zephyrium://settings, zephyrium://downloads, etc.)
-                    v.navigate(url_str)
-                return False
+                    return True
+                return True
             return super().acceptNavigationRequest(url, _type, isMainFrame)
         except Exception as e:
             print(f"Error in acceptNavigationRequest: {e}")
@@ -101,11 +226,14 @@ class ZincWebView(QWebEngineView):
     open_split_requested = pyqtSignal(QUrl)
     open_new_tab_requested = pyqtSignal(QUrl)
     ask_ai_selection = pyqtSignal(str)
+    ask_ai_action = pyqtSignal(str, str)
 
     def __init__(self, profile: QWebEngineProfile, container_id: str = "default", parent=None):
         super().__init__(parent)
         self.container_id = container_id
         self._profile = profile
+        self.is_reader_mode = False
+        self.original_url_before_reader = None
         self._custom_page = ZincWebPage(profile, self)
         self.setPage(self._custom_page)
 
@@ -251,9 +379,7 @@ class ZincWebView(QWebEngineView):
         self.page().setBackgroundColor(QColor("#18181b" if th == "dark" else "#f8fafc"))
 
         if url_clean in ["zephyrium://startpage", "zinc://startpage", "about:blank"]:
-            u = QUrl.fromLocalFile(str(STARTPAGE_PATH))
-            u.setQuery(f"theme={th}&accent={urllib.parse.quote(acc)}&lang={lang}")
-            self.load(u)
+            self.load(QUrl("zephyrium://startpage"))
             return
 
         if url_clean in ["zephyrium://welcome", "zinc://welcome"]:
@@ -261,7 +387,7 @@ class ZincWebView(QWebEngineView):
             if win and hasattr(win, "show_onboarding"):
                 win.show_onboarding()
             else:
-                self.load(QUrl.fromLocalFile(str(STARTPAGE_PATH)))
+                self.load(QUrl("zephyrium://startpage"))
             return
 
         if url_clean.startswith("zephyrium://setup") or url_clean.startswith("zinc://setup"):
@@ -285,39 +411,24 @@ class ZincWebView(QWebEngineView):
             return
 
         if url_clean.startswith("zephyrium://settings") or url_clean.startswith("zinc://settings") or url_clean in ["about:settings", "about:preferences"]:
-            parsed = urllib.parse.urlparse(url_clean)
-            qs = urllib.parse.parse_qs(parsed.query)
-            tab = qs.get("tab", [""])[0]
-            u = QUrl.fromLocalFile(str(SETTINGS_PATH))
-            query_str = f"theme={th}&accent={urllib.parse.quote(acc)}&lang={lang}"
-            if tab:
-                query_str += f"&tab={urllib.parse.quote(tab)}"
-            u.setQuery(query_str)
-            self.load(u)
+            target_scheme_url = url_clean if url_clean.startswith("zephyrium://") else "zephyrium://settings"
+            self.load(QUrl(target_scheme_url))
             return
 
         if url_clean.startswith("zephyrium://history") or url_clean.startswith("zinc://history") or url_clean in ["about:history"]:
-            u = QUrl.fromLocalFile(str(HISTORY_PATH))
-            u.setQuery(f"theme={th}&accent={urllib.parse.quote(acc)}&lang={lang}")
-            self.load(u)
+            self.load(QUrl("zephyrium://history"))
             return
 
         if url_clean.startswith("zephyrium://downloads") or url_clean.startswith("zinc://downloads") or url_clean in ["about:downloads"]:
-            u = QUrl.fromLocalFile(str(DOWNLOADS_PATH))
-            u.setQuery(f"theme={th}&accent={urllib.parse.quote(acc)}&lang={lang}")
-            self.load(u)
+            self.load(QUrl("zephyrium://downloads"))
             return
 
         if url_clean in ["zephyrium://about", "zinc://about", "about:about"]:
-            u = QUrl.fromLocalFile(str(SETTINGS_PATH))
-            u.setQuery(f"theme={th}&accent={urllib.parse.quote(acc)}&tab=about&lang={lang}")
-            self.load(u)
+            self.load(QUrl("zephyrium://settings?tab=about"))
             return
 
         if url_clean in ["zephyrium://vault", "zinc://vault"]:
-            u = QUrl.fromLocalFile(str(SETTINGS_PATH))
-            u.setQuery(f"theme={th}&accent={urllib.parse.quote(acc)}&tab=vault&lang={lang}")
-            self.load(u)
+            self.load(QUrl("zephyrium://settings?tab=vault"))
             return
 
         if url_clean.startswith("zephyrium://new-tab") or url_clean.startswith("zinc://new-tab") or url_clean.startswith("zephyrium://open-tab"):
@@ -518,7 +629,10 @@ class ZincWebView(QWebEngineView):
             action = parsed.path.lstrip("/")
             qs = urllib.parse.parse_qs(parsed.query)
 
-            if action == "clear-history":
+            if action == "exit-reader":
+                self.toggle_reader_mode()
+                return
+            elif action == "clear-history":
                 from utils.bookmarks import DataStore
                 DataStore.clear_history()
                 self.navigate("zephyrium://history")
@@ -651,12 +765,29 @@ class ZincWebView(QWebEngineView):
 
         menu.addSeparator()
 
-        # Selection actions
-        selected_text = self.selectedText()
+        # Selection & AI Quick Actions
+        selected_text = self.selectedText().strip()
         if selected_text:
-            act_ai = menu.addAction(f"Ask Gemini about '{selected_text[:20]}...'")
-            act_ai.triggered.connect(lambda: self.ask_ai_selection.emit(selected_text))
+            ai_menu = menu.addMenu("✦ Zephyrium AI")
+            act_explain = ai_menu.addAction("Explain Selection")
+            act_explain.triggered.connect(lambda: self.ask_ai_action.emit("explain", selected_text))
+            act_trans = ai_menu.addAction("Translate to Russian")
+            act_trans.triggered.connect(lambda: self.ask_ai_action.emit("translate", selected_text))
+            act_tldr = ai_menu.addAction("Summarize (TL;DR)")
+            act_tldr.triggered.connect(lambda: self.ask_ai_action.emit("summarize", selected_text))
+            
+            act_ai_custom = ai_menu.addAction(f"Ask in Chat ('{selected_text[:20]}...')")
+            act_ai_custom.triggered.connect(lambda: self.ask_ai_selection.emit(selected_text))
             menu.addSeparator()
+
+        # Media & Page Modes
+        act_pip = menu.addAction("Picture-in-Picture (PiP)")
+        act_pip.triggered.connect(self.trigger_pip)
+
+        act_reader = menu.addAction("Toggle Reader Mode")
+        act_reader.triggered.connect(self.toggle_reader_mode)
+
+        menu.addSeparator()
 
         # Split view action
         act_split = menu.addAction("Open in Split View")
@@ -678,9 +809,179 @@ class ZincWebView(QWebEngineView):
 
         menu.exec(self.mapToGlobal(pos))
 
+    def trigger_pip(self) -> None:
+        js = """
+        (async function() {
+            try {
+                const video = document.querySelector('video');
+                if (!video) return 'no_video';
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                    return 'exited';
+                }
+                if (document.pictureInPictureEnabled) {
+                    await video.requestPictureInPicture();
+                    return 'entered';
+                }
+                return 'not_supported';
+            } catch (err) {
+                return 'error: ' + (err ? err.message : String(err));
+            }
+        })();
+        """
+        def _cb(res):
+            if res == 'no_video':
+                self.status_message.emit("PiP: No video element found on page")
+            elif res == 'entered':
+                self.status_message.emit("PiP: Video detached into Picture-in-Picture window")
+            elif res == 'exited':
+                self.status_message.emit("PiP: Video returned to webpage")
+            elif res and str(res).startswith('error'):
+                self.status_message.emit(f"PiP Error: {res}")
+        self.page().runJavaScript(js, _cb)
+
+    def toggle_reader_mode(self) -> None:
+        if self.is_reader_mode:
+            self.is_reader_mode = False
+            if self.original_url_before_reader:
+                self.load(self.original_url_before_reader)
+            else:
+                self.reload()
+            self.status_message.emit("Exited Reader Mode")
+            return
+
+        self.original_url_before_reader = self.url()
+        js = """
+        (function() {
+            try {
+                const title = document.title || 'Reader Mode';
+                const article = document.querySelector('article') ||
+                                document.querySelector('main') ||
+                                document.querySelector('.post-content') ||
+                                document.querySelector('.article-content') ||
+                                document.querySelector('#content') ||
+                                document.querySelector('.content') ||
+                                document.body;
+                if (!article) return null;
+                const clone = article.cloneNode(true);
+                const toRemove = ['nav', 'header', 'footer', 'aside', 'script', 'style', 'iframe', '.ad', '.ads', '.banner', '.social', '.comments', '.sidebar'];
+                toRemove.forEach(sel => {
+                    clone.querySelectorAll(sel).forEach(el => el.remove());
+                });
+                return {
+                    title: title,
+                    html: clone.innerHTML
+                };
+            } catch(e) {
+                return null;
+            }
+        })();
+        """
+        def _cb(data):
+            if not data or not data.get('html'):
+                self.status_message.emit("Reader Mode: Unable to extract readable article content")
+                return
+
+            from config import load_settings
+            s = load_settings()
+            th = s.get("theme", "dark")
+            acc = s.get("accent_color", "#fe8019")
+            bg = "#18181b" if th == "dark" else "#f8fafc"
+            fg = "#d4d4d8" if th == "dark" else "#1e293b"
+            card_bg = "#262624" if th == "dark" else "#ffffff"
+            border = "#3f3f46" if th == "dark" else "#e2e8f0"
+            font_family = s.get("font_family", "system-ui, -apple-system, sans-serif")
+
+            reader_html = f"""<!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>{data.get('title', 'Reader Mode')}</title>
+                <style>
+                    body {{
+                        background-color: {bg};
+                        color: {fg};
+                        font-family: {font_family};
+                        line-height: 1.75;
+                        font-size: 16px;
+                        margin: 0;
+                        padding: 40px 20px;
+                        display: flex;
+                        justify-content: center;
+                    }}
+                    .reader-container {{
+                        max-width: 740px;
+                        width: 100%;
+                    }}
+                    .reader-header {{
+                        margin-bottom: 32px;
+                        border-bottom: 2px solid {acc};
+                        padding-bottom: 16px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }}
+                    .reader-title {{
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: {acc};
+                    }}
+                    .btn-exit {{
+                        background: {card_bg};
+                        color: {fg};
+                        border: 1px solid {border};
+                        padding: 6px 12px;
+                        cursor: pointer;
+                        font-family: inherit;
+                        font-size: 12px;
+                    }}
+                    .btn-exit:hover {{
+                        border-color: {acc};
+                        color: {acc};
+                    }}
+                    img {{
+                        max-width: 100%;
+                        height: auto;
+                        display: block;
+                        margin: 20px auto;
+                    }}
+                    pre, code {{
+                        background: {card_bg};
+                        border: 1px solid {border};
+                        padding: 2px 6px;
+                        font-family: monospace;
+                    }}
+                    pre {{
+                        padding: 12px;
+                        overflow-x: auto;
+                    }}
+                    a {{
+                        color: {acc};
+                        text-decoration: underline;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="reader-container">
+                    <div class="reader-header">
+                        <div class="reader-title">{data.get('title', '')}</div>
+                        <button class="btn-exit" onclick="window.location.href='zephyrium://action/exit-reader'">[ВЫЙТИ ИЗ ЧТЕНИЯ]</button>
+                    </div>
+                    <div class="reader-body">
+                        {data.get('html', '')}
+                    </div>
+                </div>
+            </body>
+            </html>"""
+            self.is_reader_mode = True
+            self.setHtml(reader_html, self.original_url_before_reader)
+            self.status_message.emit("Reader Mode: Active (Press button or [ВЫЙТИ ИЗ ЧТЕНИЯ] to exit)")
+
+        self.page().runJavaScript(js, _cb)
+
     def _copy_as_curl(self) -> None:
         u = self.url().toString()
-        curl_cmd = f"curl -sL '{u}' -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Zephyrium/1.0'"
+        curl_cmd = f"curl -sL '{u}' -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Zephyrium/1.1.0'"
         from_pyqt_clipboard(curl_cmd)
 
     def _inspect_element(self) -> None:

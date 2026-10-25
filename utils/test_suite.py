@@ -13,8 +13,35 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Auto-locate Chromium/QtWebEngine resource and locale paths to prevent ICU data errors
-for venv_candidate in [PROJECT_ROOT / ".venv", Path(sys.prefix)]:
-    res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
+candidates = [Path(sys.prefix)]
+if sys.platform != "win32" and (PROJECT_ROOT / ".venv").is_dir():
+    candidates.insert(0, PROJECT_ROOT / ".venv")
+elif sys.platform == "win32" and (PROJECT_ROOT / ".venv" / "Scripts").is_dir():
+    candidates.insert(0, PROJECT_ROOT / ".venv")
+if hasattr(sys, "_MEIPASS"):
+    candidates.insert(0, Path(sys._MEIPASS))
+    candidates.insert(0, Path(sys._MEIPASS) / "PyQt6" / "Qt6")
+
+if sys.platform == "win32":
+    win_bin_dirs = []
+    for p in Path(sys.prefix).glob("**/site-packages/PyQt6/Qt6/bin"):
+        win_bin_dirs.append(p)
+    for bdir in win_bin_dirs:
+        if bdir.is_dir():
+            try:
+                os.add_dll_directory(str(bdir))
+            except Exception:
+                pass
+            os.environ["PATH"] = str(bdir) + os.pathsep + os.environ.get("PATH", "")
+
+for venv_candidate in candidates:
+    res_path = None
+    if sys.platform == "win32":
+        win_res = venv_candidate / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "resources"
+        if win_res.exists():
+            res_path = win_res
+    else:
+        res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
     if res_path and res_path.is_dir():
         os.environ.setdefault("QTWEBENGINE_RESOURCES_PATH", str(res_path))
         locales_path = res_path.parent / "translations" / "qtwebengine_locales"
@@ -22,7 +49,32 @@ for venv_candidate in [PROJECT_ROOT / ".venv", Path(sys.prefix)]:
             os.environ.setdefault("QTWEBENGINE_LOCALES_PATH", str(locales_path))
         break
 
-os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--enable-gpu-rasterization --no-sandbox"
+is_wine = False
+if sys.platform == "win32":
+    try:
+        import ctypes
+        is_wine = hasattr(ctypes.cdll.ntdll, "wine_get_version")
+    except Exception:
+        pass
+
+if is_wine:
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--no-sandbox --disable-gpu --disable-gpu-sandbox --disable-features=RendererCodeIntegrity"
+else:
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--enable-gpu-rasterization --no-sandbox"
+
+from PyQt6.QtWebEngineCore import QWebEngineUrlScheme
+for s_name in [b"zephyrium", b"zinc"]:
+    scheme = QWebEngineUrlScheme(s_name)
+    scheme.setSyntax(QWebEngineUrlScheme.Syntax.Path)
+    scheme.setDefaultPort(QWebEngineUrlScheme.SpecialPort.PortUnspecified.value)
+    scheme.setFlags(
+        QWebEngineUrlScheme.Flag.SecureScheme |
+        QWebEngineUrlScheme.Flag.LocalScheme |
+        QWebEngineUrlScheme.Flag.LocalAccessAllowed |
+        QWebEngineUrlScheme.Flag.CorsEnabled |
+        QWebEngineUrlScheme.Flag.FetchApiAllowed
+    )
+    QWebEngineUrlScheme.registerScheme(scheme)
 
 import PyQt6.QtWebEngineWidgets  # Required before QApplication creation
 

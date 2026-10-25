@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Base Paths
 APP_NAME = "Zephyrium"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.1.0"
 
 if sys.platform == "win32":
     CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Zephyrium"

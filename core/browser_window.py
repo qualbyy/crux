@@ -4,11 +4,11 @@ Claude Code Minimal Dark aesthetic (Square UI, 0px radius, 1px borders, Zinc/Sla
 Features: 3 Layout Modes (Minimal Dark, Classic Material, Vim Mode),
 Collapsible / Compact sidebar, Adblock Whitelist, and Tor Proxy.
 """
-from PyQt6.QtCore import Qt, QUrl, QTimer, QSize
+from PyQt6.QtCore import Qt, QUrl, QTimer, QSize, QStringListModel
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QPushButton, QLabel, QProgressBar, QSplitter, QStatusBar,
-    QTabBar, QMenu, QApplication
+    QTabBar, QMenu, QApplication, QCompleter
 )
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QKeyEvent
 from PyQt6.QtNetwork import QNetworkProxy
@@ -190,16 +190,30 @@ class BrowserWindow(QMainWindow):
         self.ssl_badge.setStyleSheet("color: #10b981; font-size: 10px; font-weight: bold;")
         layout.addWidget(self.ssl_badge)
 
-        # URL Bar
+        # URL Bar with Smart Auto-Complete
         self.url_bar = QLineEdit()
         self.url_bar.setObjectName("urlBar")
         self.url_bar.setPlaceholderText("Enter URL or search... (or Ctrl+K)")
         self.url_bar.setFixedHeight(28)
         self.url_bar.returnPressed.connect(self._on_url_entered)
-        self.url_bar.editingFinished.connect(lambda: self.url_bar.setCursorPosition(0))
         layout.addWidget(self.url_bar, stretch=1)
+        self._init_url_completer()
 
         # Action Buttons
+        self.btn_reader = QPushButton(Icons.READER)
+        self.btn_reader.setFixedHeight(28)
+        self.btn_reader.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reader.setToolTip("Toggle Reader Mode (Ctrl+Shift+E)")
+        self.btn_reader.clicked.connect(self._on_reader_mode_clicked)
+        layout.addWidget(self.btn_reader)
+
+        self.btn_pip = QPushButton(Icons.PIP)
+        self.btn_pip.setFixedHeight(28)
+        self.btn_pip.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pip.setToolTip("Picture-in-Picture (Ctrl+Shift+P)")
+        self.btn_pip.clicked.connect(self._on_pip_clicked)
+        layout.addWidget(self.btn_pip)
+
         self.btn_adblock = QPushButton(f"{Icons.ADBLOCK}: 0")
         self.btn_adblock.setFixedHeight(28)
         self.btn_adblock.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -848,8 +862,78 @@ class BrowserWindow(QMainWindow):
             from PyQt6.QtWebEngineCore import QWebEnginePage
             v.triggerPageAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
 
+    def _init_url_completer(self) -> None:
+        self._url_completer = QCompleter(self)
+        self._url_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._url_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._url_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.url_bar.setCompleter(self._url_completer)
+        
+        popup = self._url_completer.popup()
+        if popup:
+            popup.setStyleSheet("""
+                QAbstractItemView {
+                    background-color: #18181b;
+                    color: #d4d4d8;
+                    border: 1px solid #3f3f46;
+                    selection-background-color: #fe8019;
+                    selection-color: #ffffff;
+                    font-family: monospace;
+                    font-size: 12px;
+                    padding: 4px;
+                }
+            """)
+        self._update_url_completer()
+
+    def _update_url_completer(self) -> None:
+        suggestions = [
+            "google.com", "github.com", "youtube.com", "reddit.com", "yandex.ru",
+            "wikipedia.org", "duckduckgo.com", "habr.com", "vk.com", "telegram.org",
+            "archlinux.org", "kde.org", "gitlab.com", "stackoverflow.com",
+            "news.ycombinator.com", "chatgpt.com", "developer.mozilla.org",
+            "zephyrium://startpage", "zephyrium://settings", "zephyrium://history", "zephyrium://downloads"
+        ]
+        try:
+            hist = DataStore.get_history()
+            for item in hist[:100]:
+                u = item.get("url", "")
+                if u and u not in suggestions:
+                    suggestions.append(u)
+        except Exception:
+            pass
+        model = QStringListModel(suggestions, self._url_completer)
+        self._url_completer.setModel(model)
+
+    def _on_reader_mode_clicked(self) -> None:
+        v = self.tab_manager.get_current_view()
+        if v and hasattr(v, "toggle_reader_mode"):
+            v.toggle_reader_mode()
+
+    def _on_pip_clicked(self) -> None:
+        v = self.tab_manager.get_current_view()
+        if v and hasattr(v, "trigger_pip"):
+            v.trigger_pip()
+
+    def _on_ai_action(self, action: str, text: str) -> None:
+        self.side_panel.show()
+        self.side_panel.switch_tab(0)
+        prompts = {
+            "explain": f"Explain the following text or code concisely:\n\n{text}",
+            "translate": f"Translate the following text into Russian accurately:\n\n{text}",
+            "summarize": f"Summarize the key points of the following text:\n\n{text}",
+        }
+        prompt = prompts.get(action, text)
+        if hasattr(self.side_panel, "ai_widget"):
+            self.side_panel.ai_widget._append_user(f"[{action.upper()}]\n{text}")
+            self.side_panel.ai_widget._process_ai_query(prompt)
+        elif hasattr(self.side_panel, "ai_chat"):
+            self.side_panel.ai_chat.input_field.setPlainText(prompt)
+            self.side_panel.ai_chat.send_message()
+
     def _on_url_entered(self) -> None:
         text = self.url_bar.text().strip()
+        if not text:
+            return
         if text in ["zephyrium://settings", "zinc://settings", "about:settings", "about:preferences"]:
             self.open_settings()
             return
@@ -871,6 +955,8 @@ class BrowserWindow(QMainWindow):
         v = self.tab_manager.get_current_view()
         if v:
             v.navigate(text)
+            v.setFocus()
+            self._update_url_completer()
 
     def _toggle_sidebar(self) -> None:
         if self.side_panel.isVisible():
@@ -920,24 +1006,28 @@ class BrowserWindow(QMainWindow):
 
     def _on_active_url_changed(self, url: QUrl) -> None:
         url_str = url.toString()
-        if "welcome.html" in url_str:
+        if "welcome" in url_str:
             self.url_bar.setText("zephyrium://welcome")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
-        elif "startpage.html" in url_str:
+        elif "startpage" in url_str:
             self.url_bar.setText("zephyrium://startpage")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
-        elif "settings.html" in url_str:
-            self.url_bar.setText("zephyrium://settings")
+        elif "settings" in url_str:
+            self.url_bar.setText(url_str if url_str.startswith("zephyrium://") else "zephyrium://settings")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
-        elif "history.html" in url_str:
+        elif "history" in url_str:
             self.url_bar.setText("zephyrium://history")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
-        elif "downloads.html" in url_str:
+        elif "downloads" in url_str:
             self.url_bar.setText("zephyrium://downloads")
+            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setStyleSheet("color: #94a3b8;")
+        elif url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
+            self.url_bar.setText(url_str)
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         else:
@@ -945,15 +1035,19 @@ class BrowserWindow(QMainWindow):
             if url.scheme() == "https":
                 self.ssl_badge.setText(Icons.LOCK_SECURE)
                 self.ssl_badge.setStyleSheet("color: #10b981; font-weight: bold;")
-            else:
+            elif url.scheme() == "http":
                 self.ssl_badge.setText(Icons.LOCK_INSECURE)
                 self.ssl_badge.setStyleSheet("color: #ef4444; font-weight: bold;")
+            else:
+                self.ssl_badge.setText("PAGE")
+                self.ssl_badge.setStyleSheet("color: #94a3b8;")
             v = self.tab_manager.get_current_view()
-            if v:
+            if v and v.title():
                 DataStore.add_history(v.title(), url_str)
 
-        # Ensure start of URL is always visible
-        self.url_bar.setCursorPosition(0)
+        # Ensure start of URL is visible only if user is not currently focused on the URL bar
+        if not self.url_bar.hasFocus():
+            self.url_bar.setCursorPosition(0)
 
         if self.ui_mode == "vim":
             self.status_label.setText(f"[VIM] {url_str}")
@@ -969,22 +1063,25 @@ class BrowserWindow(QMainWindow):
         view.loadProgress.connect(self._on_load_progress)
         view.status_message.connect(self.status_label.setText)
         view.ask_ai_selection.connect(self._on_ai_selection_requested)
+        if hasattr(view, "ask_ai_action"):
+            view.ask_ai_action.connect(self._on_ai_action)
 
         # Sync active URL in omnibar and ensure beginning of URL is visible
         cur_u = view.url().toString()
-        if "startpage.html" in cur_u:
+        if "startpage" in cur_u:
             self.url_bar.setText("zephyrium://startpage")
-        elif "welcome.html" in cur_u:
+        elif "welcome" in cur_u:
             self.url_bar.setText("zephyrium://welcome")
-        elif "settings.html" in cur_u:
-            self.url_bar.setText("zephyrium://settings")
-        elif "history.html" in cur_u:
+        elif "settings" in cur_u:
+            self.url_bar.setText(cur_u if cur_u.startswith("zephyrium://") else "zephyrium://settings")
+        elif "history" in cur_u:
             self.url_bar.setText("zephyrium://history")
-        elif "downloads.html" in cur_u:
+        elif "downloads" in cur_u:
             self.url_bar.setText("zephyrium://downloads")
         elif cur_u:
             self.url_bar.setText(cur_u)
-        self.url_bar.setCursorPosition(0)
+        if not self.url_bar.hasFocus():
+            self.url_bar.setCursorPosition(0)
 
         self.zoom_label.setText(f"{int(view.get_zoom() * 100)}%")
 

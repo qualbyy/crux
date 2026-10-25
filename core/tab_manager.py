@@ -25,6 +25,8 @@ class TabItemData:
         self.title = "New Tab"
         self.url = ""
         self.is_suspended = False
+        self.is_pinned = False
+        self.group = ""
         self.last_active_time = time.time()
 
 
@@ -50,9 +52,9 @@ class TabItemWidget(QWidget):
 
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(6, 2, 6, 2)
-        self._layout.setSpacing(8)
+        self._layout.setSpacing(6)
 
-        # Tab Indicator (clean glyph instead of container badge)
+        # Tab Indicator (clean glyph or pin)
         self.indicator = QLabel("▪")
         self.indicator.setFixedSize(16, 18)
         self.indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -85,6 +87,24 @@ class TabItemWidget(QWidget):
         """)
         self.close_btn.clicked.connect(lambda: self.close_clicked.emit(self.tab_data.tab_id))
         self._layout.addWidget(self.close_btn)
+        self.refresh_ui()
+
+    def refresh_ui(self) -> None:
+        if self.tab_data.is_pinned:
+            self.indicator.setText("PIN")
+            self.indicator.setStyleSheet(f"color: {self.accent}; font-size: 9px; font-weight: bold; border: 1px solid {self.accent}; padding: 1px;")
+            self.indicator.setFixedWidth(24)
+            self.close_btn.hide()
+        elif self.tab_data.is_suspended:
+            self.indicator.setText("z")
+            self.indicator.setFixedWidth(16)
+            self.close_btn.show()
+        else:
+            self.indicator.setText("▪")
+            self.indicator.setFixedWidth(16)
+            self.close_btn.show()
+
+        self.set_title(self.tab_data.title)
 
     def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
         self.theme = theme
@@ -104,10 +124,13 @@ class TabItemWidget(QWidget):
                 background-color: {close_hover_bg};
             }}
         """)
+        self.refresh_ui()
         self.set_active(self.is_active)
 
     def set_title(self, title: str) -> None:
         clean = title.strip() if title else "New Tab"
+        if self.tab_data.group:
+            clean = f"[{self.tab_data.group}] {clean}"
         if len(clean) > 28:
             clean = clean[:25] + "..."
         self.title_label.setText(clean)
@@ -176,6 +199,8 @@ class VerticalTabSidebar(QWidget):
     duplicate_tab_requested = pyqtSignal(int)
     split_tab_requested = pyqtSignal(int)
     suspend_tab_requested = pyqtSignal(int)
+    pin_tab_requested = pyqtSignal(int)
+    set_tab_group_requested = pyqtSignal(int, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -282,7 +307,40 @@ class VerticalTabSidebar(QWidget):
             return
         tab_id = item.data(Qt.ItemDataRole.UserRole)
         
+        tab_data = None
+        tm = self.parent()
+        if tm and hasattr(tm, "tabs") and tab_id in tm.tabs:
+            tab_data = tm.tabs[tab_id]
+
         menu = QMenu(self)
+
+        # Pin / Unpin
+        is_pinned = tab_data.is_pinned if tab_data else False
+        act_pin = menu.addAction("Unpin Tab" if is_pinned else "Pin Tab")
+        act_pin.triggered.connect(lambda: self.pin_tab_requested.emit(tab_id))
+
+        # Groups Submenu
+        group_menu = menu.addMenu("Group Tab")
+        act_no_group = group_menu.addAction("No Group (Clear)")
+        act_no_group.triggered.connect(lambda: self.set_tab_group_requested.emit(tab_id, ""))
+
+        existing_groups = set()
+        if tm and hasattr(tm, "tabs"):
+            for td in tm.tabs.values():
+                if td.group:
+                    existing_groups.add(td.group)
+        if existing_groups:
+            group_menu.addSeparator()
+            for g in sorted(existing_groups):
+                act_g = group_menu.addAction(f"Move to '{g}'")
+                act_g.triggered.connect(lambda checked, grp=g: self.set_tab_group_requested.emit(tab_id, grp))
+
+        group_menu.addSeparator()
+        act_new_group = group_menu.addAction("Add to New Group...")
+        act_new_group.triggered.connect(lambda: self._prompt_new_group(tab_id))
+
+        menu.addSeparator()
+
         act_dup = menu.addAction(t("duplicate_tab"))
         act_dup.triggered.connect(lambda: self.duplicate_tab_requested.emit(tab_id))
 
@@ -295,9 +353,16 @@ class VerticalTabSidebar(QWidget):
         menu.addSeparator()
 
         act_close = menu.addAction(t("close_tab"))
+        act_close.setEnabled(not is_pinned)
         act_close.triggered.connect(lambda: self.tab_closed.emit(tab_id))
 
         menu.exec(self.list_widget.mapToGlobal(pos))
+
+    def _prompt_new_group(self, tab_id: int) -> None:
+        from PyQt6.QtWidgets import QInputDialog
+        group_name, ok = QInputDialog.getText(self, "Tab Group", "Enter group name (e.g. Work, Dev, Research):")
+        if ok and group_name.strip():
+            self.set_tab_group_requested.emit(tab_id, group_name.strip())
 
     def retranslate_ui(self) -> None:
         self.btn_new_tab.setText(t("new_tab_btn"))
@@ -382,6 +447,8 @@ class TabManager(QWidget):
         self.sidebar.duplicate_tab_requested.connect(self.duplicate_tab)
         self.sidebar.split_tab_requested.connect(self.split_active_tab)
         self.sidebar.suspend_tab_requested.connect(self.suspend_tab)
+        self.sidebar.pin_tab_requested.connect(self.toggle_pin_tab)
+        self.sidebar.set_tab_group_requested.connect(self.set_tab_group)
         main_layout.addWidget(self.sidebar)
 
         # Center Stacked Widget
@@ -435,6 +502,19 @@ class TabManager(QWidget):
         # Sidebar list item
         item = QListWidgetItem()
         item.setData(Qt.ItemDataRole.UserRole, tab_id)
+        
+        # Set clean initial title based on target_url
+        initial_title = "New Tab"
+        if "settings" in target_url:
+            initial_title = t("settings")
+        elif "history" in target_url:
+            initial_title = t("history_title")
+        elif "downloads" in target_url:
+            initial_title = t("downloads_title")
+        elif "welcome" in target_url:
+            initial_title = "Welcome"
+        tab_data.title = initial_title
+
         item_widget = TabItemWidget(tab_data, self.sidebar.list_widget)
         item_widget.update_theme(getattr(self, "current_theme", "dark"), getattr(self, "current_accent", "#fe8019"))
         item_widget.close_clicked.connect(self.close_tab)
@@ -460,6 +540,29 @@ class TabManager(QWidget):
         self.select_tab(tab_id)
         self.tabs_updated.emit()
         return tab_id
+
+    def toggle_pin_tab(self, tab_id: int) -> None:
+        if tab_id in self.tabs:
+            td = self.tabs[tab_id]
+            td.is_pinned = not td.is_pinned
+            self._refresh_tab_item_widget(tab_id)
+            self.tabs_updated.emit()
+
+    def set_tab_group(self, tab_id: int, group_name: str) -> None:
+        if tab_id in self.tabs:
+            td = self.tabs[tab_id]
+            td.group = group_name.strip()
+            self._refresh_tab_item_widget(tab_id)
+            self.tabs_updated.emit()
+
+    def _refresh_tab_item_widget(self, tab_id: int) -> None:
+        for row in range(self.sidebar.list_widget.count()):
+            item = self.sidebar.list_widget.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == tab_id:
+                widget = self.sidebar.list_widget.itemWidget(item)
+                if isinstance(widget, TabItemWidget):
+                    widget.refresh_ui()
+                break
 
     def select_tab(self, tab_id: int) -> None:
         if tab_id not in self.tabs:
@@ -490,6 +593,10 @@ class TabManager(QWidget):
 
     def close_tab(self, tab_id: int) -> None:
         if tab_id not in self.tabs:
+            return
+
+        # Do not close pinned tabs via close button or shortcut
+        if self.tabs[tab_id].is_pinned:
             return
 
         # If it's the last tab, close it and close browser window

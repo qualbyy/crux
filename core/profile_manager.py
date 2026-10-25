@@ -15,6 +15,14 @@ class ProfileManager(QObject):
         self._setup_profiles()
 
     def _setup_profiles(self) -> None:
+        from core.web_view import ZephyriumSchemeHandler
+        self._scheme_handler = ZephyriumSchemeHandler(self)
+        try:
+            QWebEngineProfile.defaultProfile().installUrlSchemeHandler(b"zephyrium", self._scheme_handler)
+            QWebEngineProfile.defaultProfile().installUrlSchemeHandler(b"zinc", self._scheme_handler)
+        except Exception:
+            pass
+
         for profile_id, meta in CONTAINERS.items():
             if meta["storage"] == "ephemeral":
                 # Off-the-record / Incognito profile (in-memory only)
@@ -26,6 +34,13 @@ class ProfileManager(QObject):
                 profile.setPersistentStoragePath(str(profile_path / "storage"))
                 profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies)
                 profile.setCachePath(str(profile_path / "cache"))
+
+            # Install scheme handlers for internal zephyrium:// and zinc:// pages
+            try:
+                profile.installUrlSchemeHandler(b"zephyrium", self._scheme_handler)
+                profile.installUrlSchemeHandler(b"zinc", self._scheme_handler)
+            except Exception:
+                pass
 
             # Register shared adblock interceptor
             profile.setUrlRequestInterceptor(self.adblocker)

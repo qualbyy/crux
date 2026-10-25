@@ -44,8 +44,12 @@ Configure your appearance via Settings (`Ctrl+,`) or during initial first-launch
 
 ---
 
-## Core Features
-
+- **Pinned Tabs & Visual Tab Groups**: Pin tabs to protect them against accidental closure with a dedicated `[PIN]` indicator. Organize workflows into named, colored tab groups directly from the sidebar context menu.
+- **Smart Omnibox URL Auto-Complete**: Dynamic search suggestions and URL auto-completion powered by local browsing history, bookmarks, and popular domains without third-party tracking.
+- **Distraction-Free Reader Mode**: Clean typography, customizable aesthetic, and instant toggle (`Ctrl+Alt+R` or toolbar button) converting noisy articles into readable, minimalist layouts.
+- **Picture-in-Picture (PiP)**: Pop out HTML5 videos into a persistent floating window (`Ctrl+Alt+P` or toolbar button) to watch media while working across tabs.
+- **AI Quick Actions**: Selected text context menu actions (`✦ Zephyrium AI` -> Explain, Translate to Russian, Summarize TL;DR) powered by the Google Gemini API directly inside the AI sidebar without heavy local models.
+- **Custom URL Scheme Handler (`zephyrium://`)**: Native Chromium protocol handler for internal settings, history, and downloads, ensuring 100% bug-free rendering on both Windows/Wine and Linux.
 - **Protected Credentials Vault**: Dedicated settings tab (`04 // Passwords & Cookies`) secured by Linux `sudo` authentication. View, reveal, copy, and export stored credentials to CSV or JSON, and cookies to Netscape format.
 - **Universal Browser Importer**: Automatic detection of native and Flatpak installations of Google Chrome, Chromium, Microsoft Edge, Brave, and Mozilla Firefox. Imports bookmarks, history, cookies, and login credentials, with support for CSV password imports.
 - **Tab Suspension and Memory Optimization**: Background tabs automatically enter sleep mode after 20 minutes of inactivity, unloading DOM trees to conserve RAM while preserving restoration state. Manual suspension is available via tab context menu.
@@ -65,6 +69,8 @@ Configure your appearance via Settings (`Ctrl+,`) or during initial first-launch
 | :--- | :--- |
 | `Ctrl + M` | Cycle layout modes (Minimal <-> Vim) |
 | `Ctrl + Alt + T` | Toggle tab orientation (Vertical / Horizontal) |
+| `Ctrl + Alt + R` | Toggle Reader Mode |
+| `Ctrl + Alt + P` | Toggle Picture-in-Picture (PiP) |
 | `Ctrl + [` | Toggle vertical sidebar compact mode (50px / 240px) |
 | `Ctrl + ,` | Open Settings and Credentials Vault |
 | `Ctrl + K` | Open Command Palette / Keybinds |

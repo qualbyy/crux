@@ -22,3 +22,5 @@ class Icons:
     PIN = "PIN"
     SEARCH = "SEARCH"
     MENU = "MENU"
+    READER = "READER"
+    PIP = "PIP"
