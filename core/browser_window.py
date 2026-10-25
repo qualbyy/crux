@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QUrl, QTimer, QSize, QStringListModel
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QPushButton, QLabel, QProgressBar, QSplitter, QStatusBar,
-    QTabBar, QMenu, QApplication, QCompleter
+    QTabBar, QMenu, QApplication, QCompleter, QComboBox, QSpinBox
 )
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QKeyEvent
 from PyQt6.QtNetwork import QNetworkProxy
@@ -91,7 +91,15 @@ class BrowserWindow(QMainWindow):
         self.side_panel.hide()
         self.workspace_splitter.addWidget(self.side_panel)
 
+        # 2.5 Responsive Viewport Bar
+        self._init_viewport_bar()
+        self.root_layout.addWidget(self.viewport_bar)
+
         self.root_layout.addWidget(self.workspace_splitter, stretch=1)
+
+        # 3.5 Embedded Chromium DevTools Dock
+        self._init_devtools_dock()
+        self.root_layout.addWidget(self.devtools_dock)
 
         # Find in Page Floating Bar
         self.find_bar = FindInPageBar(self)
@@ -396,6 +404,9 @@ class BrowserWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+,"), self, self.open_settings)
         QShortcut(QKeySequence("Ctrl+M"), self, self._cycle_modes)
         QShortcut(QKeySequence("Ctrl+["), self, self._toggle_sidebar_compact)
+        QShortcut(QKeySequence("F12"), self, self._toggle_devtools)
+        QShortcut(QKeySequence("Ctrl+Shift+I"), self, self._toggle_devtools)
+        QShortcut(QKeySequence("Ctrl+Shift+M"), self, self._toggle_viewport_bar)
 
     def set_tab_orientation(self, orient: str) -> None:
         self.tab_orientation = orient
@@ -1449,6 +1460,47 @@ class BrowserWindow(QMainWindow):
                 self._zoom_out()
             else:
                 self._zoom_reset()
+        elif action == "switch_tab":
+            try:
+                self.tab_manager.select_tab(int(param))
+            except Exception:
+                pass
+        elif action == "copy_clipboard":
+            from PyQt6.QtWidgets import QApplication
+            QApplication.clipboard().setText(param)
+            self._show_status_message(f"Copied: {param}")
+        elif action == "snooze_tab":
+            self.tab_manager.suspend_tab(self.tab_manager.active_tab_id)
+            self._show_status_message("Tab hibernated (💤 RAM saved)")
+        elif action == "snooze_others":
+            count = 0
+            for tid in list(self.tab_manager.tabs.keys()):
+                if tid != self.tab_manager.active_tab_id:
+                    self.tab_manager.suspend_tab(tid)
+                    count += 1
+            self._show_status_message(f"Hibernated {count} background tabs")
+        elif action == "wake_all":
+            for tid in list(self.tab_manager.tabs.keys()):
+                self.tab_manager.wake_tab(tid)
+            self._show_status_message("Woke all hibernated tabs")
+        elif action == "find":
+            self._toggle_find_in_page()
+        elif action == "pin":
+            self.tab_manager.toggle_pin_tab(self.tab_manager.active_tab_id)
+        elif action.startswith("container:"):
+            c_id = action.split(":")[-1]
+            self.tab_manager.create_tab(url="zephyrium://startpage", container_id=c_id)
+        elif action in ["clean_cookies", "cleardata"]:
+            try:
+                from PyQt6.QtWebEngineCore import QWebEngineProfile
+                QWebEngineProfile.defaultProfile().clearHttpCache()
+                self._show_status_message("Browser cache cleared")
+            except Exception:
+                pass
+        elif action == "devtools":
+            self._toggle_devtools()
+        elif action == "viewport":
+            self._toggle_viewport_bar()
         elif action in ["settings", "preferences", "config"]:
             self.open_settings()
         elif action == "quit":
@@ -1502,6 +1554,229 @@ class BrowserWindow(QMainWindow):
         if hasattr(self, "side_panel") and hasattr(self.side_panel, "ai_widget"):
             self.side_panel.ai_widget.reload_settings()
         self.status_label.setText(t("settings_saved_msg"))
+
+    # --- RESPONSIVE VIEWPORT & DEVELOPER TOOLS ---
+    def _init_viewport_bar(self) -> None:
+        self.viewport_bar = QWidget()
+        self.viewport_bar.setFixedHeight(34)
+        th = self.settings.get("theme", "dark")
+        acc = self.settings.get("accent_color", "#fe8019")
+        bar_bg = "#222220" if th == "dark" else "#e2e8f0"
+        bar_fg = "#ebdbb2" if th == "dark" else "#1e293b"
+        self.viewport_bar.setStyleSheet(f"""
+            QWidget {{
+                background-color: {bar_bg};
+                border-bottom: 1px solid #3c3836;
+            }}
+            QLabel {{
+                color: {bar_fg};
+                font-size: 11px;
+                font-weight: bold;
+            }}
+            QComboBox, QSpinBox {{
+                background-color: #1d2021;
+                border: 1px solid #504945;
+                color: #ebdbb2;
+                font-size: 11px;
+                padding: 1px 4px;
+                border-radius: 2px;
+            }}
+            QPushButton {{
+                background-color: #3c3836;
+                border: 1px solid #504945;
+                color: #ebdbb2;
+                font-size: 11px;
+                padding: 2px 6px;
+                border-radius: 2px;
+            }}
+            QPushButton:hover {{
+                background-color: {acc};
+                color: #1d2021;
+            }}
+        """)
+        vb_layout = QHBoxLayout(self.viewport_bar)
+        vb_layout.setContentsMargins(8, 2, 8, 2)
+        vb_layout.setSpacing(6)
+
+        title = QLabel("📱 Viewport:")
+        vb_layout.addWidget(title)
+
+        self.vp_preset_combo = QComboBox()
+        self.vp_preset_combo.addItems([
+            "Responsive (100%)",
+            "iPhone 15/16 (390 x 844)",
+            "Google Pixel 8 (412 x 915)",
+            "iPad Pro 11\" (834 x 1194)",
+            "Laptop (1366 x 768)",
+            "Desktop FHD (1920 x 1080)",
+        ])
+        self.vp_preset_combo.currentIndexChanged.connect(self._on_viewport_preset_changed)
+        vb_layout.addWidget(self.vp_preset_combo)
+
+        vb_layout.addWidget(QLabel("W:"))
+        self.vp_width_spin = QSpinBox()
+        self.vp_width_spin.setRange(320, 3840)
+        self.vp_width_spin.setValue(390)
+        self.vp_width_spin.valueChanged.connect(self._on_viewport_custom_size)
+        vb_layout.addWidget(self.vp_width_spin)
+
+        vb_layout.addWidget(QLabel("H:"))
+        self.vp_height_spin = QSpinBox()
+        self.vp_height_spin.setRange(320, 2160)
+        self.vp_height_spin.setValue(844)
+        self.vp_height_spin.valueChanged.connect(self._on_viewport_custom_size)
+        vb_layout.addWidget(self.vp_height_spin)
+
+        btn_rotate = QPushButton("🔄 Rotate")
+        btn_rotate.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_rotate.setToolTip("Rotate orientation (swap width and height)")
+        btn_rotate.clicked.connect(self._rotate_viewport)
+        vb_layout.addWidget(btn_rotate)
+
+        vb_layout.addWidget(QLabel("UA:"))
+        self.vp_ua_combo = QComboBox()
+        self.vp_ua_combo.addItems([
+            "Default UA",
+            "Mobile (iPhone Safari)",
+            "Mobile (Android Chrome)",
+            "Desktop (Chrome)",
+        ])
+        self.vp_ua_combo.currentIndexChanged.connect(self._on_viewport_ua_changed)
+        vb_layout.addWidget(self.vp_ua_combo)
+
+        vb_layout.addStretch()
+
+        btn_close_vp = QPushButton("✕")
+        btn_close_vp.setFixedSize(20, 20)
+        btn_close_vp.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_close_vp.clicked.connect(self._toggle_viewport_bar)
+        vb_layout.addWidget(btn_close_vp)
+
+        self.viewport_bar.hide()
+
+    def _toggle_viewport_bar(self) -> None:
+        if self.viewport_bar.isVisible():
+            self.viewport_bar.hide()
+            self._reset_viewport_size()
+        else:
+            self.viewport_bar.show()
+            self._on_viewport_preset_changed(self.vp_preset_combo.currentIndex())
+
+    def _rotate_viewport(self) -> None:
+        w = self.vp_width_spin.value()
+        h = self.vp_height_spin.value()
+        self.vp_width_spin.blockSignals(True)
+        self.vp_height_spin.blockSignals(True)
+        self.vp_width_spin.setValue(h)
+        self.vp_height_spin.setValue(w)
+        self.vp_width_spin.blockSignals(False)
+        self.vp_height_spin.blockSignals(False)
+        self._set_viewport_size(h, w)
+
+    def _on_viewport_preset_changed(self, index: int) -> None:
+        presets = [
+            (0, 0),         # Responsive (auto)
+            (390, 844),     # iPhone
+            (412, 915),     # Pixel
+            (834, 1194),    # iPad
+            (1366, 768),    # Laptop
+            (1920, 1080),   # FHD
+        ]
+        if 0 <= index < len(presets):
+            w, h = presets[index]
+            if w == 0 and h == 0:
+                self._reset_viewport_size()
+            else:
+                self.vp_width_spin.blockSignals(True)
+                self.vp_height_spin.blockSignals(True)
+                self.vp_width_spin.setValue(w)
+                self.vp_height_spin.setValue(h)
+                self.vp_width_spin.blockSignals(False)
+                self.vp_height_spin.blockSignals(False)
+                self._set_viewport_size(w, h)
+
+    def _on_viewport_custom_size(self) -> None:
+        w = self.vp_width_spin.value()
+        h = self.vp_height_spin.value()
+        self._set_viewport_size(w, h)
+
+    def _set_viewport_size(self, w: int, h: int) -> None:
+        v = self.tab_manager.get_current_view()
+        if v:
+            if w <= 0 or h <= 0:
+                v.setMaximumSize(16777215, 16777215)
+                v.setMinimumSize(0, 0)
+            else:
+                v.setFixedSize(w, h)
+
+    def _reset_viewport_size(self) -> None:
+        v = self.tab_manager.get_current_view()
+        if v:
+            v.setMaximumSize(16777215, 16777215)
+            v.setMinimumSize(0, 0)
+
+    def _on_viewport_ua_changed(self, index: int) -> None:
+        ua_map = {
+            0: "",
+            1: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+            2: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36",
+            3: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        }
+        target_ua = ua_map.get(index, "")
+        v = self.tab_manager.get_current_view()
+        if v and v.page():
+            prof = v.page().profile()
+            if prof:
+                if target_ua:
+                    prof.setHttpUserAgent(target_ua)
+                else:
+                    prof.setHttpUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Zephyrium/1.3.0")
+                v.reload()
+
+    def _init_devtools_dock(self) -> None:
+        from PyQt6.QtWebEngineWidgets import QWebEngineView
+        self.devtools_dock = QWidget()
+        self.devtools_dock.setFixedHeight(300)
+        dt_layout = QVBoxLayout(self.devtools_dock)
+        dt_layout.setContentsMargins(0, 0, 0, 0)
+        dt_layout.setSpacing(0)
+
+        header = QWidget()
+        header.setFixedHeight(28)
+        header.setStyleSheet("background: #18181b; border-top: 1px solid #3f3f46; border-bottom: 1px solid #27272a;")
+        h_layout = QHBoxLayout(header)
+        h_layout.setContentsMargins(8, 0, 8, 0)
+
+        self.devtools_title = QLabel("🛠 DevTools (Chromium Inspector)")
+        self.devtools_title.setStyleSheet("color: #fe8019; font-weight: bold; font-size: 11px;")
+        h_layout.addWidget(self.devtools_title)
+        h_layout.addStretch()
+
+        btn_close_dt = QPushButton("✕")
+        btn_close_dt.setFixedSize(20, 20)
+        btn_close_dt.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_close_dt.setStyleSheet("border: none; color: #a1a1aa; font-weight: bold;")
+        btn_close_dt.clicked.connect(self._toggle_devtools)
+        h_layout.addWidget(btn_close_dt)
+
+        dt_layout.addWidget(header)
+        self.devtools_view = QWebEngineView()
+        dt_layout.addWidget(self.devtools_view)
+        self.devtools_dock.hide()
+
+    def _toggle_devtools(self) -> None:
+        if self.devtools_dock.isVisible():
+            self.devtools_dock.hide()
+            v = self.tab_manager.get_current_view()
+            if v and v.page():
+                v.page().setDevToolsPage(None)
+        else:
+            v = self.tab_manager.get_current_view()
+            if v and v.page():
+                v.page().setDevToolsPage(self.devtools_view.page())
+                host = v.url().host() or "Local Page"
+                self.devtools_title.setText(f"🛠 DevTools — {host}")
+                self.devtools_dock.show()
 
     # --- VIM MODE SUPPORT ---
     def keyPressEvent(self, event: QKeyEvent):

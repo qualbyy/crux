@@ -1,6 +1,6 @@
 ; Script generated for Inno Setup 6
 #define MyAppName "Zephyrium"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "Qualbyy"
 #define MyAppURL "https://github.com/qualbyy/zephyrium"
 #define MyAppExeName "zephyrium.exe"
@@ -51,9 +51,14 @@ function VCRedistNeedsInstall: Boolean;
 var
   Installed: Cardinal;
 begin
-  // Check if VC++ 2015-2022 Redistributable (x64) is installed in registry
+  // Check if VC++ 2015-2022 Redistributable (x64) is installed in registry (64-bit and 32-bit views)
   Result := True;
-  if RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64', 'Installed', Installed) then
+  if RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64', 'Installed', Installed) then
+  begin
+    if Installed = 1 then
+      Result := False;
+  end
+  else if RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64', 'Installed', Installed) then
   begin
     if Installed = 1 then
       Result := False;

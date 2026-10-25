@@ -161,9 +161,60 @@ class ZincWebPage(QWebEnginePage):
     def __init__(self, profile: QWebEngineProfile, parent=None):
         super().__init__(profile, parent)
         self._view = parent
+        self.featurePermissionRequested.connect(self._on_feature_permission_requested)
 
     def view(self):
         return self._view or self.parent()
+
+    def _on_feature_permission_requested(self, securityOrigin: QUrl, feature: QWebEnginePage.Feature):
+        # Auto-grant permissions for Clipboard, Notifications, Audio/Video on secure web apps
+        try:
+            self.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+        except Exception as e:
+            print(f"Error setting feature permission: {e}")
+
+    def javaScriptAlert(self, securityOrigin: QUrl, msg: str) -> None:
+        from PyQt6.QtWidgets import QMessageBox
+        parent = self.view()
+        title = securityOrigin.host() or "Notice"
+        QMessageBox.information(parent, title, msg)
+
+    def javaScriptConfirm(self, securityOrigin: QUrl, msg: str) -> bool:
+        from PyQt6.QtWidgets import QMessageBox
+        parent = self.view()
+        title = securityOrigin.host() or "Confirmation"
+        res = QMessageBox.question(
+            parent,
+            title,
+            msg,
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Ok
+        )
+        return res == QMessageBox.StandardButton.Ok
+
+    def chooseFiles(self, mode: QWebEnginePage.FileSelectionMode, oldFiles: list[str], acceptedMimeTypes: list[str]) -> list[str]:
+        from PyQt6.QtWidgets import QFileDialog
+        parent = self.view()
+        try:
+            if mode == QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple:
+                files, _ = QFileDialog.getOpenFileNames(parent, "Select Files", "", ";;".join(acceptedMimeTypes) if acceptedMimeTypes else "All Files (*)")
+                return files or oldFiles
+            elif mode == QWebEnginePage.FileSelectionMode.FileSelectOpen:
+                f, _ = QFileDialog.getOpenFileName(parent, "Select File", "", ";;".join(acceptedMimeTypes) if acceptedMimeTypes else "All Files (*)")
+                return [f] if f else oldFiles
+            elif mode == QWebEnginePage.FileSelectionMode.FileSelectUploadFolder:
+                folder = QFileDialog.getExistingDirectory(parent, "Select Folder to Upload")
+                if folder:
+                    import os
+                    all_files = []
+                    for root, _, filenames in os.walk(folder):
+                        for fn in filenames:
+                            all_files.append(os.path.join(root, fn))
+                    return all_files
+                return oldFiles
+        except Exception as e:
+            print(f"Error in chooseFiles: {e}")
+        return super().chooseFiles(mode, oldFiles, acceptedMimeTypes)
 
     def javaScriptPrompt(self, securityOrigin: QUrl, msg: str, defaultValue: str) -> tuple[bool, str]:
         if msg.startswith("ZEPHYRIUM_CMD:") or msg.startswith("zephyrium:") or msg.startswith("zinc:"):
@@ -212,9 +263,11 @@ class ZincWebPage(QWebEnginePage):
             if v:
                 win = v._get_main_window()
                 if win and hasattr(win, "tab_manager"):
-                    new_tab_id = win.tab_manager.create_tab()
+                    # Open blank tab and let the popup caller navigate to its intended destination
+                    new_tab_id = win.tab_manager.create_tab(url="about:blank")
                     new_view = win.tab_manager.get_tab_view(new_tab_id)
                     if new_view:
+                        win.tab_manager.select_tab(new_tab_id)
                         return new_view.page()
         except Exception as e:
             print(f"Error in createWindow: {e}")
@@ -255,8 +308,17 @@ class ZincWebView(QWebEngineView):
         self.page().setBackgroundColor(QColor("#18181b" if th == "dark" else "#f8fafc"))
 
         # Enable HTML5 FullScreen API for YouTube and video players
-        self.settings().setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
-        self.page().settings().setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+        for s_obj in [self.settings(), self.page().settings()]:
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, True)
+            s_obj.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True)
         self.page().fullScreenRequested.connect(self._on_fullscreen_requested)
 
         # Password and Credential Autofill on page load
@@ -280,6 +342,7 @@ class ZincWebView(QWebEngineView):
                 s = load_settings()
                 win = self._get_main_window()
                 wl = list(win.adblocker.whitelist) if hasattr(win, "adblocker") else []
+                extensions = win.profile_manager.userscript_manager.list_all() if (win and hasattr(win, "profile_manager")) else {}
                 
                 ck_file = CONFIG_DIR / "cookies.json"
                 passwords = []  # Locked behind sudo authentication
@@ -291,7 +354,7 @@ class ZincWebView(QWebEngineView):
                     except Exception:
                         cookies = []
 
-                payload = json.dumps({"settings": s, "whitelist": wl, "passwords": passwords, "cookies": cookies})
+                payload = json.dumps({"settings": s, "whitelist": wl, "passwords": passwords, "cookies": cookies, "extensions": extensions})
                 self.page().runJavaScript(f"if (window.initSettings) window.initSettings({payload});")
             except Exception as e:
                 print(f"[Settings Init Error] {e}")
@@ -498,6 +561,12 @@ class ZincWebView(QWebEngineView):
         if is_internal:
             self.page().setBackgroundColor(QColor("#18181b" if th == "dark" else "#ffffff"))
         else:
+            if s.get("clean_urls", True):
+                try:
+                    from core.privacy_shield import strip_tracking_params
+                    url_clean = strip_tracking_params(url_clean)
+                except Exception:
+                    pass
             if ws_th == "dark":
                 self.page().setBackgroundColor(QColor("#121212"))
             else:
@@ -742,6 +811,8 @@ class ZincWebView(QWebEngineView):
                 s["website_theme"] = params["website_theme"][0]
             if "new_tab_url" in params:
                 s["new_tab_url"] = params["new_tab_url"][0]
+            if "tab_hibernation" in params:
+                s["tab_hibernation"] = params["tab_hibernation"][0]
 
             save_settings(s)
 
@@ -789,6 +860,20 @@ class ZincWebView(QWebEngineView):
                 s = load_settings()
                 ddir = s.get("download_dir", str(Path.home() / "Downloads"))
                 QDesktopServices.openUrl(QUrl.fromLocalFile(ddir))
+            elif action == "open-scripts-dir":
+                from core.userscript_manager import SCRIPTS_DIR
+                from PyQt6.QtGui import QDesktopServices
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(SCRIPTS_DIR)))
+            elif action == "toggle-userscript":
+                target_fn = qs.get("name", [""])[0]
+                win = self._get_main_window()
+                if win and hasattr(win, "profile_manager"):
+                    win.profile_manager.userscript_manager.toggle_script(target_fn)
+            elif action == "toggle-userstyle":
+                target_fn = qs.get("name", [""])[0]
+                win = self._get_main_window()
+                if win and hasattr(win, "profile_manager"):
+                    win.profile_manager.userscript_manager.toggle_style(target_fn)
             elif action == "open-file":
                 fpath = qs.get("path", [""])[0]
                 if fpath:

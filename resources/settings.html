@@ -545,6 +545,9 @@
                 <button class="tab-btn" data-tab="about" onclick="switchTab('about')" data-i18n="tab_about">
                     [08] ABOUT
                 </button>
+                <button class="tab-btn" data-tab="extensions" onclick="switchTab('extensions')">
+                    [09] EXTENSIONS
+                </button>
             </div>
 
             <!-- Tab Contents -->
@@ -605,6 +608,19 @@
                             <input type="checkbox" id="setting-restore-session">
                             <span class="label-title" data-i18n="lbl_enabled">Enabled</span>
                         </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Гибернация вкладок (Memory Saver)</span>
+                            <span class="label-desc">Выгрузка неактивных фоновых вкладок из RAM для экономии ресурсов.</span>
+                        </div>
+                        <select id="setting-tab-hibernation" style="width: 200px;">
+                            <option value="never">Отключено</option>
+                            <option value="15">Через 15 минут</option>
+                            <option value="30" selected>Через 30 минут</option>
+                            <option value="60">Через 60 минут</option>
+                        </select>
                     </div>
                 </div>
 
@@ -994,13 +1010,45 @@
                             Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
                         </p>
                         <p>
-                            <span data-i18n="about_version">Version:</span> <strong>1.2.0 (Release)</strong><br>
+                            <span data-i18n="about_version">Version:</span> <strong>1.3.0 (Release)</strong><br>
                             <span data-i18n="about_engine">Engine:</span> <strong>Chromium // Qt6WebEngine</strong><br>
                             <span data-i18n="about_arch">Architecture:</span> <strong>x86_64 Desktop</strong>
                         </p>
                         <div style="display: flex; gap: 12px; margin-top: 12px;">
                             <button type="button" class="btn-action" onclick="openExternalUrl('https://github.com/qualbyy/zephyrium')" data-i18n="btn_github">GITHUB</button>
                             <button type="button" class="btn-action" onclick="openExternalUrl('https://t.me/qualbyy')" data-i18n="btn_telegram">TELEGRAM</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EXTENSIONS & SCRIPTS -->
+                <div id="tab-extensions" class="tab-content">
+                    <div class="section-header">
+                        <h2>EXTENSIONS & USERSCRIPTS</h2>
+                        <p>Violentmonkey / Greasemonkey scripts (.user.js) and custom stylesheets (.user.css).</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Управление файлами расширений</span>
+                            <span class="label-desc">Поместите ваши .user.js и .user.css файлы в системную папку для автоматической инъекции.</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn-action" onclick="openScriptsFolder()">ОТКРЫТЬ ПАПКУ СКРИПТОВ</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 16px;">
+                        <h3 style="font-size: 12px; color: var(--accent); margin-bottom: 8px;">УСТАНОВЛЕННЫЕ USERSCRIPTS</h3>
+                        <div id="userscripts-list" style="border: 1px solid var(--border-muted); background: var(--bg-base); padding: 8px; min-height: 60px;">
+                            <div style="color: var(--text-muted); font-size: 11px;">Нет установленных .user.js скриптов</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 16px;">
+                        <h3 style="font-size: 12px; color: var(--accent); margin-bottom: 8px;">УСТАНОВЛЕННЫЕ USERSTYLES</h3>
+                        <div id="userstyles-list" style="border: 1px solid var(--border-muted); background: var(--bg-base); padding: 8px; min-height: 60px;">
+                            <div style="color: var(--text-muted); font-size: 11px;">Нет установленных .user.css стилей</div>
                         </div>
                     </div>
                 </div>
@@ -1755,6 +1803,7 @@
             if (s.ai_model) document.getElementById('setting-ai-model').value = s.ai_model;
             if (s.ai_persona) document.getElementById('setting-ai-persona').value = s.ai_persona;
             if (s.restore_session !== undefined) document.getElementById('setting-restore-session').checked = s.restore_session;
+            if (s.tab_hibernation) document.getElementById('setting-tab-hibernation').value = s.tab_hibernation;
 
             if (data.whitelist) {
                 currentWhitelist = data.whitelist;
@@ -1770,7 +1819,56 @@
                 currentCookies = data.cookies;
                 renderVaultCookies(currentCookies);
             }
+
+            if (data.extensions) {
+                renderExtensions(data.extensions);
+            }
         };
+
+        function renderExtensions(ext) {
+            const scriptsList = document.getElementById('userscripts-list');
+            const stylesList = document.getElementById('userstyles-list');
+            if (scriptsList && ext.userscripts && ext.userscripts.length > 0) {
+                scriptsList.innerHTML = ext.userscripts.map(s => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--border-muted);">
+                        <div>
+                            <div style="font-weight: bold; font-size: 12px; color: var(--text-bright);">${s.name || s.filename}</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">${s.filename} (${s.version || '1.0'})</div>
+                        </div>
+                        <button type="button" class="btn-table-sm" onclick="toggleUserscript('${s.filename}')">${s.enabled ? 'ОТКЛЮЧИТЬ' : 'ВКЛЮЧИТЬ'}</button>
+                    </div>
+                `).join('');
+            } else if (scriptsList) {
+                scriptsList.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Нет установленных .user.js скриптов</div>';
+            }
+            if (stylesList && ext.userstyles && ext.userstyles.length > 0) {
+                stylesList.innerHTML = ext.userstyles.map(s => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--border-muted);">
+                        <div>
+                            <div style="font-weight: bold; font-size: 12px; color: var(--text-bright);">${s.name || s.filename}</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">${s.filename}</div>
+                        </div>
+                        <button type="button" class="btn-table-sm" onclick="toggleUserstyle('${s.filename}')">${s.enabled ? 'ОТКЛЮЧИТЬ' : 'ВКЛЮЧИТЬ'}</button>
+                    </div>
+                `).join('');
+            } else if (stylesList) {
+                stylesList.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Нет установленных .user.css стилей</div>';
+            }
+        }
+
+        function openScriptsFolder() {
+            sendToHost("zephyrium://action/open-scripts-dir");
+        }
+
+        function toggleUserscript(name) {
+            sendToHost("zephyrium://action/toggle-userscript?name=" + encodeURIComponent(name));
+            setTimeout(() => { location.reload(); }, 250);
+        }
+
+        function toggleUserstyle(name) {
+            sendToHost("zephyrium://action/toggle-userstyle?name=" + encodeURIComponent(name));
+            setTimeout(() => { location.reload(); }, 250);
+        }
 
         // Save & Apply
         function saveAndApply() {
@@ -1802,6 +1900,7 @@
             params.set('ai_model', document.getElementById('setting-ai-model').value);
             params.set('ai_persona', document.getElementById('setting-ai-persona').value);
             params.set('restore_session', document.getElementById('setting-restore-session').checked ? 'true' : 'false');
+            params.set('tab_hibernation', document.getElementById('setting-tab-hibernation').value);
             params.set('whitelist', currentWhitelist.join(','));
 
             const toast = document.getElementById('toastMessage');

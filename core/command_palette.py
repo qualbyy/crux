@@ -135,11 +135,22 @@ class CommandPalette(QDialog):
             ("navigate", "Navigate or Search DuckDuckGo", "URL or query"),
             ("tabnew", ":tabnew [url] — Open a new tab", "tabnew"),
             ("close", ":close — Close current tab", "close"),
+            ("snooze_tab", ":snooze — Snooze current tab to free RAM (💤)", "snooze"),
+            ("snooze_others", ":snooze others — Snooze all background tabs", "snooze:others"),
+            ("wake_all", ":wake all — Wake all snoozed tabs", "wake:all"),
+            ("devtools", ":devtools / F12 — Toggle Chromium DevTools Dock", "devtools"),
+            ("viewport", ":viewport — Toggle Responsive Mobile Emulator Bar", "viewport"),
+            ("tab_work", ":container work — Open tab in Work container", "container:work"),
+            ("tab_personal", ":container personal — Open tab in Personal container", "container:personal"),
+            ("tab_dev", ":container dev — Open tab in Dev container", "container:dev"),
+            ("tab_incognito", ":container incognito — Open Disposable incognito tab", "container:incognito"),
+            ("find", ":find — Toggle Find in Page (Ctrl+F)", "find"),
+            ("pin", ":pin — Pin/unpin active tab", "pin"),
             ("split", ":split — Toggle Split View (dual webview)", "split"),
             ("vsplit", ":vsplit — Toggle Vertical Split View", "vsplit"),
             ("ai", ":ai — Toggle Claude AI Assistant panel", "ai"),
             ("notes", ":notes — Toggle Scratchpad Notes panel", "notes"),
-            ("downloads", ":downloads — Toggle Downloads drawer", "downloads"),
+            ("downloads", ":downloads — Toggle Downloads popup", "downloads"),
             ("adblock", ":adblock — Toggle AdBlocker on/off", "adblock"),
             ("zoom_in", ":zoom in — Zoom in page (+10%)", "zoom:in"),
             ("zoom_out", ":zoom out — Zoom out page (-10%)", "zoom:out"),
@@ -147,6 +158,7 @@ class CommandPalette(QDialog):
             ("bookmarks", ":bookmarks — Show saved bookmarks", "bookmarks"),
             ("history", ":history — Show browsing history", "history"),
             ("settings", ":settings — Settings & Import Passwords/Cookies/Bookmarks", "settings"),
+            ("clean_cookies", ":cleardata — Clear cookies and cache", "cleardata"),
         ]
 
     def show_palette(self, initial_text: str = "") -> None:
@@ -217,6 +229,18 @@ class CommandPalette(QDialog):
         self.list_widget.clear()
         q = query.strip().lower()
 
+        # Quick math calculator
+        if q and any(op in q for op in ["+", "-", "*", "/", "%"]):
+            try:
+                safe_expr = q.replace("^", "**")
+                if all(ch in "0123456789. +-/*%()e" for ch in safe_expr):
+                    val = eval(safe_expr, {"__builtins__": None}, {})
+                    calc_item = QListWidgetItem(f"🔢 {q} = {val}  (Enter to copy)")
+                    calc_item.setData(Qt.ItemDataRole.UserRole, ("copy_clipboard", str(val)))
+                    self.list_widget.addItem(calc_item)
+            except Exception:
+                pass
+
         # If user is typing a URL or general search
         if q and not q.startswith(":"):
             direct_item = QListWidgetItem(f"→ Open / Search: '{query}'")
@@ -225,6 +249,21 @@ class CommandPalette(QDialog):
 
             if len(q) >= 2 and not q.startswith("http://") and not q.startswith("https://") and not q.startswith("file://"):
                 self.suggest_timer.start()
+
+        # Match open tabs across tab manager
+        parent = self.parent()
+        if parent and hasattr(parent, "tab_manager"):
+            tm = parent.tab_manager
+            for tid, tdata in list(tm.tabs.items()):
+                title = tdata.title or "New Tab"
+                url = tdata.url or ""
+                cont = getattr(tdata, "container_id", "default")
+                if not q or q in title.lower() or q in url.lower() or q in cont.lower():
+                    status_prefix = "💤 " if getattr(tdata, "is_suspended", False) else "📑 "
+                    badge = f"[{cont.upper()}] " if cont != "default" else ""
+                    item = QListWidgetItem(f"{status_prefix}{badge}{title} — {url}")
+                    item.setData(Qt.ItemDataRole.UserRole, ("switch_tab", str(tid)))
+                    self.list_widget.addItem(item)
 
         # Match built-in commands
         for cmd_type, title, arg in self._static_commands:
@@ -236,10 +275,25 @@ class CommandPalette(QDialog):
         # Match bookmarks
         bookmarks = DataStore.load_bookmarks()
         for bm in bookmarks:
-            if not q or q in bm["title"].lower() or q in bm["url"].lower():
-                item = QListWidgetItem(f"[BM] {bm['title']} — {bm['url']}")
-                item.setData(Qt.ItemDataRole.UserRole, ("navigate", bm["url"]))
+            if not q or q in bm.get("title", "").lower() or q in bm.get("url", "").lower():
+                item = QListWidgetItem(f"[BM] {bm.get('title', '')} — {bm.get('url', '')}")
+                item.setData(Qt.ItemDataRole.UserRole, ("navigate", bm.get("url", "")))
                 self.list_widget.addItem(item)
+
+        # Match history
+        try:
+            history = DataStore.load_history()
+            matched_history = 0
+            for h in history:
+                if q and (q in h.get("title", "").lower() or q in h.get("url", "").lower()):
+                    item = QListWidgetItem(f"🕒 {h.get('title', '')} — {h.get('url', '')}")
+                    item.setData(Qt.ItemDataRole.UserRole, ("navigate", h.get("url", "")))
+                    self.list_widget.addItem(item)
+                    matched_history += 1
+                    if matched_history >= 8:
+                        break
+        except Exception:
+            pass
 
         if self.list_widget.count() > 0:
             self.list_widget.setCurrentRow(0)

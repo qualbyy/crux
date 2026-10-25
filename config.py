@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Base Paths
 APP_NAME = "Zephyrium"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 if sys.platform == "win32":
     CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Zephyrium"
@@ -39,6 +39,7 @@ DEFAULT_SETTINGS = {
     "new_tab_url": "zephyrium://startpage",
     "download_dir": str(Path.home() / "Downloads"),
     "restore_session": False,
+    "tab_hibernation": "30",    # Inactive tab hibernation timeout in minutes ("never", "15", "30", "60")
     "adblock_enabled": True,
     "clean_urls": True,
     "send_dnt": True,

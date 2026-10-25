@@ -63,25 +63,27 @@ class AdBlockerInterceptor(QWebEngineUrlRequestInterceptor):
         except Exception as e:
             print(f"Error saving whitelist: {e}")
 
-    def interceptRequest(self, info: QWebEngineUrlRequestInfo) -> None:
+    def should_block(self, request_url: QUrl) -> bool:
         if not self.enabled:
-            return
-
-        request_url: QUrl = info.requestUrl()
+            return False
         host = request_url.host().lower()
         full_url = request_url.toString().lower()
-
-        # Whitelist check
         if any(w in host for w in self.whitelist):
-            return
-
-        # Fast matching against blocked domains
+            return False
         for domain in self.blocked_domains:
-            if domain in host or domain in full_url:
-                info.block(True)
-                self.blocked_count += 1
-                self.request_blocked.emit(full_url)
-                return
+            if "/" in domain:
+                if domain in full_url:
+                    return True
+            else:
+                if host == domain or host.endswith("." + domain):
+                    return True
+        return False
+
+    def interceptRequest(self, info: QWebEngineUrlRequestInfo) -> None:
+        if self.should_block(info.requestUrl()):
+            info.block(True)
+            self.blocked_count += 1
+            self.request_blocked.emit(info.requestUrl().toString().lower())
 
     def toggle(self) -> bool:
         self.enabled = not self.enabled

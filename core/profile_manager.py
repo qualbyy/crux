@@ -6,13 +6,22 @@ from PyQt6.QtCore import QObject
 from PyQt6.QtWebEngineCore import QWebEngineProfile
 from config import CONTAINERS, PROFILES_DIR
 from core.adblock import AdBlockerInterceptor
+from core.privacy_shield import install_privacy_shield
+from core.userscript_manager import UserscriptManager
 
 class ProfileManager(QObject):
     def __init__(self, adblocker: AdBlockerInterceptor, parent=None):
         super().__init__(parent)
         self.adblocker = adblocker
+        self.userscript_manager = UserscriptManager(self)
         self._profiles: Dict[str, QWebEngineProfile] = {}
         self._setup_profiles()
+        self.userscript_manager.scripts_changed.connect(self._reapply_extensions)
+
+    def _reapply_extensions(self) -> None:
+        for p in self._profiles.values():
+            self.userscript_manager.apply_to_profile(p)
+            install_privacy_shield(p)
 
     def _setup_profiles(self) -> None:
         from core.web_view import ZephyriumSchemeHandler
@@ -20,6 +29,8 @@ class ProfileManager(QObject):
         try:
             QWebEngineProfile.defaultProfile().installUrlSchemeHandler(b"zephyrium", self._scheme_handler)
             QWebEngineProfile.defaultProfile().installUrlSchemeHandler(b"zinc", self._scheme_handler)
+            install_privacy_shield(QWebEngineProfile.defaultProfile())
+            self.userscript_manager.apply_to_profile(QWebEngineProfile.defaultProfile())
         except Exception:
             pass
 
@@ -42,8 +53,10 @@ class ProfileManager(QObject):
             except Exception:
                 pass
 
-            # Register shared adblock interceptor
+            # Register shared adblock interceptor and privacy shield
             profile.setUrlRequestInterceptor(self.adblocker)
+            install_privacy_shield(profile)
+            self.userscript_manager.apply_to_profile(profile)
             self._profiles[profile_id] = profile
 
     def get_profile(self, profile_id: str) -> QWebEngineProfile:

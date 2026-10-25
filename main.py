@@ -92,6 +92,14 @@ if sys.platform == "win32":
     for p in Path(sys.prefix).glob("**/site-packages/PyQt6/Qt6/bin"):
         win_bin_dirs.append(p)
 
+    # Reset any restrictive SetDllDirectory to ensure standard search in _internal is active
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetDllDirectoryW(None)
+    except Exception:
+        pass
+
+    added_paths = []
     for bdir in win_bin_dirs:
         if bdir.is_dir():
             bdir_str = str(bdir)
@@ -100,17 +108,16 @@ if sys.platform == "win32":
                 _dll_handles.append(handle)
             except Exception:
                 pass
-            os.environ["PATH"] = bdir_str + os.pathsep + os.environ.get("PATH", "")
+            added_paths.append(bdir_str)
 
-    # Also set default DLL directory via Win32 API as ultimate fallback
-    try:
-        import ctypes
-        for bdir in win_bin_dirs:
-            if bdir.is_dir():
-                ctypes.windll.kernel32.SetDllDirectoryW(str(bdir))
-                break
-    except Exception:
-        pass
+    if added_paths:
+        new_path = os.pathsep.join(added_paths) + os.pathsep + os.environ.get("PATH", "")
+        os.environ["PATH"] = new_path
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetEnvironmentVariableW("PATH", new_path)
+        except Exception:
+            pass
 
 for venv_candidate in candidates:
     res_path = None

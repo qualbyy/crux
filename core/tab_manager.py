@@ -65,6 +65,13 @@ class TabItemWidget(QWidget):
         self.indicator.setStyleSheet("color: #71717a; font-size: 11px; background: transparent; border: none;")
         self._layout.addWidget(self.indicator)
 
+        # Container badge (e.g. WRK, PER, DEV, INC)
+        self.container_badge = QLabel()
+        self.container_badge.setFixedHeight(16)
+        self.container_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.container_badge.hide()
+        self._layout.addWidget(self.container_badge)
+
         # Title Label
         self.title_label = QLabel(tab_data.title)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
@@ -111,17 +118,31 @@ class TabItemWidget(QWidget):
         self.refresh_ui()
 
     def refresh_ui(self) -> None:
+        # Update container badge
+        cid = getattr(self.tab_data, "container_id", "default")
+        if cid and cid != "default" and cid in CONTAINERS:
+            meta = CONTAINERS[cid]
+            b_text = meta.get("badge", cid[:3].upper())
+            b_col = meta.get("color", self.accent)
+            self.container_badge.setText(b_text)
+            self.container_badge.setStyleSheet(f"color: {b_col}; border: 1px solid {b_col}; font-size: 8px; font-weight: bold; padding: 0 2px; border-radius: 2px; background: transparent;")
+            self.container_badge.show()
+        else:
+            self.container_badge.hide()
+
         if self.tab_data.is_pinned:
             self.indicator.setText("PIN")
             self.indicator.setStyleSheet(f"color: {self.accent}; font-size: 9px; font-weight: bold; border: 1px solid {self.accent}; padding: 1px;")
             self.indicator.setFixedWidth(24)
             self.close_btn.hide()
         elif self.tab_data.is_suspended:
-            self.indicator.setText("z")
-            self.indicator.setFixedWidth(16)
+            self.indicator.setText("💤")
+            self.indicator.setStyleSheet("font-size: 11px; background: transparent; border: none;")
+            self.indicator.setFixedWidth(18)
             self.close_btn.show()
         else:
             self.indicator.setText("▪")
+            self.indicator.setStyleSheet("color: #71717a; font-size: 11px; background: transparent; border: none;")
             self.indicator.setFixedWidth(16)
             self.close_btn.show()
 
@@ -505,6 +526,15 @@ class VerticalTabSidebar(QWidget):
                 if isinstance(widget, TabItemWidget):
                     widget.update_theme(theme, accent)
 
+    def get_tab_widget(self, tab_id: int):
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if item:
+                widget = self.list_widget.itemWidget(item)
+                if isinstance(widget, TabItemWidget) and widget.tab_data.tab_id == tab_id:
+                    return widget
+        return None
+
 
 class TabManager(QWidget):
     active_tab_changed = pyqtSignal(SplitViewContainer)
@@ -596,8 +626,10 @@ class TabManager(QWidget):
         self.tab_counter += 1
         tab_id = self.tab_counter
 
-        # Build Web View & Split Container (all tabs use default profile)
-        container_id = "default"
+        # Build Web View & Split Container (support container/profile selection)
+        container_id = kwargs.get("container_id", "default")
+        if args and isinstance(args[0], str) and args[0] in CONTAINERS:
+            container_id = args[0]
         profile = self.profile_manager.get_profile(container_id)
         web_view = ZincWebView(profile, container_id)
         
@@ -803,11 +835,16 @@ class TabManager(QWidget):
         if tab_id not in self.tabs or tab_id == self.active_tab_id:
             return
         tab_data = self.tabs[tab_id]
-        if tab_data.is_suspended:
+        if tab_data.is_suspended or tab_data.is_pinned or getattr(tab_data, "is_audible", False):
             return
         tab_data.is_suspended = True
         view = tab_data.split_container.get_active_view()
         tab_data.url = view.url().toString()
+        # Save scroll position
+        view.page().runJavaScript(
+            "({x: window.scrollX, y: window.scrollY})",
+            lambda pos: setattr(tab_data, "saved_scroll", (pos.get("x", 0), pos.get("y", 0)) if isinstance(pos, dict) else (0, 0))
+        )
         acc = getattr(self, "current_accent", "#fe8019")
         th = getattr(self, "current_theme", "dark")
         bg = "#18181b" if th == "dark" else "#f8fafc"
@@ -816,11 +853,13 @@ class TabManager(QWidget):
         fg_title = "#d4d4d8" if th == "dark" else "#1e293b"
         fg_muted = "#71717a" if th == "dark" else "#64748b"
         view.setHtml(f"""
-            <html><body style="background:{bg};color:{fg_muted};font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;">
-            <div style="border:1px solid {card_border};padding:24px;background:{card_bg};text-align:center;">
-                <div style="color:{acc};font-weight:bold;margin-bottom:8px;">[TAB SUSPENDED // RAM SAVED]</div>
-                <div style="color:{fg_title};margin-bottom:12px;">{tab_data.title}</div>
-                <div style="font-size:11px;color:{fg_muted};">Click tab in sidebar to restore session.</div>
+            <html><body style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;">
+            <div style="border:1px solid {card_border};border-radius:8px;padding:32px;background:{card_bg};text-align:center;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                <div style="font-size:32px;margin-bottom:12px;">💤</div>
+                <div style="color:{acc};font-weight:bold;font-size:14px;letter-spacing:0.5px;margin-bottom:8px;">ТАБ В РЕЖИМЕ СНА // RAM SAVED</div>
+                <div style="color:{fg_title};font-size:15px;font-weight:600;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{tab_data.title}</div>
+                <div style="font-size:12px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена для освобождения оперативной памяти.</div>
+                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border-radius:4px;display:inline-block;border:1px solid {card_border};">Нажмите на вкладку для пробуждения</div>
             </div>
             </body></html>
         """)
@@ -829,30 +868,52 @@ class TabManager(QWidget):
             if item.data(Qt.ItemDataRole.UserRole) == tab_id:
                 widget = self.sidebar.list_widget.itemWidget(item)
                 if isinstance(widget, TabItemWidget):
-                    widget.set_suspended(True)
+                    widget.refresh_ui()
                 break
+        self.tabs_updated.emit()
 
     def wake_tab(self, tab_id: int) -> None:
         if tab_id in self.tabs:
             tab_data = self.tabs[tab_id]
             if tab_data.is_suspended:
                 tab_data.is_suspended = False
-                tab_data.split_container.get_active_view().load(QUrl(tab_data.url))
+                view = tab_data.split_container.get_active_view()
+                target_url = tab_data.url or "zephyrium://startpage"
+                view.load(QUrl(target_url))
+                scroll_pos = getattr(tab_data, "saved_scroll", (0, 0))
+                if scroll_pos and (scroll_pos[0] > 0 or scroll_pos[1] > 0):
+                    def _restore_scroll(ok):
+                        if ok:
+                            view.page().runJavaScript(f"window.scrollTo({scroll_pos[0]}, {scroll_pos[1]});")
+                    view.loadFinished.connect(_restore_scroll)
                 for row in range(self.sidebar.list_widget.count()):
                     item = self.sidebar.list_widget.item(row)
                     if item.data(Qt.ItemDataRole.UserRole) == tab_id:
                         widget = self.sidebar.list_widget.itemWidget(item)
                         if isinstance(widget, TabItemWidget):
-                            widget.set_suspended(False)
+                            widget.refresh_ui()
                         break
+                self.tabs_updated.emit()
 
     def _check_tab_suspension(self) -> None:
-        now = time.time()
-        # Suspend inactive background tabs after 20 minutes (1200 seconds)
-        for tid, data in list(self.tabs.items()):
-            if tid != self.active_tab_id and not data.is_suspended:
-                if (now - data.last_active_time) > 1200:
-                    self.suspend_tab(tid)
+        try:
+            from config import load_settings
+            s = load_settings()
+            hib_setting = s.get("tab_hibernation", "30")
+            if hib_setting == "never":
+                return
+            try:
+                timeout_sec = int(hib_setting) * 60
+            except Exception:
+                timeout_sec = 1800
+
+            now = time.time()
+            for tid, data in list(self.tabs.items()):
+                if tid != self.active_tab_id and not data.is_suspended:
+                    if (now - data.last_active_time) > timeout_sec:
+                        self.suspend_tab(tid)
+        except Exception:
+            pass
 
     def get_current_split_container(self) -> Optional[SplitViewContainer]:
         if self.active_tab_id in self.tabs:
