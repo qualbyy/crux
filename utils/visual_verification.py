@@ -107,6 +107,40 @@ def capture_visuals():
     pix5.save(str(path5), "PNG")
     print(f"Captured: {path5}", flush=True)
 
+    # 6. Test Vim mode and corner exit button
+    win.apply_mode("vim")
+    app.processEvents()
+    QTest.qWait(600)
+    app.processEvents()
+    assert win.vim_exit_btn.isVisible(), "vim_exit_btn should be visible in vim mode"
+    assert win.status_vim_exit_btn.isVisible(), "status_vim_exit_btn should be visible in vim mode"
+    pix6 = win.grab()
+    path6 = screenshot_dir / "verify_vim_mode.png"
+    pix6.save(str(path6), "PNG")
+    print(f"Captured: {path6}", flush=True)
+
+    # 7. Test exiting Vim mode via corner exit button
+    win.vim_exit_btn.click()
+    app.processEvents()
+    QTest.qWait(600)
+    app.processEvents()
+    assert not win.vim_exit_btn.isVisible(), "vim_exit_btn should be hidden in minimal mode"
+    assert win.ui_mode == "minimal", "Mode should be restored to minimal"
+    pix7 = win.grab()
+    path7 = screenshot_dir / "verify_vim_exited.png"
+    pix7.save(str(path7), "PNG")
+    print(f"Captured: {path7}", flush=True)
+
+    # 8. Open Settings Tab and verify
+    win.tab_manager.create_tab("zephyrium://settings")
+    app.processEvents()
+    QTest.qWait(1200)
+    app.processEvents()
+    pix8 = win.grab()
+    path8 = screenshot_dir / "verify_settings_ru.png"
+    pix8.save(str(path8), "PNG")
+    print(f"Captured: {path8}", flush=True)
+
     win.close()
     app.processEvents()
     print("All verification screenshots captured successfully.", flush=True)

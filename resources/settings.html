@@ -471,7 +471,7 @@
                 ZEPHYRIUM <span>//</span> <span data-i18n="title_settings">PREFERENCES & CONFIGURATION</span>
             </div>
             <div class="header-actions">
-                <button class="btn-save-top" onclick="saveAndApply()" data-i18n="btn_save">SAVE AND APPLY</button>
+                <button class="btn-save-top" onclick="saveAndApply()" data-i18n="btn_save">СОХРАНИТЬ</button>
             </div>
         </div>
 
@@ -522,17 +522,9 @@
                             <span class="label-title" data-i18n="lbl_language">Display Language</span>
                             <span class="label-desc" data-i18n="desc_language">Interface language for omnibar, menus, AI assistant, and settings.</span>
                         </div>
-                        <select id="setting-language" style="width: 200px;" onchange="applyLanguage(this.value)">
-                            <option value="ru">Русский (ru)</option>
-                            <option value="en">English (en)</option>
-                            <option value="zh">简体中文 (zh)</option>
-                            <option value="es">Español (es)</option>
-                            <option value="de">Deutsch (de)</option>
-                            <option value="fr">Français (fr)</option>
-                            <option value="ja">日本語 (ja)</option>
-                            <option value="pt">Português (pt)</option>
-                            <option value="it">Italiano (it)</option>
-                            <option value="tr">Türkçe (tr)</option>
+                        <select id="setting-language" style="width: 200px;" onchange="applySettingLive('language', this.value)">
+                            <option value="ru" data-i18n="opt_lang_ru">Русский (ru)</option>
+                            <option value="en" data-i18n="opt_lang_en">English (en)</option>
                         </select>
                     </div>
 
@@ -581,7 +573,7 @@
                             <span class="label-title" data-i18n="lbl_color_theme">Color Theme</span>
                             <span class="label-desc" data-i18n="desc_color_theme">Select dark or light paper aesthetic.</span>
                         </div>
-                        <select id="setting-theme" style="width: 200px;" onchange="applyPreviewTheme(this.value)">
+                        <select id="setting-theme" style="width: 200px;" onchange="applySettingLive('theme', this.value)">
                             <option value="dark" data-i18n="opt_theme_dark">Minimal Dark (Zinc 900)</option>
                             <option value="light" data-i18n="opt_theme_light">Clean Paper Light</option>
                         </select>
@@ -608,7 +600,7 @@
                             <span class="label-title" data-i18n="lbl_ui_mode">UI Layout Mode</span>
                             <span class="label-desc" data-i18n="desc_ui_mode">Minimal browser controls or Vim normal mode navigation.</span>
                         </div>
-                        <select id="setting-ui-mode" style="width: 200px;">
+                        <select id="setting-ui-mode" style="width: 200px;" onchange="applySettingLive('ui_mode', this.value)">
                             <option value="minimal" data-i18n="opt_mode_minimal">Minimal</option>
                             <option value="vim" data-i18n="opt_mode_vim">Vim Mode</option>
                         </select>
@@ -619,7 +611,7 @@
                             <span class="label-title" data-i18n="lbl_tab_orient">Tab Layout Orientation</span>
                             <span class="label-desc" data-i18n="desc_tab_orient">Choose between vertical sidebar tabs or traditional top horizontal tabs.</span>
                         </div>
-                        <select id="setting-tab-orientation" style="width: 200px;">
+                        <select id="setting-tab-orientation" style="width: 200px;" onchange="applySettingLive('tab_orientation', this.value)">
                             <option value="vertical" data-i18n="opt_tab_vert">Vertical Tabs (Sidebar)</option>
                             <option value="horizontal" data-i18n="opt_tab_horiz">Horizontal Tabs (Top Bar)</option>
                         </select>
@@ -630,7 +622,7 @@
                             <span class="label-title" data-i18n="lbl_sidebar_width">Vertical Sidebar Width (px)</span>
                             <span class="label-desc" data-i18n="desc_sidebar_width">Width of vertical tab sidebar (200px - 360px).</span>
                         </div>
-                        <input type="number" id="setting-sidebar-width" min="200" max="360" value="240" style="width: 100px;">
+                        <input type="number" id="setting-sidebar-width" min="200" max="360" value="240" style="width: 100px;" oninput="applySettingLive('sidebar_width', this.value)">
                     </div>
                 </div>
 
@@ -947,6 +939,22 @@
             window.location.hash = tabId;
         }
 
+        // Live Setting Application to Qt backend
+        function applySettingLive(key, value) {
+            if (key === 'theme') {
+                applyPreviewTheme(value);
+            } else if (key === 'accent_color') {
+                document.documentElement.style.setProperty('--accent', value);
+                document.querySelectorAll('.color-swatch').forEach(sw => {
+                    sw.classList.toggle('selected', sw.dataset.color === value);
+                });
+            } else if (key === 'language') {
+                applyLanguage(value);
+            }
+            window.location.href = "zephyrium://live-setting?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value);
+        }
+        window.applySettingLive = applySettingLive;
+
         // Preview Theme
         function applyPreviewTheme(th) {
             document.documentElement.setAttribute('data-theme', th);
@@ -955,9 +963,10 @@
         // Accent Selection
         function selectAccent(color, el) {
             document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
-            el.classList.add('selected');
+            if (el) el.classList.add('selected');
             document.getElementById('setting-accent').value = color;
             document.documentElement.style.setProperty('--accent', color);
+            applySettingLive('accent_color', color);
         }
 
         // Whitelist UI
@@ -1003,8 +1012,10 @@
         const I18N = {
             ru: {
                 title_settings: "НАСТРОЙКИ И КОНФИГУРАЦИЯ",
-                btn_save: "СОХРАНИТЬ И ПРИМЕНИТЬ",
-                toast_saved: "Настройки успешно сохранены и применены в Zephyrium.",
+                btn_save: "СОХРАНИТЬ",
+                toast_saved: "Настройки успешно сохранены.",
+                opt_lang_ru: "Русский (ru)",
+                opt_lang_en: "English (en)",
                 tab_general: "[01] ОБЩИЕ",
                 tab_appearance: "[02] ВНЕШНИЙ ВИД",
                 tab_adblock: "[03] ПРИВАТНОСТЬ И БЛОКИРОВЩИК",
@@ -1122,8 +1133,10 @@
             },
             en: {
                 title_settings: "PREFERENCES & CONFIGURATION",
-                btn_save: "SAVE AND APPLY",
-                toast_saved: "Settings saved and dynamically applied across Zephyrium.",
+                btn_save: "SAVE",
+                toast_saved: "Preferences saved successfully.",
+                opt_lang_ru: "Russian (ru)",
+                opt_lang_en: "English (en)",
                 tab_general: "[01] GENERAL",
                 tab_appearance: "[02] APPEARANCE",
                 tab_adblock: "[03] PRIVACY & ADBLOCK",

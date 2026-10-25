@@ -23,15 +23,19 @@ class ZincWebPage(QWebEnginePage):
 
     def __init__(self, profile: QWebEngineProfile, parent=None):
         super().__init__(profile, parent)
+        self._view = parent
+
+    def view(self):
+        return self._view or self.parent()
 
     def acceptNavigationRequest(self, url: QUrl, _type: QWebEnginePage.NavigationType, isMainFrame: bool) -> bool:
         try:
             url_str = url.toString()
             if url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
                 from PyQt6.QtCore import QTimer
-                view = self.view()
-                if view and hasattr(view, "navigate"):
-                    QTimer.singleShot(0, lambda u=url_str: view.navigate(u))
+                v = self.view()
+                if v and hasattr(v, "navigate"):
+                    QTimer.singleShot(0, lambda u=url_str: v.navigate(u))
                 return False
             return super().acceptNavigationRequest(url, _type, isMainFrame)
         except Exception as e:
@@ -40,9 +44,9 @@ class ZincWebPage(QWebEnginePage):
 
     def createWindow(self, _type: QWebEnginePage.WebWindowType) -> QWebEnginePage:
         try:
-            view = self.view()
-            if view:
-                win = view._get_main_window()
+            v = self.view()
+            if v:
+                win = v._get_main_window()
                 if win and hasattr(win, "tab_manager"):
                     new_tab_id = win.tab_manager.create_tab()
                     new_view = win.tab_manager.get_tab_view(new_tab_id)
@@ -189,6 +193,11 @@ class ZincWebView(QWebEngineView):
             QTimer.singleShot(0, lambda: self._apply_setup(url_clean))
             return
 
+        if url_clean.startswith("zephyrium://live-setting") or url_clean.startswith("zinc://live-setting"):
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._apply_live_setting(url_clean))
+            return
+
         if url_clean.startswith("zephyrium://apply-settings") or url_clean.startswith("zinc://apply-settings"):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, lambda: self._apply_settings_from_url(url_clean))
@@ -304,6 +313,67 @@ class ZincWebView(QWebEngineView):
             print(f"Error applying setup: {e}")
         finally:
             self.load(QUrl.fromLocalFile(str(STARTPAGE_PATH)))
+
+    def _apply_live_setting(self, url_str: str) -> None:
+        try:
+            import urllib.parse
+            parsed = urllib.parse.urlparse(url_str)
+            qs = urllib.parse.parse_qs(parsed.query)
+            key = qs.get("key", [""])[0]
+            val = qs.get("value", [""])[0]
+            if not key:
+                return
+
+            from config import load_settings, save_settings
+            s = load_settings()
+
+            if key in ["adblock_enabled", "clean_urls", "send_dnt", "prevent_webrtc_leak", "restore_session"]:
+                s[key] = val.lower() in ["true", "1"]
+            elif key in ["sidebar_width", "font_size"]:
+                try:
+                    s[key] = int(val)
+                except Exception:
+                    pass
+            else:
+                s[key] = val
+
+            save_settings(s)
+
+            win = self._get_main_window()
+            if win:
+                win.settings = s
+                if key in ["theme", "accent_color"]:
+                    th = s.get("theme", "dark")
+                    acc = s.get("accent_color", "#fe8019")
+                    from core.theme_manager import apply_app_theme
+                    apply_app_theme(QApplication.instance(), th, acc)
+                    if hasattr(win, "_apply_theme_style"):
+                        win._apply_theme_style(getattr(win, "ui_mode", "minimal"))
+                    if hasattr(win, "_reload_startpages"):
+                        win._reload_startpages()
+                elif key == "language":
+                    from core.i18n import set_language
+                    set_language(val)
+                    if hasattr(win, "retranslate_ui"):
+                        win.retranslate_ui()
+                    if hasattr(win, "_reload_startpages"):
+                        win._reload_startpages()
+                elif key == "ui_mode":
+                    if hasattr(win, "apply_mode"):
+                        win.apply_mode(val)
+                elif key == "tab_orientation":
+                    if hasattr(win, "set_tab_orientation"):
+                        win.set_tab_orientation(val)
+                elif key == "sidebar_width":
+                    if hasattr(win, "tab_manager") and hasattr(win.tab_manager, "sidebar"):
+                        win.tab_manager.sidebar.setFixedWidth(s.get("sidebar_width", 240))
+                elif key == "adblock_enabled":
+                    if hasattr(win, "adblocker"):
+                        win.adblocker.enabled = s.get("adblock_enabled", True)
+                        if hasattr(win, "btn_adblock"):
+                            win.btn_adblock.setText(f"{t('adblock_title')}: {win.adblocker.blocked_count}")
+        except Exception as e:
+            print(f"Error applying live setting: {e}")
 
     def _apply_settings_from_url(self, url_str: str) -> None:
         try:

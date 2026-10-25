@@ -93,6 +93,13 @@ class BrowserWindow(QMainWindow):
         # 4. Status Bar & Vim Statusline
         self._init_status_bar()
 
+        # Corner Floating Vim Exit Button
+        self.vim_exit_btn = QPushButton(f"⚡ {t('exit_vim')}", central_widget)
+        self.vim_exit_btn.setObjectName("vimExitButton")
+        self.vim_exit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.vim_exit_btn.clicked.connect(lambda: self.apply_mode("minimal"))
+        self.vim_exit_btn.hide()
+
         # 5. Command Palette Dialog
         self.command_palette = CommandPalette(self)
         self.command_palette.command_executed.connect(self._handle_command_action)
@@ -301,6 +308,14 @@ class BrowserWindow(QMainWindow):
         self.progress_bar.hide()
         self.status_bar.addPermanentWidget(self.progress_bar)
 
+        self.status_vim_exit_btn = QPushButton(f"⚡ {t('exit_vim')}")
+        self.status_vim_exit_btn.setObjectName("statusVimExitBtn")
+        self.status_vim_exit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.status_vim_exit_btn.setFixedHeight(22)
+        self.status_vim_exit_btn.clicked.connect(lambda: self.apply_mode("minimal"))
+        self.status_vim_exit_btn.hide()
+        self.status_bar.addPermanentWidget(self.status_vim_exit_btn)
+
     def _init_shortcuts(self) -> None:
         QShortcut(QKeySequence("Ctrl+K"), self, lambda: self.command_palette.show_palette())
         QShortcut(QKeySequence("Ctrl+L"), self, lambda: (self.url_bar.setFocus(), self.url_bar.selectAll()))
@@ -355,13 +370,35 @@ class BrowserWindow(QMainWindow):
             self.tab_manager.sidebar.hide()
             self.status_bar.show()
             self.status_label.setText(t("vim_hint"))
+            if hasattr(self, "status_vim_exit_btn"):
+                self.status_vim_exit_btn.setText(f"⚡ {t('exit_vim')}")
+                self.status_vim_exit_btn.show()
+            if hasattr(self, "vim_exit_btn"):
+                self.vim_exit_btn.setText(f"⚡ {t('exit_vim')}")
+                self.vim_exit_btn.adjustSize()
+                self.vim_exit_btn.move(self.width() - self.vim_exit_btn.width() - 16, 12)
+                self.vim_exit_btn.show()
+                self.vim_exit_btn.raise_()
         else:  # "minimal"
             self.btn_mode.setText(f"{t('mode_label')}: {t('mode_minimal')}".upper())
+            if hasattr(self, "status_vim_exit_btn"):
+                self.status_vim_exit_btn.hide()
+            if hasattr(self, "vim_exit_btn"):
+                self.vim_exit_btn.hide()
             self.top_bar.show()
             self.status_bar.show()
             self.set_tab_orientation(self.tab_orientation)
             self._apply_theme_style("minimal")
             self.status_label.setText(t("ready"))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "vim_exit_btn"):
+            self.vim_exit_btn.adjustSize()
+            self.vim_exit_btn.move(self.width() - self.vim_exit_btn.width() - 16, 12)
+            if self.ui_mode == "vim":
+                self.vim_exit_btn.show()
+                self.vim_exit_btn.raise_()
 
     def _apply_theme_style(self, mode: str = "minimal") -> None:
         th = self.settings.get("theme", "dark")
@@ -412,6 +449,42 @@ class BrowserWindow(QMainWindow):
                     font-family: monospace;
                     font-size: 12px;
                     padding: 2px 4px;
+                }}
+            """)
+        if hasattr(self, "vim_exit_btn"):
+            btn_bg = "#18181b" if th == "dark" else "#ffffff"
+            self.vim_exit_btn.setStyleSheet(f"""
+                QPushButton#vimExitButton {{
+                    background-color: {btn_bg};
+                    color: {acc};
+                    border: 1px solid {acc};
+                    font-family: monospace;
+                    font-size: 11px;
+                    font-weight: bold;
+                    padding: 6px 14px;
+                    border-radius: 0px;
+                }}
+                QPushButton#vimExitButton:hover {{
+                    background-color: {acc};
+                    color: {btn_bg};
+                }}
+            """)
+        if hasattr(self, "status_vim_exit_btn"):
+            btn_bg = "#27272a" if th == "dark" else "#f1f5f9"
+            self.status_vim_exit_btn.setStyleSheet(f"""
+                QPushButton#statusVimExitBtn {{
+                    background-color: {btn_bg};
+                    color: {acc};
+                    border: 1px solid {acc};
+                    font-family: monospace;
+                    font-size: 10px;
+                    font-weight: bold;
+                    padding: 2px 8px;
+                    border-radius: 0px;
+                }}
+                QPushButton#statusVimExitBtn:hover {{
+                    background-color: {acc};
+                    color: {btn_bg};
                 }}
             """)
         self._reload_startpages()
@@ -471,6 +544,11 @@ class BrowserWindow(QMainWindow):
             self.status_label.setText(t("vim_hint"))
         else:
             self.status_label.setText(t("ready"))
+        if hasattr(self, "status_vim_exit_btn"):
+            self.status_vim_exit_btn.setText(f"⚡ {t('exit_vim')}")
+        if hasattr(self, "vim_exit_btn"):
+            self.vim_exit_btn.setText(f"⚡ {t('exit_vim')}")
+            self.vim_exit_btn.adjustSize()
         v = self.tab_manager.get_current_view()
         if v:
             url_str = v.url().toString()

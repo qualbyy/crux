@@ -30,7 +30,7 @@ def test_i18n():
     print("[TEST] Testing i18n system...")
     from core.i18n import LANGUAGES, TRANSLATIONS, set_language, get_current_language, t
 
-    assert len(LANGUAGES) == 10, f"Expected 10 languages, found {len(LANGUAGES)}"
+    assert len(LANGUAGES) == 2, f"Expected 2 languages, found {len(LANGUAGES)}"
     
     required_keys = [
         "app_title", "new_tab", "close_tab", "split_view", "mode_minimal", "mode_vim",
@@ -61,12 +61,8 @@ def test_i18n():
     assert t("settings_btn") == "SETTINGS"
     assert t("adblock_title") == "ADS"
 
-    set_language("de")
-    assert t("keybinds") == "HOTKEYS"
-    assert t("settings_btn") == "SETUP"
-
     set_language("ru")
-    print("  ✓ i18n test passed successfully on all 10 languages.")
+    print("  ✓ i18n test passed successfully for Russian and English.")
 
 def test_theme_generation():
     print("[TEST] Testing Theme Generation Engine...")

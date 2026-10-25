@@ -42,6 +42,20 @@ for venv_candidate in [PROJECT_ROOT / ".venv", Path(sys.prefix)]:
         break
 
 from PyQt6.QtCore import Qt, QCoreApplication
+from PyQt6.QtWebEngineCore import QWebEngineUrlScheme
+
+for s_name in [b"zephyrium", b"zinc"]:
+    scheme = QWebEngineUrlScheme(s_name)
+    scheme.setSyntax(QWebEngineUrlScheme.Syntax.Path)
+    scheme.setDefaultPort(QWebEngineUrlScheme.SpecialPort.PortUnspecified.value)
+    scheme.setFlags(
+        QWebEngineUrlScheme.Flag.LocalScheme |
+        QWebEngineUrlScheme.Flag.LocalAccessAllowed |
+        QWebEngineUrlScheme.Flag.CorsEnabled |
+        QWebEngineUrlScheme.Flag.FetchApiAllowed
+    )
+    QWebEngineUrlScheme.registerScheme(scheme)
+
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtNetwork import QLocalSocket, QLocalServer
