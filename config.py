@@ -3,13 +3,18 @@ Zephyrium Browser Configuration
 Supports Claude Code Minimal Dark, Sleek Light, and Material 3 Expressive themes.
 """
 import os
+import sys
 import json
 from pathlib import Path
 
 # Base Paths
 APP_NAME = "Zephyrium"
 APP_VERSION = "1.0.1"
-CONFIG_DIR = Path.home() / ".config" / "zephyrium"
+
+if sys.platform == "win32":
+    CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Zephyrium"
+else:
+    CONFIG_DIR = Path.home() / ".config" / "zephyrium"
 PROFILES_DIR = CONFIG_DIR / "profiles"
 NOTES_FILE = CONFIG_DIR / "notes.txt"
 BOOKMARKS_FILE = CONFIG_DIR / "bookmarks.json"

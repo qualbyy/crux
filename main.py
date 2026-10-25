@@ -14,22 +14,31 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# Set Linux Process Name to zephyrium instead of python3
-try:
-    import ctypes
-    libc = ctypes.CDLL("libc.so.6")
-    PR_SET_NAME = 15
-    libc.prctl(PR_SET_NAME, b"zephyrium\0", 0, 0, 0)
-except Exception:
-    pass
+# Set Process ID / Name
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Zephyrium.Browser.App")
+    except Exception:
+        pass
+else:
+    try:
+        import ctypes
+        libc = ctypes.CDLL("libc.so.6")
+        PR_SET_NAME = 15
+        libc.prctl(PR_SET_NAME, b"zephyrium\0", 0, 0, 0)
+    except Exception:
+        pass
 
-# Enable Wayland & GPU acceleration flags for Chromium/QtWebEngine on Arch Linux
-os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
-    "--enable-gpu-rasterization "
-    "--enable-zero-copy "
-    "--ignore-gpu-blocklist "
-    "--ozone-platform-hint=auto"
-)
+# GPU acceleration and engine flags
+flags = [
+    "--enable-gpu-rasterization",
+    "--enable-zero-copy",
+    "--ignore-gpu-blocklist",
+]
+if sys.platform.startswith("linux"):
+    flags.append("--ozone-platform-hint=auto")
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(flags)
 
 # Auto-locate Chromium/QtWebEngine resource and locale paths to prevent ICU data errors
 candidates = [PROJECT_ROOT / ".venv", Path(sys.prefix)]
@@ -42,6 +51,10 @@ if getattr(sys, "frozen", False):
 
 for venv_candidate in candidates:
     res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
+    if not res_path:
+        win_res = venv_candidate / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "resources"
+        if win_res.exists():
+            res_path = win_res
     if not res_path and (venv_candidate / "resources" / "qtwebengine_resources.pak").exists():
         res_path = venv_candidate / "resources"
     if res_path and res_path.is_dir():
@@ -70,7 +83,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtNetwork import QLocalSocket, QLocalServer
 
-from config import APP_NAME, APP_VERSION, load_settings
+from config import APP_NAME, APP_VERSION, CONFIG_DIR, load_settings
 from core.browser_window import BrowserWindow
 from core.theme_manager import apply_app_theme
 
@@ -80,7 +93,7 @@ def load_stylesheet(app: QApplication) -> None:
     settings = load_settings()
     apply_app_theme(app, settings.get("theme", "dark"), settings.get("accent_color", "#fe8019"))
     
-    custom_qss = Path.home() / ".config" / "zephyrium" / "custom.qss"
+    custom_qss = CONFIG_DIR / "custom.qss"
     if custom_qss.exists():
         try:
             with open(custom_qss, "r", encoding="utf-8") as f:

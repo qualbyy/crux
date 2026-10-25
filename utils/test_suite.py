@@ -362,6 +362,20 @@ def test_in_tab_pages_and_menus():
 
     print("  ✓ In-tab HTML pages, DataStore operations, and AI system instructions verified.")
 
+def test_cross_platform_auth_and_config():
+    print("[TEST] Testing cross-platform auth module and config...")
+    from config import CONFIG_DIR
+    from core.auth import get_auth_prompt_title, get_auth_input_placeholder, verify_vault_password
+    assert CONFIG_DIR is not None
+    assert isinstance(str(CONFIG_DIR), str)
+    assert get_auth_prompt_title("ru") != ""
+    assert get_auth_prompt_title("en") != ""
+    assert get_auth_input_placeholder("ru") != ""
+    assert get_auth_input_placeholder("en") != ""
+    # Verify empty password returns False
+    assert verify_vault_password("") is False
+    print("  ✓ Cross-platform auth and config verified.")
+
 if __name__ == "__main__":
     print("=" * 60)
     print("Starting Zephyrium Verification Test Suite")
@@ -373,6 +387,7 @@ if __name__ == "__main__":
     test_password_autofill_and_palette()
     test_in_tab_pages_and_menus()
     test_startpage_and_settings_state()
+    test_cross_platform_auth_and_config()
     print("=" * 60)
     print("ALL TESTS PASSED SUCCESSFULLY! (Settings reset to clean initial state)")
     print("=" * 60)

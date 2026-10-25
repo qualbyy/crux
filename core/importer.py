@@ -4,6 +4,7 @@ Imports Bookmarks, Browsing History, Cookies, and Passwords/Logins
 from Chrome, Chromium, Brave, Edge, Firefox, and Flatpak browsers.
 """
 import os
+import sys
 import shutil
 import sqlite3
 import json
@@ -28,6 +29,28 @@ class BrowserImporter:
     def get_detected_browsers() -> List[BrowserProfile]:
         profiles = []
         home = Path.home()
+
+        if sys.platform == "win32":
+            local_appdata = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
+            roaming_appdata = Path(os.environ.get("APPDATA", home / "AppData" / "Roaming"))
+            win_candidates = [
+                ("Google Chrome", "chromium", local_appdata / "Google" / "Chrome" / "User Data" / "Default"),
+                ("Microsoft Edge", "chromium", local_appdata / "Microsoft" / "Edge" / "User Data" / "Default"),
+                ("Brave Browser", "chromium", local_appdata / "BraveSoftware" / "Brave-Browser" / "User Data" / "Default"),
+                ("Vivaldi", "chromium", local_appdata / "Vivaldi" / "User Data" / "Default"),
+                ("Opera", "chromium", roaming_appdata / "Opera Software" / "Opera Stable"),
+            ]
+            for name, btype, path in win_candidates:
+                if path.exists() and path.is_dir():
+                    profiles.append(BrowserProfile(name, btype, path))
+
+            ff_win = roaming_appdata / "Mozilla" / "Firefox" / "Profiles"
+            if ff_win.exists():
+                for profile_dir in ff_win.glob("*.default*"):
+                    if profile_dir.is_dir():
+                        profiles.append(BrowserProfile(f"Mozilla Firefox ({profile_dir.name})", "firefox", profile_dir))
+                        break
+            return profiles
 
         candidates = [
             # Flatpak Chromium-based

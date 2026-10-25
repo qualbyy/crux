@@ -539,30 +539,18 @@ class ZincWebView(QWebEngineView):
                 ddir = s.get("download_dir", str(Path.home() / "Downloads"))
                 QDesktopServices.openUrl(QUrl.fromLocalFile(ddir))
             elif action == "open-file":
-                import subprocess
                 fpath = qs.get("path", [""])[0]
                 if fpath:
                     unquoted = urllib.parse.unquote(fpath)
                     if os.path.exists(unquoted):
-                        subprocess.Popen(["xdg-open", unquoted])
+                        QDesktopServices.openUrl(QUrl.fromLocalFile(unquoted))
             elif action == "unlock-vault":
-                import subprocess
                 import json
                 from config import CONFIG_DIR
+                from core.auth import verify_vault_password
                 pwd_input = qs.get("password", [""])[0]
                 unquoted_pwd = urllib.parse.unquote(pwd_input)
-                is_valid = False
-                try:
-                    res = subprocess.run(
-                        ["sudo", "-k", "-S", "-v"],
-                        input=unquoted_pwd.encode("utf-8") + b"\n",
-                        capture_output=True,
-                        timeout=5
-                    )
-                    is_valid = (res.returncode == 0)
-                except Exception as e:
-                    print(f"Sudo verification error: {e}")
-                    is_valid = False
+                is_valid = verify_vault_password(unquoted_pwd)
 
                 if is_valid:
                     pw_file = CONFIG_DIR / "passwords.json"

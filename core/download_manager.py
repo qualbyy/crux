@@ -111,7 +111,9 @@ class DownloadItemWidget(QFrame):
         if self.item.state() == QWebEngineDownloadRequest.DownloadState.DownloadCompleted:
             path = self.item.downloadDirectory() + "/" + self.item.downloadFileName()
             if os.path.exists(path):
-                subprocess.Popen(["xdg-open", path])
+                from PyQt6.QtGui import QDesktopServices
+                from PyQt6.QtCore import QUrl
+                QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         elif self.item.state() == QWebEngineDownloadRequest.DownloadState.DownloadInProgress:
             self.item.cancel()
 

@@ -41,6 +41,17 @@ def get_current_language() -> str:
     return _current_language
 
 def t(key: str, **kwargs) -> str:
+    import sys
+    if sys.platform == "win32":
+        if key == "sudo_password_label":
+            return "Введите пароль Windows:" if _current_language == "ru" else "Enter Windows password:"
+        elif key == "vault_locked_desc":
+            return ("Для просмотра и экспорта сохраненных паролей и куки требуется подтверждение прав Windows."
+                    if _current_language == "ru" else
+                    "Viewing and exporting stored passwords and cookies requires Windows authorization.")
+        elif key == "wrong_sudo_password":
+            return "Ошибка аутентификации. Неверный пароль." if _current_language == "ru" else "Authentication failed. Incorrect password."
+
     lang_dict = TRANSLATIONS.get(_current_language, TRANSLATIONS.get('ru', {}))
     val = lang_dict.get(key, TRANSLATIONS.get('en', {}).get(key, key))
     if kwargs:

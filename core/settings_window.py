@@ -607,14 +607,8 @@ class SettingsWindow(QDialog):
             return
 
         try:
-            # Check with sudo -k -S -v
-            proc = subprocess.run(
-                ["sudo", "-k", "-S", "-v"],
-                input=f"{pwd}\n".encode(),
-                capture_output=True,
-                timeout=6
-            )
-            if proc.returncode == 0:
+            from core.auth import verify_vault_password
+            if verify_vault_password(pwd):
                 self.vault_unlocked = True
                 self.input_sudo_pwd.clear()
                 self.vault_error_lbl.setText("")

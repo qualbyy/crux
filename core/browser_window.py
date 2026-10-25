@@ -804,9 +804,10 @@ class BrowserWindow(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(ddir))
 
     def _open_downloaded_file(self, path: str) -> None:
-        import os, subprocess
+        import os
+        from PyQt6.QtGui import QDesktopServices
         if path and os.path.exists(path):
-            subprocess.Popen(["xdg-open", path])
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _clean_active_url(self) -> None:
         v = self.tab_manager.get_current_view()

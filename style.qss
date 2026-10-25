@@ -2,7 +2,7 @@
 /* Strictly follows Design System: 0px radius, 1px borders, Zinc/Slate palette */
 
 * {
-    font-family: "Iosevka Nerd Font", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    font-family: "Iosevka Nerd Font", "JetBrains Mono", "Cascadia Code", "Consolas", "DejaVu Sans Mono", monospace;
     font-size: 13px;
     border-radius: 0px;
 }
