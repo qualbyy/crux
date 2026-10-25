@@ -18,7 +18,7 @@ try:
 except Exception:
     pass
 
-# For Windows: ensure all Qt6 and C++ runtime DLLs are mirrored in the root directory for immediate dynamic link loader resolution
+# For Windows: ensure all Qt6, MSVC and CRT runtime DLLs are mirrored in the root directory for immediate dynamic link loader resolution
 if is_win:
     import site
     for sp in site.getsitepackages():
@@ -29,6 +29,15 @@ if is_win:
                     full_p = os.path.join(qt_bin, f)
                     binaries.append((full_p, '.'))
                     binaries.append((full_p, 'PyQt6/Qt6/bin'))
+
+    # Also collect VC runtime DLLs from System32/SysWOW64 (vcruntime140.dll, vcruntime140_1.dll, msvcp140*.dll, etc.)
+    import glob
+    sys32 = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32')
+    if os.path.isdir(sys32):
+        for pattern in ('vcruntime140*.dll', 'msvcp140*.dll', 'vcomp140*.dll'):
+            for p in glob.glob(os.path.join(sys32, pattern)):
+                binaries.append((p, '.'))
+                binaries.append((p, 'PyQt6/Qt6/bin'))
 
 a = Analysis(
     ['main.py'],

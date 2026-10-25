@@ -6,7 +6,7 @@
 #define MyAppExeName "zephyrium.exe"
 
 [Setup]
-; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
+; NOTE: The value of AppId uniquely identifies this application.
 AppId={{C38A8258-29D2-4841-9957-8E8DC15B0669}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -20,6 +20,7 @@ DisableProgramGroupPage=yes
 OutputDir=dist
 OutputBaseFilename=zephyrium-installer-windows-x86_64
 SetupIconFile=resources\zephyrium.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -35,11 +36,26 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "dist\zephyrium\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
+Source: "vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall; Check: VCRedistNeedsInstall
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\resources\zephyrium.ico"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\resources\zephyrium.ico"
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
 
 [Run]
+Filename: "{tmp}\vc_redist.x64.exe"; StatusMsg: "Installing Microsoft Visual C++ 2015-2022 Redistributable (x64)..."; Parameters: "/install /passive /norestart"; Flags: waituntilterminated; Check: VCRedistNeedsInstall
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function VCRedistNeedsInstall: Boolean;
+var
+  Installed: Cardinal;
+begin
+  // Check if VC++ 2015-2022 Redistributable (x64) is installed in registry
+  Result := True;
+  if RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64', 'Installed', Installed) then
+  begin
+    if Installed = 1 then
+      Result := False;
+  end;
+end;

@@ -54,6 +54,8 @@ if getattr(sys, "frozen", False):
 
 # Windows DLL directory registration for Python 3.8+ (fixes DLL load failed while importing QtCore)
 if sys.platform == "win32":
+    # Must keep references to AddDllDirectory objects alive to prevent garbage collection!
+    _dll_handles = []
     win_bin_dirs = []
     if hasattr(sys, "_MEIPASS"):
         win_bin_dirs.append(Path(sys._MEIPASS) / "PyQt6" / "Qt6" / "bin")
@@ -69,11 +71,23 @@ if sys.platform == "win32":
 
     for bdir in win_bin_dirs:
         if bdir.is_dir():
+            bdir_str = str(bdir)
             try:
-                os.add_dll_directory(str(bdir))
+                handle = os.add_dll_directory(bdir_str)
+                _dll_handles.append(handle)
             except Exception:
                 pass
-            os.environ["PATH"] = str(bdir) + os.pathsep + os.environ.get("PATH", "")
+            os.environ["PATH"] = bdir_str + os.pathsep + os.environ.get("PATH", "")
+
+    # Also set default DLL directory via Win32 API as ultimate fallback
+    try:
+        import ctypes
+        for bdir in win_bin_dirs:
+            if bdir.is_dir():
+                ctypes.windll.kernel32.SetDllDirectoryW(str(bdir))
+                break
+    except Exception:
+        pass
 
 for venv_candidate in candidates:
     res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
