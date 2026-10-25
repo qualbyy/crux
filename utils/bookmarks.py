@@ -11,10 +11,10 @@ class DataStore:
     def load_bookmarks() -> List[Dict[str, str]]:
         if not BOOKMARKS_FILE.exists():
             default_bms = [
-                {"title": "Arch Linux", "url": "https://archlinux.org"},
-                {"title": "Arch Wiki", "url": "https://wiki.archlinux.org"},
-                {"title": "DuckDuckGo", "url": "https://duckduckgo.com"},
                 {"title": "GitHub", "url": "https://github.com"},
+                {"title": "DuckDuckGo", "url": "https://duckduckgo.com"},
+                {"title": "MDN Web Docs", "url": "https://developer.mozilla.org"},
+                {"title": "Python Docs", "url": "https://docs.python.org/3/"},
             ]
             DataStore.save_bookmarks(default_bms)
             return default_bms

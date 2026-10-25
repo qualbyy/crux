@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Zephyrium — Lightweight, Feature-Rich Browser for Arch Linux
+Zephyrium — Lightweight, Feature-Rich Web Browser
 Design Code: Minimal Aesthetic & Vim Mode
 """
 import sys
@@ -135,7 +135,7 @@ def main():
     settings = load_settings()
     default_target = "zephyrium://startpage"
 
-    parser = argparse.ArgumentParser(description=f"{APP_NAME} v{APP_VERSION} [Arch Linux]")
+    parser = argparse.ArgumentParser(description=f"{APP_NAME} v{APP_VERSION}")
     parser.add_argument("url", nargs="?", default=default_target, help="Initial URL to open")
     parser.add_argument("--container", "-c", default="default", help="Container profile to open (default, work, personal, dev, incognito)")
     parser.add_argument("--mode", "-m", choices=["minimal", "vim"], default=None, help="UI Layout mode (minimal, vim)")

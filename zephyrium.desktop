@@ -2,7 +2,7 @@
 Version=1.0
 Name=Zephyrium
 GenericName=Web Browser
-Comment=Fast, keyboard-driven web browser for Arch Linux
+Comment=Fast, keyboard-driven web browser
 Exec=/home/qualbyy/.local/bin/zephyrium %u
 Terminal=false
 X-MultipleArgs=false

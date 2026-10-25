@@ -100,7 +100,7 @@ class OnboardingDialog(QDialog):
         badge_row = QHBoxLayout()
         lbl_badge = QLabel("ZEPHYRIUM ONBOARDING // INITIAL SETUP")
         lbl_badge.setStyleSheet("color: #71717a; font-size: 11px; font-weight: bold; letter-spacing: 1px;")
-        lbl_os = QLabel("ARCH LINUX")
+        lbl_os = QLabel("WINDOWS" if sys.platform == "win32" else "LINUX")
         lbl_os.setStyleSheet("color: #71717a; font-size: 11px; font-weight: bold; letter-spacing: 1px;")
         badge_row.addWidget(lbl_badge)
         badge_row.addStretch()

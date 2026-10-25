@@ -1129,7 +1129,10 @@ class SettingsWindow(QDialog):
         title_lbl.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {title_color};")
         ac_layout.addWidget(title_lbl)
 
-        self.about_ver_lbl = QLabel("Version 1.0.0 (Arch Linux x86_64)")
+        import platform
+        arch_info = platform.machine() or "x86_64"
+        os_info = "Windows" if sys.platform == "win32" else "Linux"
+        self.about_ver_lbl = QLabel(f"Version {APP_VERSION} ({os_info} {arch_info})")
         self.about_ver_lbl.setStyleSheet(f"font-size: 12px; color: {acc}; font-weight: bold;")
         ac_layout.addWidget(self.about_ver_lbl)
 

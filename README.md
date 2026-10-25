@@ -1,6 +1,6 @@
 # Zephyrium
 
-A lightweight, modular, engineer-focused web browser built on PyQt6-WebEngine for Arch Linux.
+A lightweight, modular, engineer-focused web browser built on PyQt6-WebEngine for Linux and Windows.
 
 Zephyrium provides three distinct interface paradigms, isolated multi-account containers, an integrated superuser-protected password and cookie vault, native request-level content blocking, customizable color themes, and Gemini API inference tools without background telemetry or bloatware.
 
@@ -99,11 +99,11 @@ Configure your appearance via Settings (`Ctrl+,`) or during initial first-launch
 
 ---
 
-## Installation and Execution on Arch Linux
+## Installation and Execution
 
 ### System Requirements
 
-- Arch Linux / Arch-based distributions (EndeavourOS, Manjaro, etc.)
+- Linux (x86_64) or Windows 10/11 (x86_64)
 - Python 3.10+
 - Qt6 libraries and Qt6 WebEngine
 
