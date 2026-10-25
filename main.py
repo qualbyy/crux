@@ -32,8 +32,18 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
 )
 
 # Auto-locate Chromium/QtWebEngine resource and locale paths to prevent ICU data errors
-for venv_candidate in [PROJECT_ROOT / ".venv", Path(sys.prefix)]:
+candidates = [PROJECT_ROOT / ".venv", Path(sys.prefix)]
+if hasattr(sys, "_MEIPASS"):
+    candidates.insert(0, Path(sys._MEIPASS))
+    candidates.insert(0, Path(sys._MEIPASS) / "PyQt6" / "Qt6")
+if getattr(sys, "frozen", False):
+    candidates.insert(0, Path(sys.executable).parent)
+    candidates.insert(0, Path(sys.executable).parent / "PyQt6" / "Qt6")
+
+for venv_candidate in candidates:
     res_path = next(venv_candidate.glob("lib/python*/site-packages/PyQt6/Qt6/resources"), None)
+    if not res_path and (venv_candidate / "resources" / "qtwebengine_resources.pak").exists():
+        res_path = venv_candidate / "resources"
     if res_path and res_path.is_dir():
         os.environ.setdefault("QTWEBENGINE_RESOURCES_PATH", str(res_path))
         locales_path = res_path.parent / "translations" / "qtwebengine_locales"

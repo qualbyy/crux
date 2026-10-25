@@ -12,11 +12,20 @@ from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from config import DEFAULT_HOME_URL
 from core.adblock import clean_tracking_parameters
 
-STARTPAGE_PATH = Path(__file__).resolve().parent.parent / "resources" / "startpage.html"
-WELCOME_PATH = Path(__file__).resolve().parent.parent / "resources" / "welcome.html"
-SETTINGS_PATH = Path(__file__).resolve().parent.parent / "resources" / "settings.html"
-HISTORY_PATH = Path(__file__).resolve().parent.parent / "resources" / "history.html"
-DOWNLOADS_PATH = Path(__file__).resolve().parent.parent / "resources" / "downloads.html"
+import sys
+
+def get_resource_path(filename: str) -> Path:
+    if hasattr(sys, "_MEIPASS"):
+        p = Path(sys._MEIPASS) / "resources" / filename
+        if p.exists():
+            return p
+    return Path(__file__).resolve().parent.parent / "resources" / filename
+
+STARTPAGE_PATH = get_resource_path("startpage.html")
+WELCOME_PATH = get_resource_path("welcome.html")
+SETTINGS_PATH = get_resource_path("settings.html")
+HISTORY_PATH = get_resource_path("history.html")
+DOWNLOADS_PATH = get_resource_path("downloads.html")
 
 class ZincWebPage(QWebEnginePage):
     link_hovered = pyqtSignal(str)
