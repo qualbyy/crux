@@ -46,7 +46,6 @@ Configure your appearance via Settings (`Ctrl+,`) or during initial first-launch
 
 ## Core Features
 
-- **Multi-Account Containers**: Independent `QWebEngineProfile` storage partitions (Default, Work, Personal, Dev, Incognito) with segregated cookies, local storage, and session caches.
 - **Protected Credentials Vault**: Dedicated settings tab (`04 // Passwords & Cookies`) secured by Linux `sudo` authentication. View, reveal, copy, and export stored credentials to CSV or JSON, and cookies to Netscape format.
 - **Universal Browser Importer**: Automatic detection of native and Flatpak installations of Google Chrome, Chromium, Microsoft Edge, Brave, and Mozilla Firefox. Imports bookmarks, history, cookies, and login credentials, with support for CSV password imports.
 - **Tab Suspension and Memory Optimization**: Background tabs automatically enter sleep mode after 20 minutes of inactivity, unloading DOM trees to conserve RAM while preserving restoration state. Manual suspension is available via tab context menu.
