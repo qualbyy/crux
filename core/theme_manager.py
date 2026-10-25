@@ -171,6 +171,38 @@ def generate_stylesheet(theme: str = "dark", accent: str = "#fe8019") -> str:
         selection-background-color: {bg_elevated};
         selection-color: {text_bright};
         outline: none;
+        padding: 4px;
+    }}
+
+    QComboBox QAbstractItemView::item {{
+        min-height: 26px;
+        padding: 4px 8px;
+        border: none;
+    }}
+
+    QComboBox QAbstractItemView::item:hover {{
+        background-color: {bg_elevated};
+        color: {text_bright};
+    }}
+
+    QComboBox QAbstractItemView::item:selected {{
+        background-color: {bg_elevated};
+        color: {accent};
+    }}
+
+    QComboBox QAbstractItemView QScrollBar:vertical {{
+        background-color: {bg_surface};
+        width: 8px;
+        margin: 0px;
+    }}
+
+    QComboBox QAbstractItemView QScrollBar::handle:vertical {{
+        background-color: {border_muted};
+        min-height: 20px;
+    }}
+
+    QComboBox QAbstractItemView QScrollBar::handle:vertical:hover {{
+        background-color: {accent};
     }}
 
     QCheckBox {{

@@ -140,6 +140,21 @@ def capture_visuals():
     path7b = screenshot_dir / "verify_ai_panel_aligned.png"
     pix7b.save(str(path7b), "PNG")
     print(f"Captured: {path7b}", flush=True)
+
+    # 7c. Open Model Dropdown to verify full scrollable list (not 1 item)
+    ai_w = getattr(win.side_panel, "ai_widget", None)
+    if ai_w and hasattr(ai_w, "combo_model"):
+        ai_w.combo_model.showPopup()
+        app.processEvents()
+        QTest.qWait(500)
+        app.processEvents()
+        pix_combo = win.grab()
+        path_combo = screenshot_dir / "verify_ai_model_dropdown.png"
+        pix_combo.save(str(path_combo), "PNG")
+        print(f"Captured: {path_combo}", flush=True)
+        ai_w.combo_model.hidePopup()
+        app.processEvents()
+
     win._toggle_sidebar()
     app.processEvents()
 

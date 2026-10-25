@@ -13,7 +13,7 @@ from typing import List, Tuple
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser,
-    QLineEdit, QPushButton, QFrame, QDialog, QComboBox
+    QLineEdit, QPushButton, QFrame, QDialog, QComboBox, QListView
 )
 from config import load_settings, save_settings
 from core.i18n import t, get_current_language, LANGUAGES
@@ -308,8 +308,19 @@ class AIChatWidget(QWidget):
         self.model_lbl.setStyleSheet("color: #71717a; font-size: 10px; font-weight: bold; padding: 0px 8px; border: 1px solid #3f3f46; background-color: #262624; min-height: 28px; max-height: 28px;")
         
         self.combo_model = QComboBox()
+        self.combo_model.setObjectName("aiModelCombo")
         self.combo_model.setFixedHeight(30)
-        self.combo_model.setStyleSheet("min-height: 28px; max-height: 28px; padding: 0px 8px;")
+        self.combo_model.setView(QListView())
+        self.combo_model.setMaxVisibleItems(10)
+        self.combo_model.setStyleSheet("""
+            QComboBox#aiModelCombo {
+                min-height: 28px;
+                max-height: 28px;
+                padding: 0px 8px;
+                font-family: monospace;
+                font-size: 11px;
+            }
+        """)
         self.combo_model.currentIndexChanged.connect(self._on_model_changed)
 
         model_row.addWidget(self.model_lbl)
@@ -359,7 +370,14 @@ class AIChatWidget(QWidget):
         layout.addLayout(input_layout)
 
         self._update_status_display()
-        self._append_system(t("ai_init_msg"))
+        # Initial model options
+        initial_models = [
+            ("gemini-2.5-flash [RECOMMENDED]", "gemini-2.5-flash"),
+            ("gemini-flash-lite-latest [LIGHT & FAST]", "gemini-flash-lite-latest"),
+            ("gemini-2.5-pro [DEEP REASONING]", "gemini-2.5-pro"),
+            ("gemini-2.0-flash [STABLE]", "gemini-2.0-flash"),
+        ]
+        self._on_models_fetched(initial_models)
 
         # Trigger dynamic model fetching from API
         if self.api_key:

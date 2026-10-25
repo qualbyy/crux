@@ -174,7 +174,6 @@ class PasswordAutofillManager:
         if not matches:
             return ""
 
-        # JSON serialize matches safely for embedding
         serialized = json.dumps(matches)
 
         js_code = f"""
@@ -185,17 +184,230 @@ class PasswordAutofillManager:
             const credentials = {serialized};
             if (!credentials || credentials.length === 0) return;
 
-            function initAutofill() {{
-                const pwdInputs = document.querySelectorAll('input[type="password"]');
-                const userInputs = document.querySelectorAll('input[type="email"], input[name*="user"], input[name*="login"], input[id*="user"], input[id*="login"], input[autocomplete="username"], input[type="text"]');
+            // Helper to set value with React / Vue / Google Closure setter triggers
+            function setNativeInputValue(element, val) {{
+                if (!element || val === undefined || val === null) return;
+                element.focus();
+                const prototype = window.HTMLInputElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+                if (setter) {{
+                    setter.call(element, val);
+                }} else {{
+                    element.value = val;
+                }}
+                element.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                element.dispatchEvent(new Event('change', {{ bubbles: true, composed: true }}));
+                element.dispatchEvent(new KeyboardEvent('keydown', {{ bubbles: true, cancelable: true }}));
+                element.dispatchEvent(new KeyboardEvent('keyup', {{ bubbles: true, cancelable: true }}));
+            }}
 
-                if (userInputs.length === 0 && pwdInputs.length === 0) return;
+            function isSearchInput(el) {{
+                if (!el) return true;
+                const type = (el.type || '').toLowerCase();
+                if (type === 'search') return true;
+                const name = (el.name || '').toLowerCase();
+                const id = (el.id || '').toLowerCase();
+                const role = (el.getAttribute('role') || '').toLowerCase();
+                const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                const ph = (el.placeholder || '').toLowerCase();
+                const cls = (el.className || '').toLowerCase();
 
-                const primaryUser = userInputs.length > 0 ? userInputs[0] : null;
-                const primaryPwd = pwdInputs.length > 0 ? pwdInputs[0] : null;
+                if (role === 'searchbox' || role === 'search') return true;
+                if (['q', 'query', 'search', 'search_query', 's'].includes(name)) return true;
+                if (id === 'search' || id.includes('search-input') || id.includes('searchbox')) return true;
+                if (aria.includes('search') || aria.includes('поиск') || aria.includes('search github')) return true;
+                if (ph.includes('search') || ph.includes('поиск') || ph.includes('find')) return true;
+                if (cls.includes('search-input') || cls.includes('header-search')) return true;
 
-                // 1. Datalist attached to username input
-                if (primaryUser) {{
+                const form = el.form || el.closest('form');
+                if (form) {{
+                    const fRole = (form.getAttribute('role') || '').toLowerCase();
+                    const fAction = (form.getAttribute('action') || '').toLowerCase();
+                    if (fRole === 'search' || fAction.includes('search')) return true;
+                }}
+                return false;
+            }}
+
+            function findLoginInputs() {{
+                const allPwds = Array.from(document.querySelectorAll('input[type="password"]')).filter(el => {{
+                    const s = window.getComputedStyle(el);
+                    return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null;
+                }});
+
+                const url = window.location.href.toLowerCase();
+                const isAuthUrl = /accounts\\.google\\.com|login|signin|sign-in|auth|identifier|session|authorize|oauth|account|log-in|v3\\/signin/i.test(url);
+
+                const userCandidates = Array.from(document.querySelectorAll(
+                    'input[id="identifierId"], input[autocomplete="username"], input[autocomplete="email"], ' +
+                    'input[type="email"], input[name="identifier"], input[name="login"], input[name="username"], ' +
+                    'input[name="user"], input[name="email"], input[id="login_field"], input[id="user_login"], ' +
+                    'input[id="username"], input[id*="username" i], input[id*="login" i], input[name*="username" i], ' +
+                    'input[name*="login" i], input[name*="user" i]'
+                )).filter(el => {{
+                    if (isSearchInput(el)) return false;
+                    const s = window.getComputedStyle(el);
+                    return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null;
+                }});
+
+                // Guard: If there is no password input AND this is not an auth URL, AND no explicit Google identifier/username attribute, ignore!
+                if (allPwds.length === 0 && !isAuthUrl) {{
+                    const hasExplicitLogin = userCandidates.some(el => el.id === 'identifierId' || el.getAttribute('autocomplete') === 'username');
+                    if (!hasExplicitLogin) {{
+                        return {{ userInput: null, pwdInput: null }};
+                    }}
+                }}
+
+                const primaryPwd = allPwds.length > 0 ? allPwds[0] : null;
+                let primaryUser = null;
+
+                if (primaryPwd) {{
+                    const form = primaryPwd.form || primaryPwd.closest('form');
+                    if (form) {{
+                        const formInputs = Array.from(form.querySelectorAll('input')).filter(el => !isSearchInput(el) && el !== primaryPwd);
+                        const found = formInputs.find(el => {{
+                            const t = (el.type || 'text').toLowerCase();
+                            return ['text', 'email', 'tel'].includes(t);
+                        }});
+                        if (found) primaryUser = found;
+                    }}
+                }}
+
+                if (!primaryUser && userCandidates.length > 0) {{
+                    primaryUser = userCandidates[0];
+                }}
+
+                return {{ userInput: primaryUser, pwdInput: primaryPwd }};
+            }}
+
+            function performAutofill(cred, primaryUser, primaryPwd) {{
+                if (primaryUser && cred.username) {{
+                    setNativeInputValue(primaryUser, cred.username);
+                    window.__zephyrium_active_user = cred.username;
+                    try {{
+                        sessionStorage.setItem('__zephyrium_last_user', cred.username);
+                        if (cred.password) {{
+                            sessionStorage.setItem('__zephyrium_last_pass', cred.password);
+                        }}
+                    }} catch (e) {{}}
+                }}
+
+                if (primaryPwd && cred.password) {{
+                    setNativeInputValue(primaryPwd, cred.password);
+                }}
+
+                // Show confirmation badge
+                const pill = document.getElementById('__zephyrium_pill__');
+                if (pill) {{
+                    pill.style.backgroundColor = '#10b981';
+                    pill.style.borderColor = '#10b981';
+                    pill.innerHTML = `<span style="color:#ffffff; font-weight:bold;">✓ Заполнено: ${{cred.username}}</span>`;
+                    setTimeout(() => pill.remove(), 2000);
+                }}
+                const menu = document.getElementById('__zephyrium_dropdown__');
+                if (menu) menu.remove();
+            }}
+
+            function renderDropdown(anchor, primaryUser, primaryPwd) {{
+                let menu = document.getElementById('__zephyrium_dropdown__');
+                if (!menu) {{
+                    menu = document.createElement('div');
+                    menu.id = '__zephyrium_dropdown__';
+                    menu.style.position = 'absolute';
+                    menu.style.zIndex = '2147483647';
+                    menu.style.backgroundColor = '#18181b';
+                    menu.style.border = '1px solid #38bdf8';
+                    menu.style.boxShadow = '0 6px 20px rgba(0,0,0,0.7)';
+                    menu.style.fontFamily = 'monospace';
+                    menu.style.fontSize = '12px';
+                    menu.style.color = '#f5f5f0';
+                    menu.style.minWidth = '260px';
+                    menu.style.borderRadius = '0px';
+                    document.body.appendChild(menu);
+                }}
+
+                const rect = anchor.getBoundingClientRect();
+                menu.style.top = (rect.bottom + window.scrollY + 2) + 'px';
+                menu.style.left = (rect.left + window.scrollX) + 'px';
+                menu.style.width = Math.max(rect.width, 260) + 'px';
+                menu.innerHTML = '';
+
+                const header = document.createElement('div');
+                header.style.padding = '5px 10px';
+                header.style.backgroundColor = '#262624';
+                header.style.borderBottom = '1px solid #3f3f46';
+                header.style.fontSize = '10px';
+                header.style.color = '#38bdf8';
+                header.style.fontWeight = 'bold';
+                header.style.display = 'flex';
+                header.style.justifyContent = 'space-between';
+                header.innerHTML = '<span>[ ZEPHYRIUM // ХРАНИЛИЩЕ ]</span><span style="cursor:pointer; color:#71717a;" id="__z_close_dd__">×</span>';
+                menu.appendChild(header);
+
+                header.querySelector('#__z_close_dd__').onclick = (e) => {{
+                    e.stopPropagation();
+                    menu.remove();
+                }};
+
+                credentials.forEach(cred => {{
+                    const item = document.createElement('div');
+                    item.style.padding = '8px 10px';
+                    item.style.cursor = 'pointer';
+                    item.style.borderBottom = '1px solid #27272a';
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.justifyContent = 'space-between';
+                    item.innerHTML = `<div><div style="font-weight:bold; color:#f5f5f0;">${{cred.username}}</div><div style="font-size:10px; color:#71717a;">${{cred.url || ''}}</div></div><button style="background:transparent; border:1px solid #38bdf8; color:#38bdf8; font-family:monospace; font-size:10px; padding:3px 7px; cursor:pointer;">ВСТАВИТЬ</button>`;
+                    item.onmouseover = () => {{ item.style.backgroundColor = '#27272a'; }};
+                    item.onmouseout = () => {{ item.style.backgroundColor = 'transparent'; }};
+                    item.onclick = (e) => {{
+                        e.stopPropagation();
+                        performAutofill(cred, primaryUser, primaryPwd);
+                    }};
+                    menu.appendChild(item);
+                }});
+            }}
+
+            function renderFloatingPill(primaryUser, primaryPwd) {{
+                if (document.getElementById('__zephyrium_pill__')) return;
+                const pill = document.createElement('div');
+                pill.id = '__zephyrium_pill__';
+                pill.style.position = 'fixed';
+                pill.style.top = '72px';
+                pill.style.right = '20px';
+                pill.style.zIndex = '2147483647';
+                pill.style.backgroundColor = '#18181b';
+                pill.style.color = '#f5f5f0';
+                pill.style.border = '1px solid #38bdf8';
+                pill.style.boxShadow = '0 4px 16px rgba(0,0,0,0.6)';
+                pill.style.padding = '7px 12px';
+                pill.style.fontFamily = 'monospace';
+                pill.style.fontSize = '11px';
+                pill.style.display = 'flex';
+                pill.style.alignItems = 'center';
+                pill.style.gap = '8px';
+                pill.style.borderRadius = '0px';
+
+                const cred = credentials[0];
+                pill.innerHTML = `<span style="color:#38bdf8; font-weight:bold;">[ZEPHYRIUM]</span> Вход: <strong>${{cred.username}}</strong> <button id="__z_btn_fill__" style="background:#262624; border:1px solid #38bdf8; color:#38bdf8; font-family:monospace; font-size:10px; padding:2px 8px; cursor:pointer; font-weight:bold;">ЗАПОЛНИТЬ</button> <span id="__z_btn_close__" style="cursor:pointer; color:#71717a; font-size:12px; padding:0 2px;">×</span>`;
+
+                pill.querySelector('#__z_btn_fill__').onclick = function(e) {{
+                    e.stopPropagation();
+                    performAutofill(cred, primaryUser, primaryPwd);
+                }};
+                pill.querySelector('#__z_btn_close__').onclick = function(e) {{
+                    e.stopPropagation();
+                    pill.remove();
+                }};
+
+                document.body.appendChild(pill);
+            }}
+
+            function attachAutofillUI() {{
+                const {{ userInput, pwdInput }} = findLoginInputs();
+                if (!userInput && !pwdInput) return;
+
+                // 1. Datalist for native autocomplete
+                if (userInput) {{
                     let dl = document.getElementById('__zephyrium_datalist__');
                     if (!dl) {{
                         dl = document.createElement('datalist');
@@ -209,73 +421,75 @@ class PasswordAutofillManager:
                         opt.label = 'Zephyrium Vault';
                         dl.appendChild(opt);
                     }});
-                    primaryUser.setAttribute('list', '__zephyrium_datalist__');
+                    userInput.setAttribute('list', '__zephyrium_datalist__');
 
-                    primaryUser.addEventListener('input', function(e) {{
-                        const entered = e.target.value;
-                        const match = credentials.find(c => c.username === entered);
-                        if (match && match.password && primaryPwd) {{
-                            primaryPwd.value = match.password;
-                            primaryPwd.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                            primaryPwd.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    userInput.addEventListener('focus', function() {{
+                        renderDropdown(userInput, userInput, pwdInput);
+                    }});
+
+                    userInput.addEventListener('click', function() {{
+                        renderDropdown(userInput, userInput, pwdInput);
+                    }});
+
+                    userInput.addEventListener('input', function(e) {{
+                        const val = e.target.value;
+                        const match = credentials.find(c => c.username === val);
+                        if (match && match.password && pwdInput) {{
+                            setNativeInputValue(pwdInput, match.password);
                         }}
                     }});
                 }}
 
-                // 2. Interactive Autofill Badge near password field or user field
-                const anchor = primaryPwd || primaryUser;
-                if (anchor && !document.getElementById('__zephyrium_pill__')) {{
-                    const pill = document.createElement('div');
-                    pill.id = '__zephyrium_pill__';
-                    pill.style.position = 'fixed';
-                    pill.style.bottom = '18px';
-                    pill.style.right = '20px';
-                    pill.style.zIndex = '2147483647';
-                    pill.style.backgroundColor = '#18181b';
-                    pill.style.color = '#f5f5f0';
-                    pill.style.border = '1px solid #38bdf8';
-                    pill.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
-                    pill.style.padding = '8px 14px';
-                    pill.style.fontFamily = 'monospace';
-                    pill.style.fontSize = '12px';
-                    pill.style.cursor = 'pointer';
-                    pill.style.display = 'flex';
-                    pill.style.alignItems = 'center';
-                    pill.style.gap = '8px';
-                    pill.style.transition = 'all 0.2s ease';
-
-                    const cred = credentials[0];
-                    pill.innerHTML = `<span style="color: #38bdf8; font-weight: bold;">[ZEPHYRIUM]</span> Autofill <strong>${{cred.username}}</strong> <span style="font-size:10px; color:#71717a;">×</span>`;
-
-                    pill.addEventListener('click', function(e) {{
-                        if (e.target.innerText === '×') {{
-                            pill.remove();
-                            return;
-                        }}
-                        if (primaryUser) {{
-                            primaryUser.value = cred.username;
-                            primaryUser.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                            primaryUser.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        }}
-                        if (primaryPwd && cred.password) {{
-                            primaryPwd.value = cred.password;
-                            primaryPwd.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                            primaryPwd.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        }}
-                        pill.style.backgroundColor = '#10b981';
-                        pill.innerHTML = `<span style="color:#ffffff;">✓ Autofilled!</span>`;
-                        setTimeout(() => pill.remove(), 1500);
+                if (pwdInput && !userInput) {{
+                    // Single password step (e.g. step 2 on Google/Microsoft)
+                    let lastUser = '';
+                    try {{
+                        lastUser = sessionStorage.getItem('__zephyrium_last_user') || window.__zephyrium_active_user || '';
+                    }} catch (e) {{}}
+                    
+                    pwdInput.addEventListener('focus', function() {{
+                        renderDropdown(pwdInput, null, pwdInput);
                     }});
 
-                    document.body.appendChild(pill);
+                    const match = credentials.find(c => c.username === lastUser) || credentials[0];
+                    if (match && match.password) {{
+                        renderFloatingPill(null, pwdInput);
+                    }}
+                }} else if (userInput) {{
+                    renderFloatingPill(userInput, pwdInput);
                 }}
             }}
 
-            if (document.readyState === 'loading') {{
-                document.addEventListener('DOMContentLoaded', initAutofill);
-            }} else {{
-                initAutofill();
-            }}
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {{
+                const dd = document.getElementById('__zephyrium_dropdown__');
+                if (dd && !dd.contains(e.target)) {{
+                    const isAnchor = (e.target.tagName === 'INPUT' && (e.target.type === 'password' || e.target.type === 'email' || e.target.id === 'identifierId'));
+                    if (!isAnchor) {{
+                        dd.remove();
+                    }}
+                }}
+            }});
+
+            // Multi-stage checking for SPAs
+            attachAutofillUI();
+            [200, 500, 1000, 2000, 3500].forEach(delay => {{
+                setTimeout(attachAutofillUI, delay);
+            }});
+
+            const observer = new MutationObserver(() => {{
+                attachAutofillUI();
+            }});
+            observer.observe(document.body || document.documentElement, {{
+                childList: true,
+                subtree: true
+            }});
+
+            document.addEventListener('focusin', function(e) {{
+                if (e.target && e.target.tagName === 'INPUT') {{
+                    attachAutofillUI();
+                }}
+            }}, true);
         }})();
         """
         return js_code
@@ -287,12 +501,26 @@ class PasswordAutofillManager:
             if (window.__zephyrium_capture_injected) return;
             window.__zephyrium_capture_injected = true;
 
+            // Track any typed username / email across steps (for multi-step logins like Google)
+            document.addEventListener('input', function(e) {
+                const t = e.target;
+                if (!t || t.tagName !== 'INPUT') return;
+                const type = (t.type || 'text').toLowerCase();
+                if (type === 'password') return;
+                const val = (t.value || '').trim();
+                if (val && (type === 'email' || t.id === 'identifierId' || t.name === 'identifier' || val.includes('@') || t.getAttribute('autocomplete') === 'username')) {
+                    window.__zephyrium_last_user = val;
+                    try {
+                        sessionStorage.setItem('__zephyrium_last_user', val);
+                    } catch (err) {}
+                }
+            }, true);
+
             function findUsername(pwdInput) {
                 const form = pwdInput.form || pwdInput.closest('form');
                 if (form) {
                     const inputs = Array.from(form.querySelectorAll('input'));
                     const pIndex = inputs.indexOf(pwdInput);
-                    // Search backwards from password input for the nearest text/email input
                     for (let i = pIndex - 1; i >= 0; i--) {
                         const inp = inputs[i];
                         const t = (inp.type || 'text').toLowerCase();
@@ -300,7 +528,6 @@ class PasswordAutofillManager:
                             return inp.value.trim();
                         }
                     }
-                    // Search forward if not found
                     for (let inp of inputs) {
                         const t = (inp.type || 'text').toLowerCase();
                         if (['text', 'email', 'tel'].includes(t) && inp.value && inp.value.trim().length > 0) {
@@ -308,13 +535,30 @@ class PasswordAutofillManager:
                         }
                     }
                 }
-                // Fallback: look globally on page for any filled username/email
-                const candidates = document.querySelectorAll('input[type="email"], input[name*="user" i], input[name*="login" i], input[id*="user" i], input[id*="login" i], input[autocomplete="username" i], input[type="text"]');
+
+                // Check Google profile identifier or text elements on page showing user email
+                const profileEl = document.querySelector('#profileIdentifier, [data-email], [data-profile-identifier], div[jsname="wP1ysz"]');
+                if (profileEl && profileEl.textContent && profileEl.textContent.trim().length > 0) {
+                    return profileEl.textContent.trim();
+                }
+
+                // Check stored username from step 1
+                if (window.__zephyrium_last_user) {
+                    return window.__zephyrium_last_user;
+                }
+                try {
+                    const stored = sessionStorage.getItem('__zephyrium_last_user');
+                    if (stored) return stored;
+                } catch (err) {}
+
+                // Fallback: look globally for any filled email or username input
+                const candidates = document.querySelectorAll('input[type="email"], input[id="identifierId"], input[name*="user" i], input[name*="login" i], input[id*="user" i], input[id*="login" i], input[autocomplete="username" i]');
                 for (let inp of candidates) {
                     if (inp.value && inp.value.trim().length > 0 && inp !== pwdInput) {
                         return inp.value.trim();
                     }
                 }
+
                 return "";
             }
 
@@ -352,10 +596,19 @@ class PasswordAutofillManager:
                 }
             }, true);
 
-            // 3. Listen on click of submit / login buttons
+            // 3. Listen on click of submit / login / Next buttons
             document.addEventListener('click', function(e) {
-                const btn = e.target.closest('button, input[type="submit"], [role="button"]');
+                const btn = e.target.closest('button, input[type="submit"], [role="button"], #passwordNext, #identifierNext');
                 if (btn) {
+                    // If on step 1 (identifierNext), capture username to session
+                    const idInp = document.querySelector('input[id="identifierId"], input[type="email"]');
+                    if (idInp && idInp.value) {
+                        window.__zephyrium_last_user = idInp.value.trim();
+                        try {
+                            sessionStorage.setItem('__zephyrium_last_user', idInp.value.trim());
+                        } catch (err) {}
+                    }
+
                     const form = btn.form || btn.closest('form');
                     const pwd = form ? form.querySelector('input[type="password"]') : document.querySelector('input[type="password"]');
                     if (pwd && pwd.value) {
