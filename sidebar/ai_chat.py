@@ -277,18 +277,19 @@ class AIChatWidget(QWidget):
 
         # Header 1: Title, Status, Key Button
         header = QHBoxLayout()
+        header.setSpacing(6)
         self.title_lbl = QLabel("ZEPHYRIUM // AI ASSISTANT")
         self.title_lbl.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {self.accent}; letter-spacing: 1px;")
         
         self.status = QLabel(t("ai_online") if self.api_key else t("ai_no_key"))
-        self.status.setFixedHeight(24)
+        self.status.setFixedHeight(26)
         self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status.setStyleSheet("color: #10b981; font-size: 10px; font-weight: bold; border: 1px solid #10b981; padding: 2px 6px;")
+        self.status.setStyleSheet("color: #10b981; font-size: 10px; font-weight: bold; border: 1px solid #10b981; padding: 0px 8px; min-height: 24px; max-height: 24px; background-color: transparent;")
 
         self.btn_key = QPushButton(t("key_btn"))
-        self.btn_key.setFixedHeight(24)
+        self.btn_key.setFixedHeight(26)
         self.btn_key.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_key.setStyleSheet("font-size: 10px; padding: 2px 8px; font-weight: bold;")
+        self.btn_key.setStyleSheet("font-size: 10px; padding: 0px 10px; font-weight: bold; min-height: 24px; max-height: 24px;")
         self.btn_key.setToolTip("Configure Gemini API Key directly in browser")
         self.btn_key.clicked.connect(self.open_key_dialog)
 
@@ -300,11 +301,15 @@ class AIChatWidget(QWidget):
 
         # Header 2: Dynamic Model Selector
         model_row = QHBoxLayout()
+        model_row.setSpacing(6)
         self.model_lbl = QLabel(f"{t('ai_model_label').split(':')[0].upper()}:")
-        self.model_lbl.setStyleSheet("color: #71717a; font-size: 10px; font-weight: bold;")
+        self.model_lbl.setFixedHeight(30)
+        self.model_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        self.model_lbl.setStyleSheet("color: #71717a; font-size: 10px; font-weight: bold; padding: 0px 8px; border: 1px solid #3f3f46; background-color: #262624; min-height: 28px; max-height: 28px;")
         
         self.combo_model = QComboBox()
-        self.combo_model.setFixedHeight(28)
+        self.combo_model.setFixedHeight(30)
+        self.combo_model.setStyleSheet("min-height: 28px; max-height: 28px; padding: 0px 8px;")
         self.combo_model.currentIndexChanged.connect(self._on_model_changed)
 
         model_row.addWidget(self.model_lbl)
@@ -337,13 +342,15 @@ class AIChatWidget(QWidget):
         input_layout = QHBoxLayout()
         input_layout.setSpacing(6)
         self.input_field = QLineEdit()
-        self.input_field.setFixedHeight(30)
+        self.input_field.setFixedHeight(32)
+        self.input_field.setStyleSheet("min-height: 30px; max-height: 30px; padding: 0px 8px;")
         self.input_field.setPlaceholderText(t("ai_input_placeholder"))
         self.input_field.returnPressed.connect(self._on_send)
 
         self.btn_send = QPushButton(t("run_btn"))
         self.btn_send.setObjectName("accentWarmBtn")
-        self.btn_send.setFixedSize(72, 30)
+        self.btn_send.setFixedHeight(32)
+        self.btn_send.setStyleSheet(f"min-height: 30px; max-height: 30px; padding: 0px 14px; border: 1px solid {self.accent}; color: {self.accent}; font-weight: bold;")
         self.btn_send.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_send.clicked.connect(self._on_send)
 
@@ -385,10 +392,10 @@ class AIChatWidget(QWidget):
     def _update_status_display(self) -> None:
         if self.api_key:
             self.status.setText(t("ai_online"))
-            self.status.setStyleSheet("color: #10b981; font-size: 10px; font-weight: bold;")
+            self.status.setStyleSheet("color: #10b981; font-size: 10px; font-weight: bold; border: 1px solid #10b981; padding: 0px 8px; min-height: 24px; max-height: 24px; background-color: transparent;")
         else:
             self.status.setText(t("ai_no_key"))
-            self.status.setStyleSheet("color: #f59e0b; font-size: 10px; font-weight: bold;")
+            self.status.setStyleSheet("color: #f59e0b; font-size: 10px; font-weight: bold; border: 1px solid #f59e0b; padding: 0px 8px; min-height: 24px; max-height: 24px; background-color: transparent;")
 
     def retranslate_ui(self) -> None:
         self.btn_key.setText(t("key_btn"))
@@ -567,5 +574,10 @@ class AIChatWidget(QWidget):
         if hasattr(self, "title_lbl"):
             self.title_lbl.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {accent}; letter-spacing: 1px;")
         self.transcript.setStyleSheet("")
-        self.input_field.setStyleSheet("")
-        self.combo_model.setStyleSheet("")
+        if hasattr(self, "input_field"):
+            self.input_field.setStyleSheet("min-height: 30px; max-height: 30px; padding: 0px 8px;")
+        if hasattr(self, "combo_model"):
+            self.combo_model.setStyleSheet("min-height: 28px; max-height: 28px; padding: 0px 8px;")
+        if hasattr(self, "btn_send"):
+            self.btn_send.setStyleSheet(f"min-height: 30px; max-height: 30px; padding: 0px 14px; border: 1px solid {accent}; color: {accent}; font-weight: bold;")
+        self._update_status_display()

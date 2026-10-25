@@ -107,29 +107,41 @@ def capture_visuals():
     pix5.save(str(path5), "PNG")
     print(f"Captured: {path5}", flush=True)
 
-    # 6. Test Vim mode and corner exit button
+    # 6. Test Vim mode and status exit button
     win.apply_mode("vim")
     app.processEvents()
     QTest.qWait(600)
     app.processEvents()
-    assert win.vim_exit_btn.isVisible(), "vim_exit_btn should be visible in vim mode"
+    assert not hasattr(win, "vim_exit_btn"), "Top corner vim_exit_btn should be removed"
     assert win.status_vim_exit_btn.isVisible(), "status_vim_exit_btn should be visible in vim mode"
     pix6 = win.grab()
     path6 = screenshot_dir / "verify_vim_mode.png"
     pix6.save(str(path6), "PNG")
     print(f"Captured: {path6}", flush=True)
 
-    # 7. Test exiting Vim mode via corner exit button
-    win.vim_exit_btn.click()
+    # 7. Test exiting Vim mode via bottom status exit button
+    win.status_vim_exit_btn.click()
     app.processEvents()
     QTest.qWait(600)
     app.processEvents()
-    assert not win.vim_exit_btn.isVisible(), "vim_exit_btn should be hidden in minimal mode"
+    assert not win.status_vim_exit_btn.isVisible(), "status_vim_exit_btn should be hidden in minimal mode"
     assert win.ui_mode == "minimal", "Mode should be restored to minimal"
     pix7 = win.grab()
     path7 = screenshot_dir / "verify_vim_exited.png"
     pix7.save(str(path7), "PNG")
     print(f"Captured: {path7}", flush=True)
+
+    # 7b. Open AI Assistant panel and capture screenshot
+    win._toggle_sidebar()
+    app.processEvents()
+    QTest.qWait(600)
+    app.processEvents()
+    pix7b = win.grab()
+    path7b = screenshot_dir / "verify_ai_panel_aligned.png"
+    pix7b.save(str(path7b), "PNG")
+    print(f"Captured: {path7b}", flush=True)
+    win._toggle_sidebar()
+    app.processEvents()
 
     # 8. Open Settings Tab and verify
     win.tab_manager.create_tab("zephyrium://settings")

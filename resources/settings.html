@@ -759,12 +759,12 @@
                             <h2 data-i18n="header_vault">CREDENTIALS VAULT</h2>
                             <p data-i18n="desc_vault">Stored logins, credentials, and autofill management.</p>
                         </div>
-                        <button type="button" id="btn-lock-vault-header" class="btn-action" onclick="lockVault()" style="display: none;" data-i18n="btn_lock_vault">🔒 LOCK VAULT</button>
+                        <button type="button" id="btn-lock-vault-header" class="btn-action" onclick="lockVault()" style="display: none;" data-i18n="btn_lock_vault">ЗАБЛОКИРОВАТЬ</button>
                     </div>
 
                     <!-- Lock Screen (sudo authentication required) -->
                     <div id="vault-lock-screen" style="border: 1px solid var(--border-muted); background: var(--bg-surface); padding: 36px 20px; text-align: center; margin-top: 16px;">
-                        <div style="font-size: 28px; margin-bottom: 12px; color: var(--accent);">🔒</div>
+                        <div style="font-size: 13px; font-weight: bold; letter-spacing: 2px; margin-bottom: 12px; color: var(--accent);">[ SECURITY // SUDO AUTH REQUIRED ]</div>
                         <div style="font-size: 13px; font-weight: bold; color: var(--text-bright); letter-spacing: 0.5px; text-transform: uppercase;" data-i18n="vault_locked_title">
                             ХРАНИЛИЩЕ ПАРОЛЕЙ ЗАБЛОКИРОВАНО
                         </div>
@@ -1160,7 +1160,7 @@
                 vault_locked_title: "ХРАНИЛИЩЕ ПАРОЛЕЙ ЗАБЛОКИРОВАНО",
                 vault_locked_desc: "Для доступа к сохраненным паролям требуется подтверждение прав администратора (пароль sudo).",
                 btn_unlock_vault: "РАЗБЛОКИРОВАТЬ",
-                btn_lock_vault: "🔒 ЗАБЛОКИРОВАТЬ",
+                btn_lock_vault: "ЗАБЛОКИРОВАТЬ",
                 vault_auth_failed: "Неверный пароль sudo. Доступ к хранилищу отклонен.",
                 placeholder_sudo_pwd: "Пароль sudo...",
                 lbl_autofill: "Автозаполнение учетных данных",
@@ -1287,7 +1287,7 @@
                 vault_locked_title: "PASSWORD VAULT LOCKED",
                 vault_locked_desc: "Sudo authentication required to access saved credentials.",
                 btn_unlock_vault: "UNLOCK",
-                btn_lock_vault: "🔒 LOCK VAULT",
+                btn_lock_vault: "LOCK VAULT",
                 vault_auth_failed: "Incorrect sudo password. Access denied.",
                 placeholder_sudo_pwd: "Sudo password...",
                 lbl_autofill: "Autofill Credentials",

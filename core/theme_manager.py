@@ -230,8 +230,10 @@ def generate_stylesheet(theme: str = "dark", accent: str = "#fe8019") -> str:
         background-color: {bg_base};
         color: {text_muted};
         border-top: 1px solid {border_muted};
-        min-height: 24px;
+        min-height: 28px;
+        max-height: 28px;
         font-size: 11px;
+        padding: 0 4px;
     }}
 
     QStatusBar QLabel {{
