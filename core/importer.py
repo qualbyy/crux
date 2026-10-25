@@ -301,6 +301,30 @@ class BrowserImporter:
                 tmp_cookies.unlink()
 
     @staticmethod
+    def _decrypt_chromium_password(blob: bytes) -> str:
+        if not blob:
+            return ""
+        if isinstance(blob, str):
+            return blob
+        try:
+            if blob.startswith(b"v10") or blob.startswith(b"v11"):
+                import hashlib
+                from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+                key = hashlib.pbkdf2_hmac("sha1", b"peanuts", b"saltysalt", 1, 16)
+                iv = b" " * 16
+                cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+                decryptor = cipher.decryptor()
+                dec = decryptor.update(blob[3:]) + decryptor.finalize()
+                if dec:
+                    pad_len = dec[-1]
+                    if 1 <= pad_len <= 16:
+                        dec = dec[:-pad_len]
+                    return dec.decode("utf-8", errors="ignore")
+            return blob.decode("utf-8", errors="ignore")
+        except Exception:
+            return ""
+
+    @staticmethod
     def import_passwords_chromium(profile_path: Path) -> int:
         login_file = profile_path / "Login Data"
         if not login_file.exists():
@@ -311,7 +335,7 @@ class BrowserImporter:
             shutil.copy2(login_file, tmp_logins)
             conn = sqlite3.connect(tmp_logins)
             cursor = conn.cursor()
-            cursor.execute("SELECT origin_url, username_value FROM logins WHERE username_value != ''")
+            cursor.execute("SELECT origin_url, username_value, password_value FROM logins WHERE username_value != ''")
             rows = cursor.fetchall()
             conn.close()
 
@@ -323,16 +347,21 @@ class BrowserImporter:
                 except Exception:
                     vault = []
 
-            existing_keys = {(v["url"], v["username"]) for v in vault}
+            existing_keys = {(v["url"], v["username"]): v for v in vault}
             count = 0
-            for url, username in rows:
-                if (url, username) not in existing_keys:
+            for url, username, pwd_blob in rows:
+                dec_pwd = BrowserImporter._decrypt_chromium_password(pwd_blob)
+                key = (url, username)
+                if key not in existing_keys:
                     vault.append({
                         "url": url,
                         "username": username,
+                        "password": dec_pwd,
                         "imported_at": int(time.time()),
                     })
-                    existing_keys.add((url, username))
+                    count += 1
+                elif not existing_keys[key].get("password") and dec_pwd:
+                    existing_keys[key]["password"] = dec_pwd
                     count += 1
 
             if count > 0:

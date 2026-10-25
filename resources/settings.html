@@ -52,7 +52,7 @@
 
         .settings-wrapper {
             width: 100%;
-            max-width: 960px;
+            max-width: 1040px;
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -104,7 +104,7 @@
 
         .layout-grid {
             display: grid;
-            grid-template-columns: 220px 1fr;
+            grid-template-columns: 220px minmax(0, 1fr);
             gap: 24px;
             align-items: start;
         }
@@ -155,6 +155,7 @@
             background-color: var(--bg-surface);
             border: 1px solid var(--border-muted);
             padding: 24px;
+            min-width: 0;
         }
 
         .tab-content.active {
@@ -400,10 +401,13 @@
             background-color: var(--bg-base);
             max-height: 420px;
             overflow-y: auto;
+            overflow-x: auto;
+            width: 100%;
         }
 
         table.vault-table {
             width: 100%;
+            table-layout: fixed;
             border-collapse: collapse;
             font-size: 11px;
         }
@@ -412,7 +416,17 @@
             border-bottom: 1px solid var(--border-muted);
             padding: 8px 10px;
             text-align: left;
-            word-break: break-all;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        table.vault-table th.actions-col, table.vault-table td.actions-cell {
+            width: 175px;
+            min-width: 175px;
+            overflow: visible !important;
+            white-space: nowrap !important;
+            word-break: keep-all !important;
         }
 
         table.vault-table th {
@@ -423,6 +437,8 @@
             position: sticky;
             top: 0;
             z-index: 1;
+            white-space: nowrap !important;
+            letter-spacing: 0.5px;
         }
 
         table.vault-table tr:hover td {
@@ -433,11 +449,20 @@
             background: transparent;
             border: 1px solid var(--border-muted);
             color: var(--text-primary);
-            padding: 3px 8px;
+            padding: 4px 10px;
             cursor: pointer;
             font-family: var(--font-mono);
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            min-width: 50px;
+            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            letter-spacing: 0.5px;
         }
 
         .btn-table-sm:hover {
@@ -449,11 +474,25 @@
             background: transparent;
             border: 1px solid var(--status-error);
             color: var(--status-error);
-            padding: 3px 8px;
+            padding: 4px 10px;
             cursor: pointer;
             font-family: var(--font-mono);
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            min-width: 44px;
+            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-table-del:hover {
+            background: var(--status-error);
+            color: #ffffff;
         }
 
         .vault-empty {
@@ -715,86 +754,110 @@
 
                 <!-- PASSWORDS & VAULT -->
                 <div id="tab-vault" class="tab-content">
-                    <div class="section-header">
-                        <h2 data-i18n="header_vault">CREDENTIALS VAULT</h2>
-                        <p data-i18n="desc_vault">Stored logins, credentials, and autofill management.</p>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="label-wrap">
-                            <span class="label-title" data-i18n="lbl_autofill">Autofill Credentials</span>
-                            <span class="label-desc" data-i18n="desc_autofill">Automatically suggest and fill saved usernames and passwords on login forms.</span>
+                    <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h2 data-i18n="header_vault">CREDENTIALS VAULT</h2>
+                            <p data-i18n="desc_vault">Stored logins, credentials, and autofill management.</p>
                         </div>
-                        <label class="checkbox-container">
-                            <input type="checkbox" id="setting-autofill-enabled" checked>
-                            <span class="label-title">Enabled</span>
-                        </label>
+                        <button type="button" id="btn-lock-vault-header" class="btn-action" onclick="lockVault()" style="display: none;" data-i18n="btn_lock_vault">🔒 LOCK VAULT</button>
                     </div>
 
-                    <!-- Sub-tabs: Passwords vs Cookies -->
-                    <div class="vault-nav-tabs">
-                        <button type="button" id="btn-vault-tab-pwd" class="vault-nav-btn active" onclick="switchVaultSubTab('passwords')" data-i18n="subtab_passwords">PASSWORDS</button>
-                        <button type="button" id="btn-vault-tab-cookies" class="vault-nav-btn" onclick="switchVaultSubTab('cookies')" data-i18n="subtab_cookies">COOKIES</button>
+                    <!-- Lock Screen (sudo authentication required) -->
+                    <div id="vault-lock-screen" style="border: 1px solid var(--border-muted); background: var(--bg-surface); padding: 36px 20px; text-align: center; margin-top: 16px;">
+                        <div style="font-size: 28px; margin-bottom: 12px; color: var(--accent);">🔒</div>
+                        <div style="font-size: 13px; font-weight: bold; color: var(--text-bright); letter-spacing: 0.5px; text-transform: uppercase;" data-i18n="vault_locked_title">
+                            ХРАНИЛИЩЕ ПАРОЛЕЙ ЗАБЛОКИРОВАНО
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin: 8px auto 20px auto; max-width: 440px; line-height: 1.5;" data-i18n="vault_locked_desc">
+                            Для доступа к сохраненным паролям требуется подтверждение прав администратора (пароль sudo).
+                        </div>
+                        <form onsubmit="submitVaultUnlock(event)" style="display: inline-flex; gap: 8px; align-items: center; justify-content: center; max-width: 380px; width: 100%;">
+                            <input type="password" id="vault-sudo-input" placeholder="Пароль sudo..." style="flex: 1; padding: 7px 12px; font-size: 12px; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--text-bright);" autocomplete="current-password" data-i18n-placeholder="placeholder_sudo_pwd" />
+                            <button type="submit" id="btn-vault-unlock" class="btn-action" style="padding: 7px 16px; font-size: 11px; font-weight: bold; cursor: pointer;" data-i18n="btn_unlock_vault">РАЗБЛОКИРОВАТЬ</button>
+                        </form>
+                        <div id="vault-auth-error" style="color: var(--status-error); font-size: 11px; margin-top: 12px; display: none;" data-i18n="vault_auth_failed">
+                            Неверный пароль sudo. Доступ к хранилищу отклонен.
+                        </div>
                     </div>
 
-                    <!-- SUB-PAGE: Passwords -->
-                    <div id="vault-view-passwords">
-                        <div class="vault-toolbar">
-                            <input type="text" id="vault-pwd-search" class="vault-search-input" placeholder="Filter passwords by domain or username..." oninput="filterVaultPasswords()" data-i18n="placeholder_filter_pwd">
-                            <div class="vault-actions-group">
-                                <button type="button" class="btn-action" onclick="exportPasswordsCSV()" data-i18n="btn_export_csv">EXPORT CSV</button>
-                                <button type="button" class="btn-action" onclick="exportPasswordsJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
+                    <!-- Unlocked Vault Content -->
+                    <div id="vault-unlocked-content" style="display: none;">
+                        <div class="form-row">
+                            <div class="label-wrap">
+                                <span class="label-title" data-i18n="lbl_autofill">Autofill Credentials</span>
+                                <span class="label-desc" data-i18n="desc_autofill">Automatically suggest and fill saved usernames and passwords on login forms.</span>
+                            </div>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="setting-autofill-enabled" checked>
+                                <span class="label-title">Enabled</span>
+                            </label>
+                        </div>
+
+                        <!-- Sub-tabs: Passwords vs Cookies -->
+                        <div class="vault-nav-tabs">
+                            <button type="button" id="btn-vault-tab-pwd" class="vault-nav-btn active" onclick="switchVaultSubTab('passwords')" data-i18n="subtab_passwords">PASSWORDS</button>
+                            <button type="button" id="btn-vault-tab-cookies" class="vault-nav-btn" onclick="switchVaultSubTab('cookies')" data-i18n="subtab_cookies">COOKIES</button>
+                        </div>
+
+                        <!-- SUB-PAGE: Passwords -->
+                        <div id="vault-view-passwords">
+                            <div class="vault-toolbar">
+                                <input type="text" id="vault-pwd-search" class="vault-search-input" placeholder="Filter passwords by domain or username..." oninput="filterVaultPasswords()" data-i18n="placeholder_filter_pwd">
+                                <div class="vault-actions-group">
+                                    <button type="button" class="btn-action" onclick="exportPasswordsCSV()" data-i18n="btn_export_csv">EXPORT CSV</button>
+                                    <button type="button" class="btn-action" onclick="exportPasswordsJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
+                                </div>
+                            </div>
+
+                            <div class="vault-table-wrapper">
+                                <table class="vault-table" id="table-vault-passwords">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 28%;" data-i18n="col_domain">DOMAIN / URL</th>
+                                            <th style="width: 25%;" data-i18n="col_username">USERNAME</th>
+                                            <th style="width: 25%;" data-i18n="col_password">PASSWORD</th>
+                                            <th class="actions-col" style="width: 175px;" data-i18n="col_actions">ACTIONS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vault-passwords-body">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                                <div id="vault-pwd-empty" class="vault-empty" style="display: none;" data-i18n="empty_passwords">
+                                    No credentials saved in vault.
+                                </div>
                             </div>
                         </div>
 
-                        <div class="vault-table-wrapper">
-                            <table class="vault-table" id="table-vault-passwords">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 35%;" data-i18n="col_domain">DOMAIN / URL</th>
-                                        <th style="width: 25%;" data-i18n="col_username">USERNAME</th>
-                                        <th style="width: 20%;" data-i18n="col_password">PASSWORD</th>
-                                        <th style="width: 20%;" data-i18n="col_actions">ACTIONS</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="vault-passwords-body">
-                                    <!-- Dynamic rows -->
-                                </tbody>
-                            </table>
-                            <div id="vault-pwd-empty" class="vault-empty" style="display: none;" data-i18n="empty_passwords">
-                                No credentials saved in vault.
+                        <!-- SUB-PAGE: Cookies -->
+                        <div id="vault-view-cookies" style="display: none;">
+                            <div class="vault-toolbar">
+                                <input type="text" id="vault-cookies-search" class="vault-search-input" placeholder="Filter cookies by domain or name..." oninput="filterVaultCookies()" data-i18n="placeholder_filter_cookies">
+                                <div class="vault-actions-group">
+                                    <button type="button" class="btn-action" onclick="exportCookiesNetscape()" data-i18n="btn_export_netscape">EXPORT NETSCAPE TXT</button>
+                                    <button type="button" class="btn-action" onclick="exportCookiesJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
+                                </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- SUB-PAGE: Cookies -->
-                    <div id="vault-view-cookies" style="display: none;">
-                        <div class="vault-toolbar">
-                            <input type="text" id="vault-cookies-search" class="vault-search-input" placeholder="Filter cookies by domain or name..." oninput="filterVaultCookies()" data-i18n="placeholder_filter_cookies">
-                            <div class="vault-actions-group">
-                                <button type="button" class="btn-action" onclick="exportCookiesNetscape()" data-i18n="btn_export_netscape">EXPORT NETSCAPE TXT</button>
-                                <button type="button" class="btn-action" onclick="exportCookiesJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
-                            </div>
-                        </div>
-
-                        <div class="vault-table-wrapper">
-                            <table class="vault-table" id="table-vault-cookies">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 25%;" data-i18n="col_host">DOMAIN / HOST</th>
-                                        <th style="width: 20%;" data-i18n="col_name">NAME</th>
-                                        <th style="width: 15%;" data-i18n="col_path">PATH</th>
-                                        <th style="width: 10%;" data-i18n="col_secure">SECURE</th>
-                                        <th style="width: 18%;" data-i18n="col_value">VALUE</th>
-                                        <th style="width: 12%;" data-i18n="col_actions">ACTIONS</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="vault-cookies-body">
-                                    <!-- Dynamic rows -->
-                                </tbody>
-                            </table>
-                            <div id="vault-cookies-empty" class="vault-empty" style="display: none;" data-i18n="empty_cookies">
-                                No cookies stored.
+                            <div class="vault-table-wrapper">
+                                <table class="vault-table" id="table-vault-cookies">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 25%;" data-i18n="col_host">DOMAIN / HOST</th>
+                                            <th style="width: 20%;" data-i18n="col_name">NAME</th>
+                                            <th style="width: 15%;" data-i18n="col_path">PATH</th>
+                                            <th style="width: 10%;" data-i18n="col_secure">SECURE</th>
+                                            <th style="width: 18%;" data-i18n="col_value">VALUE</th>
+                                            <th class="actions-col" style="width: 175px;" data-i18n="col_actions">ACTIONS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vault-cookies-body">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                                <div id="vault-cookies-empty" class="vault-empty" style="display: none;" data-i18n="empty_cookies">
+                                    No cookies stored.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -927,6 +990,8 @@
 
     <script>
         let currentWhitelist = [];
+        let isVaultUnlocked = false;
+        let currentLang = 'ru';
 
         // Tab Switching
         function switchTab(tabId) {
@@ -937,6 +1002,11 @@
                 content.classList.toggle('active', content.id === 'tab-' + tabId);
             });
             window.location.hash = tabId;
+            if (tabId === 'vault') {
+                if (!isVaultUnlocked) {
+                    lockVault();
+                }
+            }
         }
 
         // Host IPC mechanism (immune to navigation cancellation / about:blank#blocked)
@@ -1087,6 +1157,12 @@
                 btn_open_downloads: "ОТКРЫТЬ ВСЕ ЗАГРУЗКИ",
                 header_vault: "ХРАНИЛИЩЕ УЧЕТНЫХ ДАННЫХ",
                 desc_vault: "Сохраненные логины, пароли и куки-файлы.",
+                vault_locked_title: "ХРАНИЛИЩЕ ПАРОЛЕЙ ЗАБЛОКИРОВАНО",
+                vault_locked_desc: "Для доступа к сохраненным паролям требуется подтверждение прав администратора (пароль sudo).",
+                btn_unlock_vault: "РАЗБЛОКИРОВАТЬ",
+                btn_lock_vault: "🔒 ЗАБЛОКИРОВАТЬ",
+                vault_auth_failed: "Неверный пароль sudo. Доступ к хранилищу отклонен.",
+                placeholder_sudo_pwd: "Пароль sudo...",
                 lbl_autofill: "Автозаполнение учетных данных",
                 desc_autofill: "Автоматически предлагать сохраненные логины и пароли в формах входа.",
                 subtab_passwords: "ПАРОЛИ",
@@ -1208,6 +1284,12 @@
                 btn_open_downloads: "OPEN ALL DOWNLOADS",
                 header_vault: "CREDENTIALS VAULT",
                 desc_vault: "Stored logins, credentials, and autofill management.",
+                vault_locked_title: "PASSWORD VAULT LOCKED",
+                vault_locked_desc: "Sudo authentication required to access saved credentials.",
+                btn_unlock_vault: "UNLOCK",
+                btn_lock_vault: "🔒 LOCK VAULT",
+                vault_auth_failed: "Incorrect sudo password. Access denied.",
+                placeholder_sudo_pwd: "Sudo password...",
                 lbl_autofill: "Autofill Credentials",
                 desc_autofill: "Automatically suggest and fill saved usernames and passwords on login forms.",
                 subtab_passwords: "PASSWORDS",
@@ -1265,6 +1347,7 @@
         };
 
         function applyLanguage(lang) {
+            currentLang = lang;
             const dict = I18N[lang] || I18N['en'];
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
@@ -1278,12 +1361,100 @@
                     }
                 }
             });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (dict[key]) {
+                    el.placeholder = dict[key];
+                }
+            });
         }
         window.applyLanguage = applyLanguage;
 
         // --- CREDENTIALS VAULT (PASSWORDS & COOKIES) ---
         let currentPasswords = [];
         let currentCookies = [];
+
+        function submitVaultUnlock(e) {
+            if (e) e.preventDefault();
+            const pwdInput = document.getElementById('vault-sudo-input');
+            const pwd = pwdInput ? pwdInput.value : '';
+            const err = document.getElementById('vault-auth-error');
+            const btn = document.getElementById('btn-vault-unlock');
+            if (err) err.style.display = 'none';
+            if (!pwd) {
+                if (err) {
+                    err.textContent = (currentLang === 'ru' ? 'Введите пароль sudo' : 'Enter sudo password');
+                    err.style.display = 'block';
+                }
+                return;
+            }
+            if (btn) {
+                btn.textContent = (currentLang === 'ru' ? 'ПРОВЕРКА...' : 'VERIFYING...');
+                btn.disabled = true;
+            }
+            sendToHost('zephyrium://action/unlock-vault?password=' + encodeURIComponent(pwd));
+        }
+        window.submitVaultUnlock = submitVaultUnlock;
+
+        window.onVaultAuthSuccess = function(passwords) {
+            const btn = document.getElementById('btn-vault-unlock');
+            if (btn) {
+                btn.textContent = (currentLang === 'ru' ? 'РАЗБЛОКИРОВАТЬ' : 'UNLOCK');
+                btn.disabled = false;
+            }
+            document.getElementById('vault-lock-screen').style.display = 'none';
+            document.getElementById('vault-unlocked-content').style.display = 'block';
+            document.getElementById('btn-lock-vault-header').style.display = 'inline-block';
+            document.getElementById('vault-sudo-input').value = '';
+            document.getElementById('vault-auth-error').style.display = 'none';
+            isVaultUnlocked = true;
+            if (passwords) {
+                currentPasswords = passwords;
+                renderVaultPasswords(currentPasswords);
+            }
+        };
+
+        window.onVaultAuthFailed = function() {
+            const btn = document.getElementById('btn-vault-unlock');
+            if (btn) {
+                btn.textContent = (currentLang === 'ru' ? 'РАЗБЛОКИРОВАТЬ' : 'UNLOCK');
+                btn.disabled = false;
+            }
+            const err = document.getElementById('vault-auth-error');
+            if (err) {
+                err.textContent = (currentLang === 'ru' ? 'Неверный пароль sudo. Доступ к хранилищу отклонен.' : 'Incorrect sudo password. Access denied.');
+                err.style.display = 'block';
+            }
+            const pwdInput = document.getElementById('vault-sudo-input');
+            if (pwdInput) {
+                pwdInput.value = '';
+                pwdInput.focus();
+            }
+        };
+
+        function lockVault() {
+            isVaultUnlocked = false;
+            document.getElementById('vault-lock-screen').style.display = 'block';
+            document.getElementById('vault-unlocked-content').style.display = 'none';
+            document.getElementById('btn-lock-vault-header').style.display = 'none';
+            document.getElementById('vault-auth-error').style.display = 'none';
+            const pwdInput = document.getElementById('vault-sudo-input');
+            if (pwdInput) {
+                pwdInput.value = '';
+                pwdInput.focus();
+            }
+        }
+        window.lockVault = lockVault;
+
+        window.onPasswordDeleted = function(updatedPasswords) {
+            currentPasswords = updatedPasswords || [];
+            renderVaultPasswords(currentPasswords);
+        };
+
+        window.onCookieDeleted = function(updatedCookies) {
+            currentCookies = updatedCookies || [];
+            renderVaultCookies(currentCookies);
+        };
 
         function switchVaultSubTab(sub) {
             document.getElementById('btn-vault-tab-pwd').classList.toggle('active', sub === 'passwords');
@@ -1306,11 +1477,11 @@
                 const tr = document.createElement('tr');
                 const rawPwd = item.password || '';
                 tr.innerHTML = `
-                    <td style="color: var(--accent); font-weight: bold;">${escapeHtml(item.url || '')}</td>
-                    <td>${escapeHtml(item.username || '')}</td>
+                    <td style="color: var(--accent); font-weight: bold;" title="${escapeHtml(item.url || '')}">${escapeHtml(item.url || '')}</td>
+                    <td title="${escapeHtml(item.username || '')}">${escapeHtml(item.username || '')}</td>
                     <td><span id="pwd-val-${idx}">••••••••</span></td>
-                    <td>
-                        <div style="display: flex; gap: 4px;">
+                    <td class="actions-cell">
+                        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: nowrap;">
                             <button type="button" class="btn-table-sm" id="btn-toggle-pwd-${idx}" onclick="togglePasswordVisibility(${idx}, '${escapeHtml(rawPwd)}')">SHOW</button>
                             <button type="button" class="btn-table-sm" onclick="copyToClipboard(this, '${escapeHtml(rawPwd)}')">COPY</button>
                             <button type="button" class="btn-table-del" onclick="deletePassword('${encodeURIComponent(item.url || '')}', '${encodeURIComponent(item.username || '')}')">DEL</button>
@@ -1325,10 +1496,20 @@
             const span = document.getElementById(`pwd-val-${idx}`);
             const btn = document.getElementById(`btn-toggle-pwd-${idx}`);
             if (span.textContent === '••••••••') {
-                span.textContent = rawPwd;
+                if (rawPwd) {
+                    span.textContent = rawPwd;
+                    span.style.color = 'var(--text-bright)';
+                    span.style.fontStyle = 'normal';
+                } else {
+                    span.textContent = (currentLang === 'ru' ? '(нет пароля)' : '(no password)');
+                    span.style.color = 'var(--text-muted)';
+                    span.style.fontStyle = 'italic';
+                }
                 btn.textContent = 'HIDE';
             } else {
                 span.textContent = '••••••••';
+                span.style.color = '';
+                span.style.fontStyle = '';
                 btn.textContent = 'SHOW';
             }
         }
@@ -1385,8 +1566,8 @@
                     <td>${escapeHtml(c.path || '/')}</td>
                     <td>${c.secure ? '<span style="color: var(--status-success);">YES</span>' : '<span style="color: var(--text-muted);">NO</span>'}</td>
                     <td title="${escapeHtml(rawVal)}"><code style="font-size: 10px;">${escapeHtml(truncVal)}</code></td>
-                    <td>
-                        <div style="display: flex; gap: 4px;">
+                    <td class="actions-cell">
+                        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: nowrap;">
                             <button type="button" class="btn-table-sm" onclick="copyToClipboard(this, '${escapeHtml(rawVal)}')">COPY</button>
                             <button type="button" class="btn-table-del" onclick="deleteCookie('${encodeURIComponent(c.host || '')}', '${encodeURIComponent(c.name || '')}')">DEL</button>
                         </div>

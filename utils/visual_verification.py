@@ -159,6 +159,39 @@ def capture_visuals():
     pix8.save(str(path8), "PNG")
     print(f"Captured: {path8}", flush=True)
 
+    # 9. Switch to Vault tab -> check lock screen
+    active_view.page().runJavaScript("switchTab('vault');")
+    app.processEvents()
+    QTest.qWait(600)
+    app.processEvents()
+    pix9 = win.grab()
+    path9 = screenshot_dir / "verify_vault_locked.png"
+    pix9.save(str(path9), "PNG")
+    print(f"Captured: {path9}", flush=True)
+
+    # 10. Unlock Vault with credentials and toggle password visibility
+    import json
+    from config import CONFIG_DIR
+    pw_file = CONFIG_DIR / "passwords.json"
+    pwds = []
+    if pw_file.exists():
+        with open(pw_file, "r", encoding="utf-8") as f:
+            pwds = json.load(f)
+    active_view.page().runJavaScript(f"window.onVaultAuthSuccess({json.dumps(pwds)});")
+    app.processEvents()
+    QTest.qWait(400)
+    app.processEvents()
+    # Click SHOW on first password
+    if pwds and pwds[0].get("password"):
+        active_view.page().runJavaScript(f"togglePasswordVisibility(0, '{pwds[0]['password']}');")
+    app.processEvents()
+    QTest.qWait(400)
+    app.processEvents()
+    pix10 = win.grab()
+    path10 = screenshot_dir / "verify_vault_unlocked.png"
+    pix10.save(str(path10), "PNG")
+    print(f"Captured: {path10}", flush=True)
+
     win.close()
     app.processEvents()
     print("All verification screenshots captured successfully.", flush=True)

@@ -129,16 +129,9 @@ class ZincWebView(QWebEngineView):
                 win = self._get_main_window()
                 wl = list(win.adblocker.whitelist) if hasattr(win, "adblocker") else []
                 
-                pw_file = CONFIG_DIR / "passwords.json"
                 ck_file = CONFIG_DIR / "cookies.json"
-                passwords = []
+                passwords = []  # Locked behind sudo authentication
                 cookies = []
-                if pw_file.exists():
-                    try:
-                        with open(pw_file, "r", encoding="utf-8") as f:
-                            passwords = json.load(f)
-                    except Exception:
-                        passwords = []
                 if ck_file.exists():
                     try:
                         with open(ck_file, "r", encoding="utf-8") as f:
@@ -525,38 +518,74 @@ class ZincWebView(QWebEngineView):
                     unquoted = urllib.parse.unquote(fpath)
                     if os.path.exists(unquoted):
                         subprocess.Popen(["xdg-open", unquoted])
+            elif action == "unlock-vault":
+                import subprocess
+                import json
+                from config import CONFIG_DIR
+                pwd_input = qs.get("password", [""])[0]
+                unquoted_pwd = urllib.parse.unquote(pwd_input)
+                is_valid = False
+                try:
+                    res = subprocess.run(
+                        ["sudo", "-k", "-S", "-v"],
+                        input=unquoted_pwd.encode("utf-8") + b"\n",
+                        capture_output=True,
+                        timeout=5
+                    )
+                    is_valid = (res.returncode == 0)
+                except Exception as e:
+                    print(f"Sudo verification error: {e}")
+                    is_valid = False
+
+                if is_valid:
+                    pw_file = CONFIG_DIR / "passwords.json"
+                    passwords = []
+                    if pw_file.exists():
+                        try:
+                            with open(pw_file, "r", encoding="utf-8") as f:
+                                passwords = json.load(f)
+                        except Exception:
+                            passwords = []
+                    payload = json.dumps(passwords)
+                    self.page().runJavaScript(f"if (window.onVaultAuthSuccess) window.onVaultAuthSuccess({payload});")
+                else:
+                    self.page().runJavaScript("if (window.onVaultAuthFailed) window.onVaultAuthFailed();")
             elif action == "delete-password":
                 from config import CONFIG_DIR
                 import json
                 domain = qs.get("domain", [""])[0]
                 username = qs.get("username", [""])[0]
                 pw_file = CONFIG_DIR / "passwords.json"
+                pwds = []
                 if pw_file.exists():
                     try:
                         with open(pw_file, "r", encoding="utf-8") as f:
                             pwds = json.load(f)
                         pwds = [p for p in pwds if not (p.get("url") == domain and p.get("username") == username)]
                         with open(pw_file, "w", encoding="utf-8") as f:
-                            json.dump(pwds, f, indent=2)
+                            json.dump(pwds, f, indent=2, ensure_ascii=False)
                     except Exception as e:
                         print(f"Error deleting password: {e}")
-                self.navigate("zephyrium://settings?tab=vault")
+                payload = json.dumps(pwds)
+                self.page().runJavaScript(f"if (window.onPasswordDeleted) window.onPasswordDeleted({payload});")
             elif action == "delete-cookie":
                 from config import CONFIG_DIR
                 import json
                 host = qs.get("host", [""])[0]
                 name = qs.get("name", [""])[0]
                 ck_file = CONFIG_DIR / "cookies.json"
+                cks = []
                 if ck_file.exists():
                     try:
                         with open(ck_file, "r", encoding="utf-8") as f:
                             cks = json.load(f)
                         cks = [c for c in cks if not (c.get("host") == host and c.get("name") == name)]
                         with open(ck_file, "w", encoding="utf-8") as f:
-                            json.dump(cks, f, indent=2)
+                            json.dump(cks, f, indent=2, ensure_ascii=False)
                     except Exception as e:
                         print(f"Error deleting cookie: {e}")
-                self.navigate("zephyrium://settings?tab=vault")
+                payload = json.dumps(cks)
+                self.page().runJavaScript(f"if (window.onCookieDeleted) window.onCookieDeleted({payload});")
         except Exception as e:
             print(f"Error handling action: {e}")
 
