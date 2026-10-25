@@ -43,9 +43,12 @@ cp "$SCRIPT_DIR/zephyrium.desktop" "$SCRIPT_DIR/dist/zephyrium/"
 cp "$SCRIPT_DIR/resources/zephyrium.svg" "$SCRIPT_DIR/dist/zephyrium/"
 
 echo "Packaging release archive..."
+VERSION=$(grep -oP 'APP_VERSION\s*=\s*"\K[^"]+' "$SCRIPT_DIR/config.py" || echo "1.0.1")
+ARCHIVE="zephyrium-v${VERSION}-linux-x86_64.tar.gz"
+
 cd "$SCRIPT_DIR/dist"
-tar -czvf "zephyrium-v1.0.0-linux-x86_64.tar.gz" zephyrium
-sha256sum "zephyrium-v1.0.0-linux-x86_64.tar.gz" > "zephyrium-v1.0.0-linux-x86_64.tar.gz.sha256"
+tar -czvf "$ARCHIVE" zephyrium
+sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
 
 echo "=== Build Complete! ==="
-ls -lh "$SCRIPT_DIR/dist/zephyrium-v1.0.0-linux-x86_64.tar.gz"*
+ls -lh "$SCRIPT_DIR/dist/$ARCHIVE"*

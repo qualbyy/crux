@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Base Paths
 APP_NAME = "Zephyrium"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 CONFIG_DIR = Path.home() / ".config" / "zephyrium"
 PROFILES_DIR = CONFIG_DIR / "profiles"
 NOTES_FILE = CONFIG_DIR / "notes.txt"

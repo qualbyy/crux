@@ -42,6 +42,8 @@ class BrowserWindow(QMainWindow):
         if self.ui_mode in ["classic", "expressive"]:
             self.ui_mode = "minimal"
         self.tor_enabled = False
+        self.is_fullscreen_active = False
+        self._was_maximized_before_fullscreen = False
 
         # Core subsystems
         self.adblocker = AdBlockerInterceptor(self)
@@ -380,6 +382,27 @@ class BrowserWindow(QMainWindow):
             self.set_tab_orientation(self.tab_orientation)
             self._apply_theme_style("minimal")
             self.status_label.setText(t("ready"))
+
+    def handle_fullscreen_request(self, toggle_on: bool) -> None:
+        self.is_fullscreen_active = toggle_on
+        if toggle_on:
+            self._was_maximized_before_fullscreen = self.isMaximized()
+            self.top_bar.hide()
+            self.horizontal_tab_container.hide()
+            if hasattr(self, "tab_manager") and hasattr(self.tab_manager, "sidebar"):
+                self.tab_manager.sidebar.hide()
+            if hasattr(self, "side_panel"):
+                self.side_panel.hide()
+            self.status_bar.hide()
+            if hasattr(self, "password_save_banner"):
+                self.password_save_banner.hide()
+            self.showFullScreen()
+        else:
+            if getattr(self, "_was_maximized_before_fullscreen", False):
+                self.showMaximized()
+            else:
+                self.showNormal()
+            self.apply_mode(self.ui_mode)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -1079,6 +1102,23 @@ class BrowserWindow(QMainWindow):
 
     # --- VIM MODE SUPPORT ---
     def keyPressEvent(self, event: QKeyEvent):
+        # Fullscreen Escape and F11 handling
+        if getattr(self, "is_fullscreen_active", False) or self.isFullScreen():
+            if event.key() == Qt.Key.Key_Escape:
+                v = self.tab_manager.get_current_view()
+                if v and hasattr(v, "page"):
+                    from PyQt6.QtWebEngineCore import QWebEnginePage
+                    v.page().triggerAction(QWebEnginePage.WebAction.ExitFullScreen)
+                self.handle_fullscreen_request(False)
+                return
+            elif event.key() == Qt.Key.Key_F11:
+                self.handle_fullscreen_request(not self.is_fullscreen_active)
+                return
+
+        if event.key() == Qt.Key.Key_F11:
+            self.handle_fullscreen_request(not getattr(self, "is_fullscreen_active", False))
+            return
+
         if self.ui_mode == "vim":
             if self.vim_input.isVisible():
                 if event.key() == Qt.Key.Key_Escape:

@@ -11,45 +11,28 @@ if not TOKEN:
     print("Error: GITHUB_TOKEN environment variable is required.")
     sys.exit(1)
 REPO = "qualbyy/zephyrium"
-TAG = "v1.0.0"
-TITLE = "Zephyrium v1.0.0 — Minimalist Keyboard-Driven Web Browser"
+TAG = "v1.0.1"
+TITLE = "Zephyrium v1.0.1 — Fullscreen Video Support & UI Refinements"
 
-BODY = """## Zephyrium v1.0.0 — Официальный релиз
+BODY = """## Zephyrium v1.0.1 — Минорный релиз
 
-Первый официальный релиз легковесного инженерного веб-браузера **Zephyrium** для Linux x86_64 в эстетике **Anthropic Minimal Dark** (квадратный дизайн, 0px border-radius, моноширинная типографика, высокая контрастность).
+Обновление легковесного веб-браузера **Zephyrium** с полноценной поддержкой HTML5 Fullscreen API для YouTube, видеоплееров и улучшениями интерфейса.
 
-### 🚀 Основные возможности:
-- **Эстетика и дизайн**:
-  - Строгий инженерный Anthropic Minimal Dark стиль (0px скругления, 1px границы).
-  - Полная поддержка русской и английской локализации интерфейса.
-  - Вертикальные и горизонтальные вкладки с мгновенным переключением.
-  - Живое применение настроек оформления и акцентных цветов без блокировки или перезагрузки страниц.
-- **Режимы работы**:
-  - **Minimal Mode**: чистый компактный интерфейс с панелью навигации и историей/загрузками во вкладках.
-  - **Vim Mode**: полный минимализм без тулбаров, клавиатурная навигация (`j`/`k`/`gg`/`G`/`o`/`t`/`d`/`H`/`L`/`f`), командная строка и быстрая кнопка выхода из Vim в строке состояния.
-- **Встроенный AI Assistant**:
-  - Боковая панель чата с Google Gemini API.
-  - Прокручиваемый список выбора моделей (`gemini-2.5-flash`, `gemini-flash-lite`, `gemini-2.5-pro`).
-  - Быстрое резюмирование веб-страниц в 1 клик.
-- **Хранилище паролей и автозаполнение**:
-  - Локальное защищенное хранилище паролей с авторизацией по паролю sudo.
-  - Продвинутый алгоритм автозаполнения логинов (с поддержкой двухэтапного входа Google и SPA).
-  - Всплывающее окно сохранения учетных данных с функцией «Больше не спрашивать для этого сайта».
-- **Приватность**:
-  - Встроенная блокировка рекламы и трекеров.
-  - Автоматическая очистка отслеживающих UTM/GCLID параметров из ссылок.
+### 🎬 Что нового в v1.0.1:
+- **Поддержка полноэкранного режима HTML5 (YouTube / видеоплееры)**:
+  - Активирован атрибут `FullScreenSupportEnabled` в настройках движка Chromium.
+  - Реализован перехватчик сигнала `page.fullScreenRequested(request)`: при клике на иконку полного экрана браузер переходит в настоящий полноэкранный режим с автоматическим скрытием системных панелей навигации, вкладок и бокового сайдбара.
+  - Поддержка горячих клавиш `Escape` и `F11` для выхода и переключения полноэкранного режима.
+- **Улучшения интерфейса и AI-чата**:
+  - Скроллируемый выпадающий список выбора AI-моделей в боковой панели (до 10 строк с моноширинным скроллбаром).
+  - Улучшенный алгоритм автозаполнения форм авторизации с фильтрацией поисковых строк и поддержкой двухэтапного входа Google.
+  - Защита хранилища паролей с системной проверкой sudo.
 
 ### 📦 Установка и запуск (Linux x86_64):
 ```bash
-# Распаковать бинарный архив
-tar -xzf zephyrium-v1.0.0-linux-x86_64.tar.gz
-
-# Запустить браузер
+tar -xzf zephyrium-v1.0.1-linux-x86_64.tar.gz
 ./zephyrium/zephyrium
 ```
-
-### 🔐 Контрольная сумма SHA-256:
-- `zephyrium-v1.0.0-linux-x86_64.tar.gz`: `acf000e9be3a1a22827d262b158d049d42faf825bad6a3d0394a09ec67720f66`
 """
 
 def make_request(url, method="GET", data=None, headers=None):
@@ -87,7 +70,10 @@ def upload_asset(upload_url_template, file_path, content_type="application/octet
         return json.loads(resp.read().decode())
 
 def main():
-    print("1. Creating GitHub Release...")
+    skip_large = "--skip-large-asset" in sys.argv
+    upload_large = "--upload-large-asset" in sys.argv
+
+    print("1. Creating GitHub Release v1.0.1...")
     rel_payload = json.dumps({
         "tag_name": TAG,
         "target_commitish": "main",
@@ -104,20 +90,40 @@ def main():
         headers={"Content-Type": "application/json"}
     )
     release = json.loads(resp_bytes.decode())
-    print(f"Release created: {release.get('html_url')}")
+    release_url = release.get("html_url")
+    print(f"Release created: {release_url}")
     upload_url = release["upload_url"]
+    base_upload_url = upload_url.split("{")[0]
 
     dist_dir = Path(__file__).resolve().parent / "dist"
-    archive_file = dist_dir / "zephyrium-v1.0.0-linux-x86_64.tar.gz"
-    sha_file = dist_dir / "zephyrium-v1.0.0-linux-x86_64.tar.gz.sha256"
+    archive_file = dist_dir / "zephyrium-v1.0.1-linux-x86_64.tar.gz"
+    sha_file = dist_dir / "zephyrium-v1.0.1-linux-x86_64.tar.gz.sha256"
 
-    print("2. Uploading release archive...")
-    upload_asset(upload_url, archive_file, "application/gzip")
+    # Upload SHA256 checksum first
+    if sha_file.exists():
+        print("2. Uploading sha256 checksum...")
+        upload_asset(upload_url, sha_file, "text/plain")
 
-    print("3. Uploading sha256 checksum...")
-    upload_asset(upload_url, sha_file, "text/plain")
+    archive_name = archive_file.name
+    curl_command = (
+        f'curl -L -X POST \\\n'
+        f'  -H "Authorization: token {TOKEN}" \\\n'
+        f'  -H "Content-Type: application/gzip" \\\n'
+        f'  --data-binary @dist/{archive_name} \\\n'
+        f'  "{base_upload_url}?name={archive_name}"'
+    )
 
-    print(f"\nSUCCESS! Release published at: {release.get('html_url')}")
+    if upload_large and archive_file.exists():
+        print("3. Uploading large release archive...")
+        upload_asset(upload_url, archive_file, "application/gzip")
+    else:
+        print("\n" + "=" * 70)
+        print("Команда для быстрой самостоятельной загрузки большого архива без VPN:")
+        print("=" * 70)
+        print(curl_command)
+        print("=" * 70)
+
+    print(f"\nSUCCESS! Release URL: {release_url}")
 
 if __name__ == "__main__":
     main()

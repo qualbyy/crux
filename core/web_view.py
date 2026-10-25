@@ -8,7 +8,10 @@ from PyQt6.QtCore import pyqtSignal, QUrl, Qt
 from PyQt6.QtWidgets import QMenu, QApplication
 from PyQt6.QtGui import QAction
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
+from PyQt6.QtWebEngineCore import (
+    QWebEnginePage, QWebEngineProfile, QWebEngineSettings,
+    QWebEngineFullScreenRequest
+)
 from config import DEFAULT_HOME_URL
 from core.adblock import clean_tracking_parameters
 
@@ -123,8 +126,20 @@ class ZincWebView(QWebEngineView):
         th = s.get("theme", "dark")
         self.page().setBackgroundColor(QColor("#18181b" if th == "dark" else "#f8fafc"))
 
+        # Enable HTML5 FullScreen API for YouTube and video players
+        self.settings().setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+        self.page().settings().setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+        self.page().fullScreenRequested.connect(self._on_fullscreen_requested)
+
         # Password and Credential Autofill on page load
         self.loadFinished.connect(self._on_page_load_finished)
+
+    def _on_fullscreen_requested(self, request: QWebEngineFullScreenRequest) -> None:
+        toggle_on = request.toggleOn()
+        request.accept()
+        win = self._get_main_window()
+        if win and hasattr(win, "handle_fullscreen_request"):
+            win.handle_fullscreen_request(toggle_on)
 
     def _on_page_load_finished(self, success: bool) -> None:
         if not success:
