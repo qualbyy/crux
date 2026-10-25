@@ -939,6 +939,16 @@
             window.location.hash = tabId;
         }
 
+        // Host IPC mechanism (immune to navigation cancellation / about:blank#blocked)
+        function sendToHost(url) {
+            try {
+                window.prompt("ZEPHYRIUM_CMD:" + url);
+            } catch (e) {
+                console.log("ZEPHYRIUM_IPC:" + url);
+            }
+        }
+        window.sendToHost = sendToHost;
+
         // Live Setting Application to Qt backend
         function applySettingLive(key, value) {
             if (key === 'theme') {
@@ -951,7 +961,7 @@
             } else if (key === 'language') {
                 applyLanguage(value);
             }
-            window.location.href = "zephyrium://live-setting?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value);
+            sendToHost("zephyrium://live-setting?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
         }
         window.applySettingLive = applySettingLive;
 
@@ -1004,7 +1014,7 @@
         }
 
         function openExternalUrl(url) {
-            window.location.href = "zephyrium://new-tab?url=" + encodeURIComponent(url);
+            sendToHost("zephyrium://new-tab?url=" + encodeURIComponent(url));
         }
         window.openExternalUrl = openExternalUrl;
 
@@ -1338,7 +1348,7 @@
 
         function deletePassword(encDomain, encUser) {
             if (confirm("Delete this saved credential?")) {
-                window.location.href = `zephyrium://action/delete-password?domain=${encDomain}&username=${encUser}`;
+                sendToHost(`zephyrium://action/delete-password?domain=${encDomain}&username=${encUser}`);
             }
         }
 
@@ -1388,7 +1398,7 @@
 
         function deleteCookie(encHost, encName) {
             if (confirm("Delete this cookie?")) {
-                window.location.href = `zephyrium://action/delete-cookie?host=${encHost}&name=${encName}`;
+                sendToHost(`zephyrium://action/delete-cookie?host=${encHost}&name=${encName}`);
             }
         }
 
@@ -1565,8 +1575,8 @@
             toast.style.display = 'block';
             setTimeout(() => { toast.style.display = 'none'; }, 3000);
 
-            // Execute dynamically in Qt
-            window.location.href = "zephyrium://apply-settings?" + params.toString();
+            // Execute dynamically in Qt without page navigation
+            sendToHost("zephyrium://apply-settings?" + params.toString());
         }
 
         // On Load Check URL params & hash

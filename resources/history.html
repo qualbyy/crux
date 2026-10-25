@@ -333,18 +333,27 @@
             displayItems(filtered);
         }
 
+        function sendToHost(url) {
+            try {
+                window.prompt("ZEPHYRIUM_CMD:" + url);
+            } catch (e) {
+                console.log("ZEPHYRIUM_IPC:" + url);
+            }
+        }
+        window.sendToHost = sendToHost;
+
         function copyLink(url) {
             navigator.clipboard.writeText(url);
         }
 
         function deleteItem(encUrl) {
-            window.location.href = `zephyrium://action/delete-history?url=${encUrl}`;
+            sendToHost(`zephyrium://action/delete-history?url=${encUrl}`);
         }
 
         function clearAllHistory() {
             const dict = I18N_HISTORY[currentLang] || I18N_HISTORY['en'];
             if (confirm(dict.confirm_clear)) {
-                window.location.href = "zephyrium://action/clear-history";
+                sendToHost("zephyrium://action/clear-history");
             }
         }
 

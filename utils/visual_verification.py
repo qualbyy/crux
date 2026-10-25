@@ -136,6 +136,24 @@ def capture_visuals():
     app.processEvents()
     QTest.qWait(1200)
     app.processEvents()
+    active_view = win.tab_manager.get_current_view()
+    assert active_view is not None
+    assert "settings.html" in active_view.url().toString()
+    
+    # Simulate changing settings live (e.g. accent color and language)
+    active_view.page().runJavaScript("if (window.applySettingLive) window.applySettingLive('accent_color', '#38bdf8');")
+    app.processEvents()
+    QTest.qWait(600)
+    app.processEvents()
+    assert "about:blank#blocked" not in active_view.url().toString(), f"URL got blocked: {active_view.url().toString()}"
+    assert "settings.html" in active_view.url().toString(), f"Page navigated away: {active_view.url().toString()}"
+
+    active_view.page().runJavaScript("if (window.applySettingLive) window.applySettingLive('theme', 'dark');")
+    app.processEvents()
+    QTest.qWait(600)
+    app.processEvents()
+    assert "about:blank#blocked" not in active_view.url().toString(), f"URL got blocked: {active_view.url().toString()}"
+
     pix8 = win.grab()
     path8 = screenshot_dir / "verify_settings_ru.png"
     pix8.save(str(path8), "PNG")

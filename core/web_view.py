@@ -28,14 +28,41 @@ class ZincWebPage(QWebEnginePage):
     def view(self):
         return self._view or self.parent()
 
+    def javaScriptPrompt(self, securityOrigin: QUrl, msg: str, defaultValue: str) -> tuple[bool, str]:
+        if msg.startswith("ZEPHYRIUM_CMD:") or msg.startswith("zephyrium:") or msg.startswith("zinc:"):
+            cmd = msg[len("ZEPHYRIUM_CMD:"):] if msg.startswith("ZEPHYRIUM_CMD:") else msg
+            v = self.view()
+            if v and hasattr(v, "handle_host_cmd"):
+                v.handle_host_cmd(cmd)
+            return True, "ok"
+        return super().javaScriptPrompt(securityOrigin, msg, defaultValue)
+
+    def javaScriptConsoleMessage(self, level, message: str, lineNumber: int, sourceID: str):
+        if message.startswith("ZEPHYRIUM_IPC:") or message.startswith("zephyrium:") or message.startswith("zinc:"):
+            cmd = message[len("ZEPHYRIUM_IPC:"):] if message.startswith("ZEPHYRIUM_IPC:") else message
+            v = self.view()
+            if v and hasattr(v, "handle_host_cmd"):
+                v.handle_host_cmd(cmd)
+            return
+        super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
+
     def acceptNavigationRequest(self, url: QUrl, _type: QWebEnginePage.NavigationType, isMainFrame: bool) -> bool:
         try:
             url_str = url.toString()
             if url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
-                from PyQt6.QtCore import QTimer
                 v = self.view()
-                if v and hasattr(v, "navigate"):
-                    QTimer.singleShot(0, lambda u=url_str: v.navigate(u))
+                if v and hasattr(v, "handle_host_cmd"):
+                    # Non-navigating commands / actions should not alter the current page DOM
+                    if any(url_str.startswith(p) for p in [
+                        "zephyrium://live-setting", "zinc://live-setting",
+                        "zephyrium://apply-settings", "zinc://apply-settings",
+                        "zephyrium://action/", "zinc://action/",
+                        "zephyrium://setup", "zinc://setup"
+                    ]):
+                        v.handle_host_cmd(url_str)
+                        return False
+                    # Real page navigation (zephyrium://settings, zephyrium://downloads, etc.)
+                    v.navigate(url_str)
                 return False
             return super().acceptNavigationRequest(url, _type, isMainFrame)
         except Exception as e:
@@ -158,6 +185,35 @@ class ZincWebView(QWebEngineView):
                     self.page().runJavaScript(js)
         except Exception as e:
             print(f"[Autofill Error] {e}")
+
+    def handle_host_cmd(self, url_clean: str) -> None:
+        if not url_clean:
+            return
+        if url_clean.startswith("zephyrium://setup") or url_clean.startswith("zinc://setup"):
+            self._apply_setup(url_clean)
+            return
+        if url_clean.startswith("zephyrium://live-setting") or url_clean.startswith("zinc://live-setting"):
+            self._apply_live_setting(url_clean)
+            return
+        if url_clean.startswith("zephyrium://apply-settings") or url_clean.startswith("zinc://apply-settings"):
+            self._apply_settings_from_url(url_clean)
+            return
+        if url_clean.startswith("zephyrium://action/") or url_clean.startswith("zinc://action/"):
+            self._handle_action(url_clean)
+            return
+        if url_clean.startswith("zephyrium://new-tab") or url_clean.startswith("zinc://new-tab") or url_clean.startswith("zephyrium://open-tab"):
+            try:
+                import urllib.parse
+                parsed = urllib.parse.urlparse(url_clean)
+                qs = urllib.parse.parse_qs(parsed.query)
+                target = qs.get("url", [""])[0]
+                win = self._get_main_window()
+                if win and hasattr(win, "tab_manager"):
+                    win.tab_manager.create_tab(url=target or "zephyrium://startpage")
+            except Exception as e:
+                print(f"Error handling new-tab navigation: {e}")
+            return
+        self.navigate(url_clean)
 
     def navigate(self, url_input: str) -> None:
         url_clean = url_input.strip()

@@ -352,6 +352,15 @@
             document.getElementById('mode-vim').classList.toggle('selected', m === 'vim');
         }
 
+        function sendToHost(url) {
+            try {
+                window.prompt("ZEPHYRIUM_CMD:" + url);
+            } catch (e) {
+                console.log("ZEPHYRIUM_IPC:" + url);
+            }
+        }
+        window.sendToHost = sendToHost;
+
         function launchZephyrium() {
             const key = document.getElementById('geminiKey').value.trim();
             const target = 'zephyrium://setup?' +
@@ -360,7 +369,7 @@
                 '&mode=' + encodeURIComponent(currentMode) +
                 '&orientation=' + encodeURIComponent(currentOrientation) +
                 '&api_key=' + encodeURIComponent(key);
-            window.location.href = target;
+            sendToHost(target);
         }
     </script>
 </body>

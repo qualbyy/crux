@@ -324,18 +324,27 @@
             });
         }
 
+        function sendToHost(url) {
+            try {
+                window.prompt("ZEPHYRIUM_CMD:" + url);
+            } catch (e) {
+                console.log("ZEPHYRIUM_IPC:" + url);
+            }
+        }
+        window.sendToHost = sendToHost;
+
         function openFile(encPath) {
-            window.location.href = `zephyrium://action/open-file?path=${encPath}`;
+            sendToHost(`zephyrium://action/open-file?path=${encPath}`);
         }
 
         function openFolder() {
-            window.location.href = "zephyrium://action/open-downloads-folder";
+            sendToHost("zephyrium://action/open-downloads-folder");
         }
 
         function clearDownloads() {
             const dict = I18N_DOWNLOADS[currentLang] || I18N_DOWNLOADS['en'];
             if (confirm(dict.confirm_clear)) {
-                window.location.href = "zephyrium://action/clear-downloads";
+                sendToHost("zephyrium://action/clear-downloads");
             }
         }
 
