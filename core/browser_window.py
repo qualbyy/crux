@@ -4,13 +4,13 @@ Claude Code Minimal Dark aesthetic (Square UI, 0px radius, 1px borders, Zinc/Sla
 Features: 3 Layout Modes (Minimal Dark, Classic Material, Vim Mode),
 Collapsible / Compact sidebar, Adblock Whitelist, and Tor Proxy.
 """
-from PyQt6.QtCore import Qt, QUrl, QTimer, QSize, QStringListModel
+from PyQt6.QtCore import Qt, QUrl, QTimer, QSize, QStringListModel, QPoint
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QPushButton, QLabel, QProgressBar, QSplitter, QStatusBar,
     QTabBar, QMenu, QApplication, QCompleter, QComboBox, QSpinBox
 )
-from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QKeyEvent
+from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QKeyEvent, QCursor
 from PyQt6.QtNetwork import QNetworkProxy
 from PyQt6.QtWebEngineCore import QWebEngineProfile
 
@@ -890,6 +890,13 @@ class BrowserWindow(QMainWindow):
             # Align right edge of menu with right edge of button
             x = g_pos.x() + target.width() - menu_w
             y = g_pos.y() + 2
+            if x < 10:
+                x = 10
+            menu.exec(QPoint(x, y))
+        elif self.isVisible():
+            p_geo = self.geometry()
+            x = p_geo.x() + p_geo.width() - menu_w - 20
+            y = p_geo.y() + 70
             if x < 10:
                 x = 10
             menu.exec(QPoint(x, y))
