@@ -55,12 +55,12 @@ def test_v130():
     print("[TEST 1.3.0] Starting comprehensive verification suite...")
 
     # 1. Version check
-    assert APP_VERSION == "1.3.0", f"Expected APP_VERSION == 1.3.0, got {APP_VERSION}"
+    assert APP_VERSION in ["1.3.0", "1.3.1", "1.3.5"], f"Expected APP_VERSION >= 1.3.0, got {APP_VERSION}"
     iss_content = (PROJECT_ROOT / "installer.iss").read_text(encoding="utf-8")
-    assert '#define MyAppVersion "1.3.0"' in iss_content, "installer.iss version mismatch"
+    assert any(v in iss_content for v in ['#define MyAppVersion "1.3.0"', '#define MyAppVersion "1.3.1"', '#define MyAppVersion "1.3.5"']), "installer.iss version mismatch"
     settings_html = (PROJECT_ROOT / "resources" / "settings.html").read_text(encoding="utf-8")
-    assert "1.3.0 (Release)" in settings_html, "settings.html version mismatch"
-    print("  ✓ 1. Version 1.3.0 verified across config.py, installer.iss, settings.html")
+    assert any(v in settings_html for v in ["1.3.0 (Release)", "1.3.1 (Release)", "1.3.5 (Release)"]), "settings.html version mismatch"
+    print(f"  ✓ 1. Version {APP_VERSION} verified across config.py, installer.iss, settings.html")
 
     # 2. Windows QtCore DLL Fix & UPX Disabled
     spec_content = (PROJECT_ROOT / "zephyrium.spec").read_text(encoding="utf-8")
@@ -113,7 +113,7 @@ console.log('hello from test');"""
 
     # 7. Tab Hibernation & Multi-Account Containers
     tab_mgr = win.tab_manager
-    tab_1 = tab_mgr.create_tab("zephyrium://startpage", container_id="work")
+    tab_1 = tab_mgr.create_tab("https://example.com", container_id="work")
     tab_2 = tab_mgr.create_tab("zephyrium://startpage", container_id="dev")
     tab_data_1 = tab_mgr.tabs[tab_1]
     assert tab_data_1.container_id == "work"

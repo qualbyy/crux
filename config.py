@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Base Paths
 APP_NAME = "Zephyrium"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.5"
 
 if sys.platform == "win32":
     CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Zephyrium"
@@ -28,7 +28,10 @@ PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 # Default Settings
 DEFAULT_SETTINGS = {
     "gemini_api_key": "",
+    "ai_provider": "gemini",    # "gemini" or "ollama"
     "ai_model": "gemini-2.5-flash",
+    "ollama_url": "http://localhost:11434",
+    "ollama_model": "llama3",
     "ui_mode": "minimal",       # "minimal", "vim"
     "tab_orientation": "vertical",  # "vertical", "horizontal"
     "theme": "dark",            # "dark", "light"
@@ -81,8 +84,8 @@ def load_settings() -> dict:
 
 def save_settings(settings: dict) -> None:
     try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
+        from utils.bookmarks import atomic_save_json
+        atomic_save_json(SETTINGS_FILE, settings)
     except Exception as e:
         print(f"Error saving settings: {e}")
 

@@ -5,7 +5,8 @@ Features: Collapsible / Compact Mode (54px vs 240px), Tab Suspension & Memory Sa
 """
 import time
 from typing import List, Dict, Optional
-from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QSize, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QSize, QTimer, QPoint, QMimeData
+from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QListWidgetItem, QLabel, QStackedWidget, QMenu, QFrame, QSizePolicy,
@@ -255,38 +256,103 @@ class DraggableTabListWidget(QListWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
         self.setDropIndicatorShown(True)
+        self._drag_start_pos = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
+            item = self.itemAt(self._drag_start_pos)
+            if item:
+                self.setCurrentItem(item)
+        super().mousePressEvent(event)
+
+    def startDrag(self, supportedActions):
+        pos = getattr(self, "_drag_start_pos", None)
+        item = self.itemAt(pos) if pos else self.currentItem()
+        if not item:
+            item = self.currentItem()
+        if not item:
+            return
+        source_row = self.row(item)
+        if source_row < 0:
+            return
+
+        mime_data = QMimeData()
+        mime_data.setData("application/x-zephyrium-tab-row", str(source_row).encode("utf-8"))
+
+        drag = QDrag(self)
+        drag.setMimeData(mime_data)
+
+        widget = self.itemWidget(item) or getattr(item, "_stored_widget", None)
+        if widget:
+            try:
+                pixmap = widget.grab()
+                drag.setPixmap(pixmap)
+                drag.setHotSpot(QPoint(pixmap.width() // 2, pixmap.height() // 2))
+            except Exception:
+                pass
+
+        # Execute drag safely without letting Qt's internal move remove or delete items
+        drag.exec(Qt.DropAction.MoveAction)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        if not event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
+            event.ignore()
+            return
+
+        try:
+            source_row = int(event.mimeData().data("application/x-zephyrium-tab-row").data().decode("utf-8"))
+        except Exception:
+            event.ignore()
+            return
+
+        pos = event.position().toPoint()
+        target_item = self.itemAt(pos)
+        if target_item:
+            target_row = self.row(target_item)
+        else:
+            # Dropped into empty area below tabs
+            target_row = self.count() - 1
+
+        if 0 <= source_row < self.count() and 0 <= target_row < self.count() and source_row != target_row:
+            self.move_tab_row(source_row, target_row)
+            self.tab_reordered.emit(source_row, target_row)
+            event.acceptProposedAction()
+        else:
+            event.accept()
 
     def move_tab_row(self, from_row: int, to_row: int) -> None:
         if from_row == to_row or from_row < 0 or to_row < 0 or from_row >= self.count() or to_row >= self.count():
             return
+        it = self.item(from_row)
+        if not it:
+            return
+        w = self.itemWidget(it) or getattr(it, "_stored_widget", None)
         it = self.takeItem(from_row)
-        w = getattr(it, "_stored_widget", None)
+        if w:
+            it._stored_widget = w
         self.insertItem(to_row, it)
         if w:
             self.setItemWidget(it, w)
         self.setCurrentRow(to_row)
 
-    def dropEvent(self, event):
-        source_row = self.currentRow()
-        pos = event.position().toPoint()
-        target_item = self.itemAt(pos)
-        target_row = self.row(target_item) if target_item else (self.count() - 1)
-        if source_row >= 0 and target_row >= 0 and source_row != target_row:
-            it = self.takeItem(source_row)
-            w = getattr(it, "_stored_widget", None)
-            self.insertItem(target_row, it)
-            if w:
-                self.setItemWidget(it, w)
-            self.setCurrentRow(target_row)
-            event.accept()
-            self.tab_reordered.emit(source_row, target_row)
-        else:
-            event.ignore()
 
 
 class VerticalTabSidebar(QWidget):
@@ -660,6 +726,7 @@ class TabManager(QWidget):
         elif "welcome" in target_url:
             initial_title = "Welcome"
         tab_data.title = initial_title
+        tab_data.url = target_url
 
         item_widget = TabItemWidget(tab_data, self.sidebar.list_widget)
         item_widget.update_theme(getattr(self, "current_theme", "dark"), getattr(self, "current_accent", "#fe8019"))
@@ -783,7 +850,8 @@ class TabManager(QWidget):
         self.active_tab_changed.emit(tab_data.split_container)
         active_view = tab_data.split_container.get_active_view()
         self.active_url_changed.emit(active_view.url())
-        self.active_title_changed.emit(active_view.title())
+        current_title = tab_data.title or (active_view.title() if active_view else "")
+        self.active_title_changed.emit(current_title)
 
     def close_tab(self, tab_id: int) -> None:
         if tab_id not in self.tabs:
@@ -793,11 +861,17 @@ class TabManager(QWidget):
         if self.tabs[tab_id].is_pinned:
             return
 
-        # If it's the last tab, close it and close browser window
-        if len(self.tabs) == 1:
-            tab_data = self.tabs.pop(tab_id)
-            self.stack.removeWidget(tab_data.split_container)
-            tab_data.split_container.deleteLater()
+        visible_count = self.sidebar.list_widget.count()
+
+        # If it's the last tab in memory or last visible tab
+        if len(self.tabs) <= 1 or visible_count <= 1:
+            for tid, tab_data in list(self.tabs.items()):
+                try:
+                    self.stack.removeWidget(tab_data.split_container)
+                    tab_data.split_container.deleteLater()
+                except Exception:
+                    pass
+            self.tabs.clear()
             self.sidebar.list_widget.clear()
             self.all_tabs_closed.emit()
             return
@@ -812,6 +886,18 @@ class TabManager(QWidget):
             if item.data(Qt.ItemDataRole.UserRole) == tab_id:
                 self.sidebar.list_widget.takeItem(row)
                 break
+
+        # Safety check: if no tabs remain in sidebar after removal
+        if self.sidebar.list_widget.count() == 0:
+            for tid, td in list(self.tabs.items()):
+                try:
+                    self.stack.removeWidget(td.split_container)
+                    td.split_container.deleteLater()
+                except Exception:
+                    pass
+            self.tabs.clear()
+            self.all_tabs_closed.emit()
+            return
 
         # Select neighbor
         if self.active_tab_id == tab_id:
@@ -837,9 +923,18 @@ class TabManager(QWidget):
         tab_data = self.tabs[tab_id]
         if tab_data.is_suspended or tab_data.is_pinned or getattr(tab_data, "is_audible", False):
             return
-        tab_data.is_suspended = True
+
         view = tab_data.split_container.get_active_view()
-        tab_data.url = view.url().toString()
+        view_url = view.url().toString() if (view and not view.url().isEmpty()) else ""
+        url_str = view_url or getattr(tab_data, "url", "") or ""
+        # Never suspend internal or special scheme pages (settings, startpage, history, etc.)
+        if not url_str or any(url_str.startswith(s) for s in ["zephyrium://", "zinc://", "about:", "chrome://"]):
+            return
+        if any(k in url_str for k in ["settings.html", "startpage.html", "history.html", "downloads.html", "welcome.html"]):
+            return
+
+        tab_data.is_suspended = True
+        tab_data.url = url_str
         # Save scroll position
         view.page().runJavaScript(
             "({x: window.scrollX, y: window.scrollY})",
@@ -853,13 +948,13 @@ class TabManager(QWidget):
         fg_title = "#d4d4d8" if th == "dark" else "#1e293b"
         fg_muted = "#71717a" if th == "dark" else "#64748b"
         view.setHtml(f"""
-            <html><body style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;">
+            <html><body onclick="window.location.reload()" style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;cursor:pointer;">
             <div style="border:1px solid {card_border};border-radius:8px;padding:32px;background:{card_bg};text-align:center;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
                 <div style="font-size:32px;margin-bottom:12px;">💤</div>
                 <div style="color:{acc};font-weight:bold;font-size:14px;letter-spacing:0.5px;margin-bottom:8px;">ТАБ В РЕЖИМЕ СНА // RAM SAVED</div>
                 <div style="color:{fg_title};font-size:15px;font-weight:600;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{tab_data.title}</div>
                 <div style="font-size:12px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена для освобождения оперативной памяти.</div>
-                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border-radius:4px;display:inline-block;border:1px solid {card_border};">Нажмите на вкладку для пробуждения</div>
+                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border-radius:4px;display:inline-block;border:1px solid {card_border};">Нажмите на вкладку или сюда для пробуждения</div>
             </div>
             </body></html>
         """)
@@ -928,16 +1023,18 @@ class TabManager(QWidget):
 
     def _on_title_changed(self, tab_id: int, title: str) -> None:
         if tab_id in self.tabs:
-            self.tabs[tab_id].title = title
+            if title and title.strip():
+                self.tabs[tab_id].title = title.strip()
+            title_to_use = self.tabs[tab_id].title
             for row in range(self.sidebar.list_widget.count()):
                 item = self.sidebar.list_widget.item(row)
                 if item.data(Qt.ItemDataRole.UserRole) == tab_id:
                     widget = self.sidebar.list_widget.itemWidget(item)
                     if isinstance(widget, TabItemWidget):
-                        widget.set_title(title)
+                        widget.set_title(title_to_use)
                     break
             if tab_id == self.active_tab_id:
-                self.active_title_changed.emit(title)
+                self.active_title_changed.emit(title_to_use)
             self.tabs_updated.emit()
 
     def _on_url_changed(self, tab_id: int, url: QUrl) -> None:

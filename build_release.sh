@@ -19,14 +19,7 @@ echo "Running PyInstaller..."
     --noconfirm \
     --log-level=WARN \
     --clean \
-    --name zephyrium \
-    --add-data "resources:resources" \
-    --add-data "style.qss:." \
-    --collect-all PyQt6 \
-    --collect-all PyQt6_WebEngine \
-    --hidden-import PyQt6.QtWebEngineCore \
-    --hidden-import PyQt6.QtWebEngineWidgets \
-    "$SCRIPT_DIR/main.py"
+    "$SCRIPT_DIR/zephyrium.spec"
 
 echo "Bundling QtWebEngine runtime libraries..."
 PYQT_DIR="$VENV_DIR/lib/python3.14/site-packages/PyQt6"

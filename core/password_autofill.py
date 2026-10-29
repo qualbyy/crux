@@ -17,9 +17,10 @@ class PasswordAutofillManager:
         if not PASSWORDS_FILE.exists():
             return []
         try:
+            from core.auth import decrypt_vault_data
             with open(PASSWORDS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data if isinstance(data, list) else []
+                return decrypt_vault_data(data)
         except Exception as e:
             print(f"[Autofill] Failed to load passwords: {e}")
             return []
@@ -63,12 +64,12 @@ class PasswordAutofillManager:
         if not url_or_domain:
             return False
         try:
+            from utils.bookmarks import atomic_save_json
             domain = PasswordAutofillManager._extract_domain(url_or_domain)
             never_list = PasswordAutofillManager.load_never_save()
             if domain not in never_list:
                 never_list.append(domain)
-                with open(NEVER_SAVE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(never_list, f, indent=2, ensure_ascii=False)
+                atomic_save_json(NEVER_SAVE_FILE, never_list)
             return True
         except Exception as e:
             print(f"[Autofill] Failed to add never_save: {e}")
@@ -77,11 +78,11 @@ class PasswordAutofillManager:
     @staticmethod
     def remove_never_save(domain: str) -> bool:
         try:
+            from utils.bookmarks import atomic_save_json
             domain_clean = str(domain or "").strip().lower()
             never_list = PasswordAutofillManager.load_never_save()
             never_list = [d for d in never_list if d.lower() != domain_clean]
-            with open(NEVER_SAVE_FILE, "w", encoding="utf-8") as f:
-                json.dump(never_list, f, indent=2, ensure_ascii=False)
+            atomic_save_json(NEVER_SAVE_FILE, never_list)
             return True
         except Exception as e:
             print(f"[Autofill] Failed to remove never_save: {e}")
@@ -92,14 +93,16 @@ class PasswordAutofillManager:
         if not url or not username:
             return False
         try:
+            from core.auth import encrypt_vault_data
+            from utils.bookmarks import atomic_save_json
             vault = PasswordAutofillManager.load_passwords()
             # Check existing
             for entry in vault:
                 if entry.get("url") == url and entry.get("username") == username:
                     if password:
                         entry["password"] = password
-                    with open(PASSWORDS_FILE, "w", encoding="utf-8") as f:
-                        json.dump(vault, f, indent=2, ensure_ascii=False)
+                    enc = encrypt_vault_data(vault)
+                    atomic_save_json(PASSWORDS_FILE, enc)
                     return True
 
             import time
@@ -109,8 +112,8 @@ class PasswordAutofillManager:
                 "password": password,
                 "imported_at": int(time.time())
             })
-            with open(PASSWORDS_FILE, "w", encoding="utf-8") as f:
-                json.dump(vault, f, indent=2, ensure_ascii=False)
+            enc = encrypt_vault_data(vault)
+            atomic_save_json(PASSWORDS_FILE, enc)
             return True
         except Exception as e:
             print(f"[Autofill] Failed to save credential: {e}")

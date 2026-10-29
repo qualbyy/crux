@@ -94,9 +94,16 @@ class DownloadItemWidget(QFrame):
             self.progress_label.setStyleSheet("color: #10b981; font-family: monospace;")
             self.action_btn.setText("OPEN")
             try:
-                from utils.bookmarks import DataStore
-                path = os.path.join(self.item.downloadDirectory(), self.item.downloadFileName())
-                DataStore.add_download(self.item.downloadFileName(), path, self.item.totalBytes(), "completed")
+                is_incognito = False
+                try:
+                    if hasattr(self.item, "page") and self.item.page() and self.item.page().profile():
+                        is_incognito = self.item.page().profile().isOffTheRecord()
+                except Exception:
+                    pass
+                if not is_incognito:
+                    from utils.bookmarks import DataStore
+                    path = os.path.join(self.item.downloadDirectory(), self.item.downloadFileName())
+                    DataStore.add_download(self.item.downloadFileName(), path, self.item.totalBytes(), "completed")
             except Exception:
                 pass
         elif state == QWebEngineDownloadRequest.DownloadState.DownloadCancelled:

@@ -1,6 +1,8 @@
 """
 Multi-Account Containers / Profile Isolation Manager for Zinc Browser
+Ensures clean User-Agent and isolation across all profiles.
 """
+import re
 from typing import Dict
 from PyQt6.QtCore import QObject
 from PyQt6.QtWebEngineCore import QWebEngineProfile
@@ -9,12 +11,21 @@ from core.adblock import AdBlockerInterceptor
 from core.privacy_shield import install_privacy_shield
 from core.userscript_manager import UserscriptManager
 
+def get_clean_user_agent(raw_ua: str) -> str:
+    """Strips QtWebEngine identifiers from User-Agent to ensure standard Chrome compatibility."""
+    if not raw_ua:
+        return ""
+    # Strip QtWebEngine/X.X.X
+    cleaned = re.sub(r'\s*QtWebEngine/\S+', '', raw_ua).strip()
+    return cleaned
+
 class ProfileManager(QObject):
     def __init__(self, adblocker: AdBlockerInterceptor, parent=None):
         super().__init__(parent)
         self.adblocker = adblocker
         self.userscript_manager = UserscriptManager(self)
         self._profiles: Dict[str, QWebEngineProfile] = {}
+        self._clean_ua = ""
         self._setup_profiles()
         self.userscript_manager.scripts_changed.connect(self._reapply_extensions)
 
@@ -26,11 +37,17 @@ class ProfileManager(QObject):
     def _setup_profiles(self) -> None:
         from core.web_view import ZephyriumSchemeHandler
         self._scheme_handler = ZephyriumSchemeHandler(self)
+        
+        default_prof = QWebEngineProfile.defaultProfile()
+        self._clean_ua = get_clean_user_agent(default_prof.httpUserAgent())
+        if self._clean_ua:
+            default_prof.setHttpUserAgent(self._clean_ua)
+
         try:
-            QWebEngineProfile.defaultProfile().installUrlSchemeHandler(b"zephyrium", self._scheme_handler)
-            QWebEngineProfile.defaultProfile().installUrlSchemeHandler(b"zinc", self._scheme_handler)
-            install_privacy_shield(QWebEngineProfile.defaultProfile())
-            self.userscript_manager.apply_to_profile(QWebEngineProfile.defaultProfile())
+            default_prof.installUrlSchemeHandler(b"zephyrium", self._scheme_handler)
+            default_prof.installUrlSchemeHandler(b"zinc", self._scheme_handler)
+            install_privacy_shield(default_prof)
+            self.userscript_manager.apply_to_profile(default_prof)
         except Exception:
             pass
 
@@ -45,6 +62,9 @@ class ProfileManager(QObject):
                 profile.setPersistentStoragePath(str(profile_path / "storage"))
                 profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies)
                 profile.setCachePath(str(profile_path / "cache"))
+
+            if self._clean_ua:
+                profile.setHttpUserAgent(self._clean_ua)
 
             # Install scheme handlers for internal zephyrium:// and zinc:// pages
             try:

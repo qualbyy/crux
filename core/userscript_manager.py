@@ -145,6 +145,14 @@ class UserscriptManager(QObject):
             "userstyles": list(self.meta.get("userstyles", {}).values())
         }
 
+    @staticmethod
+    def _match_pattern_to_regex(pattern: str) -> str:
+        p = pattern.strip()
+        if not p or p in ["<all_urls>", "*"]:
+            return ".*"
+        escaped = re.escape(p).replace(r"\*", ".*")
+        return f"^{escaped}$"
+
     def apply_to_profile(self, profile: QWebEngineProfile) -> None:
         """Compiles and registers all active userscripts and userstyles into QWebEngineProfile."""
         try:
@@ -165,9 +173,27 @@ class UserscriptManager(QObject):
                     with open(fpath, "r", encoding="utf-8") as f:
                         code = f.read()
 
+                    matches = meta.get("matches", [])
+                    if matches:
+                        patterns = [UserscriptManager._match_pattern_to_regex(m) for m in matches if m]
+                        patterns_json = json.dumps(patterns)
+                        wrapped_code = f"""
+                        (function() {{
+                            try {{
+                                const u = window.location.href;
+                                const pats = {patterns_json};
+                                const matches = pats.some(p => new RegExp(p, 'i').test(u));
+                                if (!matches) return;
+                            }} catch(e) {{ return; }}
+                            {code}
+                        }})();
+                        """
+                    else:
+                        wrapped_code = code
+
                     script = QWebEngineScript()
                     script.setName(f"zephyrium_user_js_{fn}")
-                    script.setSourceCode(code)
+                    script.setSourceCode(wrapped_code)
                     if meta.get("run_at") == "document-start":
                         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
                     else:
@@ -189,15 +215,25 @@ class UserscriptManager(QObject):
                     with open(fpath, "r", encoding="utf-8") as f:
                         css = f.read()
                     escaped_css = css.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+                    
+                    match_pattern = meta.get("match", "*")
+                    style_guard = ""
+                    if match_pattern and match_pattern not in ["*", "<all_urls>"]:
+                        pat_regex = json.dumps(UserscriptManager._match_pattern_to_regex(match_pattern))
+                        style_guard = f"if (!new RegExp({pat_regex}, 'i').test(window.location.href)) return;"
+
                     inject_js = f"""
                     (function() {{
-                        const styleId = 'zephyrium-style-{fn}';
-                        if (!document.getElementById(styleId)) {{
-                            const st = document.createElement('style');
-                            st.id = styleId;
-                            st.textContent = `{escaped_css}`;
-                            (document.head || document.documentElement).appendChild(st);
-                        }}
+                        try {{
+                            {style_guard}
+                            const styleId = 'zephyrium-style-{fn}';
+                            if (!document.getElementById(styleId)) {{
+                                const st = document.createElement('style');
+                                st.id = styleId;
+                                st.textContent = `{escaped_css}`;
+                                (document.head || document.documentElement).appendChild(st);
+                            }}
+                        }} catch(e) {{}}
                     }})();
                     """
                     script = QWebEngineScript()

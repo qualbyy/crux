@@ -7,15 +7,16 @@ from pathlib import Path
 import sys
 import urllib.parse
 from PyQt6.QtCore import pyqtSignal, QUrl, Qt, QBuffer, QIODevice
+import html
 from PyQt6.QtWidgets import QMenu, QApplication
 from PyQt6.QtGui import QAction
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import (
     QWebEnginePage, QWebEngineProfile, QWebEngineSettings,
     QWebEngineFullScreenRequest, QWebEngineUrlSchemeHandler,
-    QWebEngineUrlRequestJob
+    QWebEngineUrlRequestJob, QWebEngineCertificateError
 )
-from config import DEFAULT_HOME_URL
+from config import DEFAULT_HOME_URL, CONFIG_DIR
 from core.adblock import clean_tracking_parameters
 
 def get_resource_path(filename: str) -> Path:
@@ -92,6 +93,94 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
                 filename = resource.split("/")[-1]
                 mime = b"application/javascript"
 
+            if resource in ["tasks", "taskmanager", "processes"]:
+                from config import load_settings
+                s = load_settings()
+                th = s.get("theme", "dark")
+                acc = s.get("accent_color", "#fe8019")
+                bg = "#18181b" if th == "dark" else "#f8fafc"
+                card_bg = "#262624" if th == "dark" else "#ffffff"
+                border = "#3f3f46" if th == "dark" else "#e2e8f0"
+                fg = "#d4d4d8" if th == "dark" else "#1e293b"
+                fg_muted = "#71717a" if th == "dark" else "#64748b"
+
+                win = None
+                for w in QApplication.topLevelWidgets():
+                    if hasattr(w, "tab_manager"):
+                        win = w
+                        break
+
+                tab_rows = ""
+                if win and hasattr(win, "tab_manager"):
+                    for tid, tab_data in win.tab_manager.tabs.items():
+                        v = win.tab_manager.get_tab_view(tid)
+                        u = getattr(tab_data, "url", "") or (v.url().toString() if v else "")
+                        title = getattr(tab_data, "title", "New Tab")
+                        cid = getattr(tab_data, "container_id", "default")
+                        is_susp = getattr(tab_data, "is_suspended", False)
+                        status_badge = f"<span style='color: {acc}; font-weight: 600;'>💤 Спит</span>" if is_susp else "<span style='color: #10b981; font-weight: 600;'>● Активна</span>"
+                        audible = " 🔊" if getattr(tab_data, "is_audible", False) else ""
+                        tab_rows += f"""
+                        <tr style='border-bottom: 1px solid {border};'>
+                            <td style='padding: 10px 12px; font-weight: bold;'>#{tid}</td>
+                            <td style='padding: 10px 12px;'><span style='background: {border}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;'>{cid.upper()}</span></td>
+                            <td style='padding: 10px 12px; font-weight: 500;'>{html.escape(title)}{audible}</td>
+                            <td style='padding: 10px 12px; color: {fg_muted}; font-size: 12px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{html.escape(u)}</td>
+                            <td style='padding: 10px 12px;'>{status_badge}</td>
+                            <td style='padding: 10px 12px; text-align: right;'>
+                                <a href='zephyrium://action/suspend-tab?id={tid}' style='color: {acc}; text-decoration: none; margin-right: 12px; font-size: 12px;'>[Усыпить]</a>
+                                <a href='zephyrium://action/reload-tab?id={tid}' style='color: {fg}; text-decoration: none; margin-right: 12px; font-size: 12px;'>[Обновить]</a>
+                                <a href='zephyrium://action/close-tab?id={tid}' style='color: #ef4444; text-decoration: none; font-size: 12px;'>[Закрыть]</a>
+                            </td>
+                        </tr>
+                        """
+
+                tasks_html = f"""<!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Диспетчер задач — Zephyrium</title>
+                    <style>
+                        body {{ background: {bg}; color: {fg}; font-family: system-ui, -apple-system, sans-serif; padding: 32px 48px; margin: 0; }}
+                        .header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid {border}; }}
+                        .title {{ font-size: 20px; font-weight: bold; color: {acc}; display: flex; align-items: center; gap: 10px; }}
+                        .table-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 6px; overflow: hidden; }}
+                        table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }}
+                        th {{ padding: 12px; background: {bg}; border-bottom: 1px solid {border}; color: {fg_muted}; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }}
+                        .btn-refresh {{ background: {acc}; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="title">⚡ Диспетчер задач Zephyrium</div>
+                        <button class="btn-refresh" onclick="window.location.reload()">Обновить список</button>
+                    </div>
+                    <div class="table-card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Контейнер</th>
+                                    <th>Название</th>
+                                    <th>URL</th>
+                                    <th>Статус</th>
+                                    <th style="text-align: right;">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {tab_rows or "<tr><td colspan='6' style='padding: 24px; text-align: center; color: " + fg_muted + ";'>Нет открытых вкладок</td></tr>"}
+                            </tbody>
+                        </table>
+                    </div>
+                </body>
+                </html>
+                """
+                buf = QBuffer(job)
+                buf.setData(tasks_html.encode("utf-8"))
+                buf.open(QIODevice.OpenModeFlag.ReadOnly)
+                job.reply(b"text/html; charset=utf-8", buf)
+                return
+
             if not filename:
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
                 return
@@ -155,6 +244,24 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
             print(f"Error serving zephyrium resource: {e}")
             job.fail(QWebEngineUrlRequestJob.Error.RequestFailed)
 
+PERMISSIONS_FILE = CONFIG_DIR / "permissions.json"
+
+def _load_permissions() -> dict:
+    if PERMISSIONS_FILE.exists():
+        try:
+            with open(PERMISSIONS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_permissions(data: dict) -> None:
+    try:
+        from utils.bookmarks import atomic_save_json
+        atomic_save_json(PERMISSIONS_FILE, data)
+    except Exception as e:
+        print(f"Error saving permissions: {e}")
+
 class ZincWebPage(QWebEnginePage):
     link_hovered = pyqtSignal(str)
 
@@ -167,9 +274,50 @@ class ZincWebPage(QWebEnginePage):
         return self._view or self.parent()
 
     def _on_feature_permission_requested(self, securityOrigin: QUrl, feature: QWebEnginePage.Feature):
-        # Auto-grant permissions for Clipboard, Notifications, Audio/Video on secure web apps
         try:
-            self.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+            host = securityOrigin.host().lower() or "local"
+            perms = _load_permissions()
+            f_name = feature.name if hasattr(feature, "name") else str(feature)
+            domain_perms = perms.get(host, {})
+
+            if f_name in domain_perms:
+                policy = QWebEnginePage.PermissionPolicy.PermissionGrantedByUser if domain_perms[f_name] else QWebEnginePage.PermissionPolicy.PermissionDeniedByUser
+                self.setFeaturePermission(securityOrigin, feature, policy)
+                return
+
+            # Safe non-identifying features
+            if feature in [QWebEnginePage.Feature.Notifications, QWebEnginePage.Feature.MouseLock]:
+                self.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+                return
+
+            # Sensitive permissions: ask user confirmation
+            parent = self.view()
+            from PyQt6.QtWidgets import QMessageBox
+            feature_labels = {
+                QWebEnginePage.Feature.MediaAudioCapture: "доступ к микрофону",
+                QWebEnginePage.Feature.MediaVideoCapture: "доступ к веб-камере",
+                QWebEnginePage.Feature.MediaAudioVideoCapture: "доступ к камере и микрофону",
+                QWebEnginePage.Feature.Geolocation: "доступ к вашему местоположению",
+                QWebEnginePage.Feature.DesktopVideoCapture: "запись экрана",
+                QWebEnginePage.Feature.DesktopAudioVideoCapture: "запись экрана со звуком",
+            }
+            lbl = feature_labels.get(feature, f"разрешение ({f_name})")
+            res = QMessageBox.question(
+                parent,
+                "Запрос разрешений",
+                f"Сайт {host} запрашивает {lbl}.\n\nРазрешить доступ?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            granted = (res == QMessageBox.StandardButton.Yes)
+            domain_perms[f_name] = granted
+            perms[host] = domain_perms
+            _save_permissions(perms)
+            self.setFeaturePermission(
+                securityOrigin,
+                feature,
+                QWebEnginePage.PermissionPolicy.PermissionGrantedByUser if granted else QWebEnginePage.PermissionPolicy.PermissionDeniedByUser
+            )
         except Exception as e:
             print(f"Error setting feature permission: {e}")
 
@@ -218,20 +366,29 @@ class ZincWebPage(QWebEnginePage):
 
     def javaScriptPrompt(self, securityOrigin: QUrl, msg: str, defaultValue: str) -> tuple[bool, str]:
         if msg.startswith("ZEPHYRIUM_CMD:") or msg.startswith("zephyrium:") or msg.startswith("zinc:"):
-            cmd = msg[len("ZEPHYRIUM_CMD:"):] if msg.startswith("ZEPHYRIUM_CMD:") else msg
-            v = self.view()
-            if v and hasattr(v, "handle_host_cmd"):
-                v.handle_host_cmd(cmd)
-            return True, "ok"
+            origin_scheme = securityOrigin.scheme().lower()
+            if origin_scheme in ["zephyrium", "zinc", "qrc"] or not origin_scheme:
+                cmd = msg[len("ZEPHYRIUM_CMD:"):] if msg.startswith("ZEPHYRIUM_CMD:") else msg
+                v = self.view()
+                if v and hasattr(v, "handle_host_cmd"):
+                    v.handle_host_cmd(cmd)
+                return True, "ok"
+            else:
+                print(f"[SECURITY] Blocked unauthorized JS prompt command from {securityOrigin.toString()}")
+                return False, ""
         return super().javaScriptPrompt(securityOrigin, msg, defaultValue)
 
     def javaScriptConsoleMessage(self, level, message: str, lineNumber: int, sourceID: str):
         if message.startswith("ZEPHYRIUM_IPC:") or message.startswith("zephyrium:") or message.startswith("zinc:"):
-            cmd = message[len("ZEPHYRIUM_IPC:"):] if message.startswith("ZEPHYRIUM_IPC:") else message
-            v = self.view()
-            if v and hasattr(v, "handle_host_cmd"):
-                v.handle_host_cmd(cmd)
-            return
+            if sourceID.startswith("zephyrium://") or sourceID.startswith("zinc://") or not sourceID:
+                cmd = message[len("ZEPHYRIUM_IPC:"):] if message.startswith("ZEPHYRIUM_IPC:") else message
+                v = self.view()
+                if v and hasattr(v, "handle_host_cmd"):
+                    v.handle_host_cmd(cmd)
+                return
+            else:
+                print(f"[SECURITY] Blocked unauthorized console IPC command from {sourceID}")
+                return
         super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
 
     def acceptNavigationRequest(self, url: QUrl, _type: QWebEnginePage.NavigationType, isMainFrame: bool) -> bool:
@@ -247,6 +404,17 @@ class ZincWebPage(QWebEnginePage):
                         "zephyrium://action/", "zinc://action/",
                         "zephyrium://setup", "zinc://setup"
                     ]):
+                        # SECURITY: Only allow executing actions if current page is internal!
+                        current_url = self.url().toString()
+                        is_trusted = (
+                            current_url.startswith("zephyrium://") or
+                            current_url.startswith("zinc://") or
+                            current_url.startswith("about:") or
+                            not current_url
+                        )
+                        if not is_trusted:
+                            print(f"[SECURITY] Blocked unauthorized command navigation from {current_url}: {url_str}")
+                            return False
                         v.handle_host_cmd(url_str)
                         return False
                     # Real page navigation (zephyrium://settings, zephyrium://downloads, etc.)
@@ -257,14 +425,29 @@ class ZincWebPage(QWebEnginePage):
             print(f"Error in acceptNavigationRequest: {e}")
             return False
 
+    def renderProcessTerminated(self, terminationStatus: QWebEnginePage.RenderProcessTerminationStatus, exitCode: int) -> None:
+        if terminationStatus != QWebEnginePage.RenderProcessTerminationStatus.NormalTerminationStatus:
+            v = self.view()
+            if v and hasattr(v, "show_crash_recovery_screen"):
+                v.show_crash_recovery_screen(terminationStatus, exitCode)
+
+    def certificateError(self, error: QWebEngineCertificateError) -> bool:
+        host = error.url().host().lower()
+        if host in ["localhost", "127.0.0.1", "::1"] or host.endswith(".local") or host.endswith(".test"):
+            error.acceptCertificate()
+            return True
+        print(f"[SSL Certificate Error] {error.description()} for {error.url().toString()}")
+        error.rejectCertificate()
+        return False
+
     def createWindow(self, _type: QWebEnginePage.WebWindowType) -> QWebEnginePage:
         try:
             v = self.view()
             if v:
                 win = v._get_main_window()
                 if win and hasattr(win, "tab_manager"):
-                    # Open blank tab and let the popup caller navigate to its intended destination
-                    new_tab_id = win.tab_manager.create_tab(url="about:blank")
+                    cid = getattr(v, "container_id", "default")
+                    new_tab_id = win.tab_manager.create_tab(url="about:blank", container_id=cid)
                     new_view = win.tab_manager.get_tab_view(new_tab_id)
                     if new_view:
                         win.tab_manager.select_tab(new_tab_id)
@@ -506,6 +689,33 @@ class ZincWebView(QWebEngineView):
         except Exception as e:
             print(f"[Autofill Error] {e}")
 
+    def show_crash_recovery_screen(self, status, exitCode: int) -> None:
+        from config import load_settings
+        s = load_settings()
+        th = s.get("theme", "dark")
+        acc = s.get("accent_color", "#fe8019")
+        bg = "#18181b" if th == "dark" else "#f8fafc"
+        card_bg = "#262624" if th == "dark" else "#ffffff"
+        card_border = "#3f3f46" if th == "dark" else "#cbd5e1"
+        fg_title = "#d4d4d8" if th == "dark" else "#1e293b"
+        fg_muted = "#71717a" if th == "dark" else "#64748b"
+
+        html_content = f"""
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="background:{bg};color:{fg_muted};font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:95vh;margin:0;">
+        <div style="border:1px solid {card_border};border-radius:8px;padding:32px;background:{card_bg};text-align:center;max-width:440px;box-shadow:0 8px 24px rgba(0,0,0,0.2);">
+            <div style="font-size:36px;margin-bottom:12px;">💥</div>
+            <div style="color:#ef4444;font-weight:bold;font-size:14px;letter-spacing:0.5px;margin-bottom:8px;">СБОЙ ПРОЦЕССА ВКЛАДКИ // RENDERER CRASH</div>
+            <div style="color:{fg_title};font-size:15px;font-weight:600;margin-bottom:8px;">Процесс страницы неожиданно завершил работу (код {exitCode})</div>
+            <div style="font-size:12px;color:{fg_muted};margin-bottom:20px;">Это могло произойти из-за нехватки оперативной памяти или сбоя графического ускорителя.</div>
+            <button onclick="window.location.reload()" style="background:{acc};color:#fff;border:none;padding:10px 20px;font-weight:bold;border-radius:4px;cursor:pointer;font-size:13px;">Перезагрузить страницу</button>
+        </div>
+        </body>
+        </html>
+        """
+        self.setHtml(html_content)
+
     def handle_host_cmd(self, url_clean: str) -> None:
         if not url_clean:
             return
@@ -617,6 +827,10 @@ class ZincWebView(QWebEngineView):
             self.load(QUrl("zephyrium://downloads"))
             return
 
+        if url_clean.startswith("zephyrium://tasks") or url_clean.startswith("zinc://tasks") or url_clean in ["about:tasks", "about:processes"]:
+            self.load(QUrl("zephyrium://tasks"))
+            return
+
         if url_clean in ["zephyrium://about", "zinc://about", "about:about"]:
             self.load(QUrl("zephyrium://settings?tab=about"))
             return
@@ -636,6 +850,24 @@ class ZincWebView(QWebEngineView):
             except Exception as e:
                 print(f"Error handling new-tab navigation: {e}")
             return
+
+        if url_clean.startswith("file://") and (url_clean.endswith(".md") or url_clean.endswith(".markdown")):
+            try:
+                local_path = QUrl(url_clean).toLocalFile()
+                if os.path.exists(local_path):
+                    with open(local_path, "r", encoding="utf-8", errors="replace") as f:
+                        md_text = f.read()
+                    from sidebar.ai_chat import format_markdown_to_html
+                    rendered = format_markdown_to_html(md_text, acc)
+                    bg = "#18181b" if th == "dark" else "#f8fafc"
+                    fg = "#d4d4d8" if th == "dark" else "#1e293b"
+                    styled_html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'><title>{Path(local_path).name}</title>
+                    <style>body {{ background: {bg}; color: {fg}; font-family: system-ui, -apple-system, sans-serif; padding: 40px; max-width: 860px; margin: 0 auto; line-height: 1.6; }}</style>
+                    </head><body>{rendered}</body></html>"""
+                    self.setHtml(styled_html)
+                    return
+            except Exception as e:
+                print(f"[Markdown Viewer Error] {e}")
 
         if url_clean.startswith("http://") or url_clean.startswith("https://") or url_clean.startswith("file://"):
             # Clean tracking tags automatically
@@ -879,24 +1111,53 @@ class ZincWebView(QWebEngineView):
                 if fpath:
                     unquoted = urllib.parse.unquote(fpath)
                     if os.path.exists(unquoted):
-                        QDesktopServices.openUrl(QUrl.fromLocalFile(unquoted))
+                        dangerous_exts = {".exe", ".bat", ".cmd", ".ps1", ".vbs", ".sh", ".bash", ".bin", ".appimage"}
+                        path_obj = Path(unquoted)
+                        if path_obj.suffix.lower() in dangerous_exts:
+                            print(f"[SECURITY] Blocked direct execution of binary file: {unquoted}")
+                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path_obj.parent)))
+                        else:
+                            QDesktopServices.openUrl(QUrl.fromLocalFile(unquoted))
+            elif action == "suspend-tab":
+                try:
+                    tid = int(qs.get("id", ["0"])[0])
+                    win = self._get_main_window()
+                    if win and hasattr(win, "tab_manager") and tid in win.tab_manager.tabs:
+                        win.tab_manager.suspend_tab(tid)
+                    self.navigate("zephyrium://tasks")
+                except Exception as e:
+                    print(f"Error suspending tab from tasks: {e}")
+            elif action == "close-tab":
+                try:
+                    tid = int(qs.get("id", ["0"])[0])
+                    win = self._get_main_window()
+                    if win and hasattr(win, "tab_manager"):
+                        win.tab_manager.close_tab(tid)
+                    self.navigate("zephyrium://tasks")
+                except Exception as e:
+                    print(f"Error closing tab from tasks: {e}")
+            elif action == "reload-tab":
+                try:
+                    tid = int(qs.get("id", ["0"])[0])
+                    win = self._get_main_window()
+                    if win and hasattr(win, "tab_manager"):
+                        tv = win.tab_manager.get_tab_view(tid)
+                        if tv:
+                            tv.reload()
+                    self.navigate("zephyrium://tasks")
+                except Exception as e:
+                    print(f"Error reloading tab from tasks: {e}")
             elif action == "unlock-vault":
                 import json
                 from config import CONFIG_DIR
                 from core.auth import verify_vault_password
+                from core.password_autofill import PasswordAutofillManager
                 pwd_input = qs.get("password", [""])[0]
                 unquoted_pwd = urllib.parse.unquote(pwd_input)
                 is_valid = verify_vault_password(unquoted_pwd)
 
                 if is_valid:
-                    pw_file = CONFIG_DIR / "passwords.json"
-                    passwords = []
-                    if pw_file.exists():
-                        try:
-                            with open(pw_file, "r", encoding="utf-8") as f:
-                                passwords = json.load(f)
-                        except Exception:
-                            passwords = []
+                    passwords = PasswordAutofillManager.load_passwords()
                     payload = json.dumps(passwords)
                     self.page().runJavaScript(f"if (window.onVaultAuthSuccess) window.onVaultAuthSuccess({payload});")
                 else:
@@ -904,19 +1165,15 @@ class ZincWebView(QWebEngineView):
             elif action == "delete-password":
                 from config import CONFIG_DIR
                 import json
+                from core.password_autofill import PasswordAutofillManager, PASSWORDS_FILE
+                from core.auth import encrypt_vault_data
+                from utils.bookmarks import atomic_save_json
                 domain = qs.get("domain", [""])[0]
                 username = qs.get("username", [""])[0]
-                pw_file = CONFIG_DIR / "passwords.json"
-                pwds = []
-                if pw_file.exists():
-                    try:
-                        with open(pw_file, "r", encoding="utf-8") as f:
-                            pwds = json.load(f)
-                        pwds = [p for p in pwds if not (p.get("url") == domain and p.get("username") == username)]
-                        with open(pw_file, "w", encoding="utf-8") as f:
-                            json.dump(pwds, f, indent=2, ensure_ascii=False)
-                    except Exception as e:
-                        print(f"Error deleting password: {e}")
+                pwds = PasswordAutofillManager.load_passwords()
+                pwds = [p for p in pwds if not (p.get("url") == domain and p.get("username") == username)]
+                enc = encrypt_vault_data(pwds)
+                atomic_save_json(PASSWORDS_FILE, enc)
                 payload = json.dumps(pwds)
                 self.page().runJavaScript(f"if (window.onPasswordDeleted) window.onPasswordDeleted({payload});")
             elif action == "delete-cookie":

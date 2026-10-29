@@ -133,6 +133,7 @@ class CommandPalette(QDialog):
 
         self._static_commands = [
             ("navigate", "Navigate or Search DuckDuckGo", "URL or query"),
+            ("tasks", ":tasks — Open Task Manager (Shift+Esc)", "tasks"),
             ("tabnew", ":tabnew [url] — Open a new tab", "tabnew"),
             ("close", ":close — Close current tab", "close"),
             ("snooze_tab", ":snooze — Snooze current tab to free RAM (💤)", "snooze"),

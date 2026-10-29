@@ -182,6 +182,45 @@ class GeminiWorker(QThread):
             self.error_occurred.emit(str(e))
 
 
+class OllamaWorker(QThread):
+    response_ready = pyqtSignal(str)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, query: str, base_url: str = "http://localhost:11434", model: str = "llama3", system_instruction: str = None):
+        super().__init__()
+        self.query = query
+        self.base_url = (base_url or "http://localhost:11434").rstrip("/")
+        self.model = model or "llama3"
+        self.system_instruction = system_instruction
+
+    def run(self):
+        try:
+            url = f"{self.base_url}/api/generate"
+            payload = {
+                "model": self.model,
+                "prompt": self.query,
+                "stream": False
+            }
+            if self.system_instruction:
+                payload["system"] = self.system_instruction
+
+            req_data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=req_data,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                response_text = data.get("response", "")
+                if response_text:
+                    self.response_ready.emit(response_text)
+                    return
+                self.error_occurred.emit("Empty response received from Ollama.")
+        except Exception as e:
+            self.error_occurred.emit(f"Ollama connection error: {e}")
+
+
 class KeyConfigDialog(QDialog):
     key_saved = pyqtSignal(str)
 
@@ -526,18 +565,7 @@ class AIChatWidget(QWidget):
         self._process_ai_query(prompt)
 
     def _process_ai_query(self, query: str) -> None:
-        key = self.api_key or os.environ.get("GEMINI_API_KEY")
-        if not key:
-            self._append_assistant(
-                "Gemini API Key is not set!\n\n"
-                "You can configure it directly by clicking '[KEY]' in the header "
-                "or typing: /key <your_gemini_api_key>"
-            )
-            return
-
-        self.status.setText(t("ai_thinking"))
-        self.status.setStyleSheet(f"color: {getattr(self, 'accent', '#fe8019')}; font-size: 10px; font-weight: bold;")
-
+        provider = self.settings.get("ai_provider", "gemini")
         lang_code = get_current_language()
         lang_name = LANGUAGES.get(lang_code, "Russian")
         system_instruction = (
@@ -546,6 +574,29 @@ class AIChatWidget(QWidget):
             f"matching the user's interface language setting, unless the user explicitly requests another language. "
             f"Keep explanations concise, precise, technical, and engineer-focused."
         )
+
+        if provider == "ollama":
+            ollama_url = self.settings.get("ollama_url", "http://localhost:11434")
+            ollama_model = self.settings.get("ollama_model", "llama3")
+            self.status.setText(f"OLLAMA // {ollama_model.upper()}")
+            self.status.setStyleSheet(f"color: {getattr(self, 'accent', '#fe8019')}; font-size: 10px; font-weight: bold;")
+            self.worker = OllamaWorker(query, base_url=ollama_url, model=ollama_model, system_instruction=system_instruction)
+            self.worker.response_ready.connect(self._on_worker_response)
+            self.worker.error_occurred.connect(self._on_worker_error)
+            self.worker.start()
+            return
+
+        key = self.api_key or os.environ.get("GEMINI_API_KEY")
+        if not key:
+            self._append_assistant(
+                "Gemini API Key is not set!\n\n"
+                "You can configure it directly by clicking '[KEY]' in the header, "
+                "typing: /key <your_gemini_api_key>, or switching to Ollama local provider in Settings."
+            )
+            return
+
+        self.status.setText(t("ai_thinking"))
+        self.status.setStyleSheet(f"color: {getattr(self, 'accent', '#fe8019')}; font-size: 10px; font-weight: bold;")
 
         self.worker = GeminiWorker(query, key, model=self.active_model, system_instruction=system_instruction)
         self.worker.response_ready.connect(self._on_worker_response)

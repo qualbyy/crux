@@ -1,10 +1,34 @@
 """
 Bookmarks and History Manager for Zinc Browser
+Now features atomic file writes to prevent data loss on crashes or power failures.
 """
+import os
 import json
 import time
-from typing import List, Dict
+from pathlib import Path
+from typing import List, Dict, Any
 from config import BOOKMARKS_FILE, HISTORY_FILE, DOWNLOADS_FILE
+
+def atomic_save_json(file_path: Path, data: Any, indent: int = 2) -> bool:
+    """Safely and atomically writes JSON data to disk using temporary file replacement."""
+    tmp_path = None
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = file_path.with_name(f"{file_path.name}.{os.getpid()}.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=indent, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, file_path)
+        return True
+    except Exception as e:
+        print(f"[AtomicSave] Error saving {file_path}: {e}")
+        if tmp_path and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+        return False
 
 class DataStore:
     @staticmethod
@@ -26,11 +50,7 @@ class DataStore:
 
     @staticmethod
     def save_bookmarks(bookmarks: List[Dict[str, str]]) -> None:
-        try:
-            with open(BOOKMARKS_FILE, "w", encoding="utf-8") as f:
-                json.dump(bookmarks, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving bookmarks: {e}")
+        atomic_save_json(BOOKMARKS_FILE, bookmarks)
 
     @staticmethod
     def add_bookmark(title: str, url: str) -> bool:
@@ -66,29 +86,17 @@ class DataStore:
         hist.insert(0, entry)
         if len(hist) > 1000:
             hist = hist[:1000]
-        try:
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-                json.dump(hist, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving history: {e}")
+        atomic_save_json(HISTORY_FILE, hist)
 
     @staticmethod
     def clear_history() -> None:
-        try:
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-                json.dump([], f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error clearing history: {e}")
+        atomic_save_json(HISTORY_FILE, [])
 
     @staticmethod
     def delete_history_item(url: str) -> None:
         hist = DataStore.load_history()
         hist = [h for h in hist if h.get("url") != url]
-        try:
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-                json.dump(hist, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error deleting history item: {e}")
+        atomic_save_json(HISTORY_FILE, hist)
 
     @staticmethod
     def load_downloads() -> List[Dict[str, any]]:
@@ -114,16 +122,8 @@ class DataStore:
         downloads.insert(0, entry)
         if len(downloads) > 500:
             downloads = downloads[:500]
-        try:
-            with open(DOWNLOADS_FILE, "w", encoding="utf-8") as f:
-                json.dump(downloads, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving download: {e}")
+        atomic_save_json(DOWNLOADS_FILE, downloads)
 
     @staticmethod
     def clear_downloads() -> None:
-        try:
-            with open(DOWNLOADS_FILE, "w", encoding="utf-8") as f:
-                json.dump([], f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error clearing downloads: {e}")
+        atomic_save_json(DOWNLOADS_FILE, [])

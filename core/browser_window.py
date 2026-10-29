@@ -132,10 +132,21 @@ class BrowserWindow(QMainWindow):
             if sess_file.exists():
                 try:
                     with open(sess_file, "r", encoding="utf-8") as f:
-                        saved_urls = json.load(f)
-                    if isinstance(saved_urls, list) and saved_urls:
-                        for u in saved_urls:
-                            self.tab_manager.create_tab("default", u)
+                        saved_tabs = json.load(f)
+                    if isinstance(saved_tabs, list) and saved_tabs:
+                        for entry in saved_tabs:
+                            if isinstance(entry, dict):
+                                u = entry.get("url", "")
+                                cid = entry.get("container_id", "default")
+                                is_pin = entry.get("is_pinned", False)
+                            else:
+                                u = str(entry)
+                                cid = "default"
+                                is_pin = False
+                            if u and not u.startswith("about:blank") and not u.startswith("data:"):
+                                tid = self.tab_manager.create_tab(url=u, container_id=cid)
+                                if is_pin and tid:
+                                    self.tab_manager.toggle_pin_tab(tid)
                         restored = True
                 except Exception as e:
                     print(f"[Session Restore Error] {e}")
@@ -171,6 +182,7 @@ class BrowserWindow(QMainWindow):
         self.horizontal_tab_bar.setMovable(True)
         self.horizontal_tab_bar.currentChanged.connect(self._on_horizontal_tab_selected)
         self.horizontal_tab_bar.tabBarClicked.connect(self._on_horizontal_tab_clicked)
+        self.horizontal_tab_bar.tabMoved.connect(self._on_horizontal_tab_moved)
         self.horizontal_tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.horizontal_tab_bar.customContextMenuRequested.connect(self._show_horizontal_tab_context_menu)
 
@@ -407,6 +419,7 @@ class BrowserWindow(QMainWindow):
         QShortcut(QKeySequence("F12"), self, self._toggle_devtools)
         QShortcut(QKeySequence("Ctrl+Shift+I"), self, self._toggle_devtools)
         QShortcut(QKeySequence("Ctrl+Shift+M"), self, self._toggle_viewport_bar)
+        QShortcut(QKeySequence("Shift+Esc"), self, lambda: self.tab_manager.create_tab("zephyrium://tasks"))
 
     def set_tab_orientation(self, orient: str) -> None:
         self.tab_orientation = orient
@@ -488,15 +501,20 @@ class BrowserWindow(QMainWindow):
             session_data = []
             for tid, tab_data in self.tabs_ordered():
                 v = self.tab_manager.get_tab_view(tid)
-                if v:
+                u = getattr(tab_data, "url", "")
+                if not u and v:
                     u = v.url().toString()
-                    if u and not u.startswith("about:blank"):
-                        session_data.append(u)
-            import json
+                if u and not u.startswith("about:blank") and not u.startswith("data:"):
+                    session_data.append({
+                        "url": u,
+                        "container_id": getattr(tab_data, "container_id", "default"),
+                        "title": getattr(tab_data, "title", "New Tab"),
+                        "is_pinned": getattr(tab_data, "is_pinned", False),
+                    })
             from config import CONFIG_DIR
+            from utils.bookmarks import atomic_save_json
             try:
-                with open(CONFIG_DIR / "session.json", "w", encoding="utf-8") as f:
-                    json.dump(session_data, f)
+                atomic_save_json(CONFIG_DIR / "session.json", session_data)
             except Exception as e:
                 print(f"[Session Save Error] {e}")
         super().closeEvent(event)
@@ -795,6 +813,10 @@ class BrowserWindow(QMainWindow):
             tid = self.horizontal_tab_bar.tabData(index)
             if tid is not None and tid in self.tab_manager.tabs:
                 self.tab_manager.select_tab(tid)
+
+    def _on_horizontal_tab_moved(self, from_idx: int, to_idx: int) -> None:
+        if from_idx != to_idx and hasattr(self, "tab_manager"):
+            self.tab_manager.sidebar.list_widget.move_tab_row(from_idx, to_idx)
 
     def _close_horizontal_tab(self, tab_id: int) -> None:
         self.tab_manager.close_tab(tab_id)
@@ -1338,7 +1360,10 @@ class BrowserWindow(QMainWindow):
                 self.ssl_badge.setStyleSheet("color: #94a3b8;")
             v = self.tab_manager.get_current_view()
             if v and v.title():
-                DataStore.add_history(v.title(), url_str)
+                active_tab = self.tab_manager.tabs.get(self.tab_manager.active_tab_id)
+                is_tab_incognito = getattr(self, "is_incognito", False) or (active_tab and getattr(active_tab, "container_id", "") == "incognito")
+                if not is_tab_incognito:
+                    DataStore.add_history(v.title(), url_str)
 
         # Ensure start of URL is visible only if user is not currently focused on the URL bar
         if not self.url_bar.hasFocus():
@@ -1350,7 +1375,11 @@ class BrowserWindow(QMainWindow):
             self.status_label.setText(f"[VIM] {url_str}")
 
     def _on_active_title_changed(self, title: str) -> None:
-        clean_title = f"{title} — {APP_NAME}" if title else APP_NAME
+        title_mode = "[INCOGNITO]" if getattr(self, "is_incognito", False) else f"[{self.ui_mode.capitalize()}]"
+        if title and title.strip():
+            clean_title = f"{title.strip()} — {APP_NAME}"
+        else:
+            clean_title = f"{APP_NAME} v{APP_VERSION} {title_mode}"
         self.setWindowTitle(clean_title)
         if self.tab_orientation == "horizontal":
             self._sync_horizontal_tabs()
@@ -1431,6 +1460,8 @@ class BrowserWindow(QMainWindow):
                 v.navigate(target)
         elif action in ["t", "tabnew"]:
             self.tab_manager.create_tab(param or "zephyrium://startpage")
+        elif action in ["tasks", "taskmanager"]:
+            self.tab_manager.create_tab("zephyrium://tasks")
         elif action in ["q", "close"]:
             self.tab_manager.close_tab(self.tab_manager.active_tab_id)
         elif action == "split":
