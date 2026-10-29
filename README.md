@@ -44,25 +44,6 @@ Configure your appearance via Settings (`Ctrl+,`) or during initial first-launch
 
 ---
 
-## Mandatory Design Code
-
-Crux enforces a strict design code across all interface elements:
-
-1. **Zero Emojis Policy**:
-   - Strictly no graphical emojis across any menus, buttons, badges, status bars, or dialogs.
-   - All indicators and badges must use clean monospace text or ASCII/geometric glyphs: `[PIN]`, `[SLEEP]`, `[BM]`, `[VOL]`, `[MUTE]`, `[SECURE]`, `[WARN]`, `[OK]`, `[+]`, `[-]`, `[x]`, `←`, `→`, `⟳`.
-2. **Unified Monospace Typography**:
-   - Universal font across all UI controls: `"Iosevka Nerd Font", "JetBrains Mono", monospace`.
-   - Consistent font size (12px), uniform padding, and cohesive styling for all buttons and menus.
-3. **Uncluttered Navigation Toolbar**:
-   - Toolbar is reserved exclusively for primary controls: navigation buttons (`←`, `→`, `⟳`), security badge (`HTTPS`), omnibar URL input, and the primary dropdown menu (`MENU`).
-   - Secondary tools, reading modes, layout switchers, zoom, and developer features reside cleanly inside the `MENU` dropdown.
-4. **Sharp Geometry & Dark Palette**:
-   - Technical aesthetic: 0px border-radius, crisp 1px borders (`#3f3f46` / `#27272a`).
-   - Brand key accent: Crux Purple (`#a855f7`).
-
----
-
 - **Pinned Tabs & Visual Tab Groups**: Pin tabs to protect them against accidental closure with a dedicated `[PIN]` indicator. Organize workflows into named, colored tab groups directly from the sidebar context menu.
 - **Smart Omnibox URL Auto-Complete**: Dynamic search suggestions and URL auto-completion powered by local browsing history, bookmarks, and popular domains without third-party tracking.
 - **Distraction-Free Reader Mode**: Clean typography, customizable aesthetic, and instant toggle (`Ctrl+Alt+R` or toolbar button) converting noisy articles into readable, minimalist layouts.

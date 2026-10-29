@@ -999,78 +999,57 @@ class TabManager(QWidget):
             self.tabs[target_id].split_container.toggle_split()
 
     def suspend_tab(self, tab_id: int) -> bool:
-        if tab_id not in self.tabs or tab_id == self.active_tab_id:
-            return False
-        tab_data = self.tabs[tab_id]
-        if tab_data.is_suspended or tab_data.is_pinned or getattr(tab_data, "is_audible", False):
-            return False
-
-        view = tab_data.split_container.get_active_view()
-        view_url = view.url().toString() if (view and not view.url().isEmpty()) else ""
-        url_str = getattr(tab_data, "url", "") or view_url or ""
-        # Never suspend internal or special scheme pages (settings, startpage, history, etc.)
-        if not url_str or any(url_str.startswith(s) for s in ["crux://", "zephyrium://", "zinc://", "about:", "chrome://", "data:"]):
-            return False
-        if any(k in url_str for k in ["settings.html", "startpage.html", "history.html", "downloads.html", "welcome.html"]):
-            return False
-
-        tab_data.is_suspended = True
-        tab_data.url = url_str
-        # Save scroll position
-        view.page().runJavaScript(
-            "({x: window.scrollX, y: window.scrollY})",
-            lambda pos: setattr(tab_data, "saved_scroll", (pos.get("x", 0), pos.get("y", 0)) if isinstance(pos, dict) else (0, 0))
-        )
-        acc = getattr(self, "current_accent", "#a855f7")
-        th = getattr(self, "current_theme", "dark")
-        bg = "#18181b" if th == "dark" else "#f8fafc"
-        card_bg = "#262624" if th == "dark" else "#ffffff"
-        card_border = "#3f3f46" if th == "dark" else "#cbd5e1"
-        fg_title = "#d4d4d8" if th == "dark" else "#1e293b"
-        fg_muted = "#71717a" if th == "dark" else "#64748b"
-        clean_title = html.escape(tab_data.title or "Web Page")
-        view.setHtml(f"""
-            <!DOCTYPE html><html><head><meta charset="utf-8"><title>{clean_title}</title></head>
-            <body onclick="window.location.reload()" style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;cursor:pointer;margin:0;">
-            <div style="border:1px solid {card_border};border-radius:0px;padding:32px;background:{card_bg};text-align:center;max-width:420px;box-shadow:0 6px 20px rgba(0,0,0,0.4);font-family:monospace;">
-                <div style="font-size:22px;margin-bottom:12px;color:{acc};font-weight:bold;">[SLEEP]</div>
-                <div style="color:{acc};font-weight:bold;font-size:13px;letter-spacing:1px;margin-bottom:8px;">[ВКЛАДКА В РЕЖИМЕ СНА // RAM SAVED]</div>
-                <div style="color:{fg_title};font-size:14px;font-weight:bold;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{clean_title}</div>
-                <div style="font-size:11px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена из памяти. Кликните для восстановления.</div>
-                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border:1px solid {card_border};display:inline-block;">НАЖМИТЕ ДЛЯ ПРОБУЖДЕНИЯ</div>
-            </div>
-            </body></html>
-        """)
-        for row in range(self.sidebar.list_widget.count()):
-            item = self.sidebar.list_widget.item(row)
-            if item.data(Qt.ItemDataRole.UserRole) == tab_id:
-                widget = self.sidebar.list_widget.itemWidget(item)
-                if isinstance(widget, TabItemWidget):
-                    widget.refresh_ui()
-                break
-        self.tabs_updated.emit()
-        return True
-
-    def wake_tab(self, tab_id: int) -> None:
-        if tab_id in self.tabs:
+        try:
+            if tab_id not in self.tabs or tab_id == self.active_tab_id:
+                return False
             tab_data = self.tabs[tab_id]
-            if tab_data.is_suspended:
-                tab_data.is_suspended = False
-                view = tab_data.split_container.get_active_view()
-                target_url = tab_data.url or "crux://startpage"
-                if target_url.startswith("data:text/html") or target_url.startswith("data:"):
-                    target_url = "crux://startpage"
-                    tab_data.url = target_url
-                view.load(QUrl(target_url))
-                scroll_pos = getattr(tab_data, "saved_scroll", (0, 0))
-                if scroll_pos and (scroll_pos[0] > 0 or scroll_pos[1] > 0):
-                    def _restore_scroll(ok):
-                        if ok and view:
-                            view.page().runJavaScript(f"window.scrollTo({scroll_pos[0]}, {scroll_pos[1]});")
-                    try:
-                        view.loadFinished.connect(_restore_scroll)
-                    except Exception:
-                        pass
+            if tab_data.is_suspended or tab_data.is_pinned or getattr(tab_data, "is_audible", False):
+                return False
+
+            if not tab_data.split_container:
+                return False
+            view = tab_data.split_container.get_active_view()
+            if not view:
+                return False
+            view_url = view.url().toString() if (view and not view.url().isEmpty()) else ""
+            url_str = getattr(tab_data, "url", "") or view_url or ""
+            # Never suspend internal or special scheme pages (settings, startpage, history, etc.)
+            if not url_str or any(url_str.startswith(s) for s in ["crux://", "zephyrium://", "zinc://", "about:", "chrome://", "data:"]):
+                return False
+            if any(k in url_str for k in ["settings.html", "startpage.html", "history.html", "downloads.html", "welcome.html"]):
+                return False
+
+            tab_data.is_suspended = True
+            tab_data.url = url_str
+            # Save scroll position
+            try:
+                view.page().runJavaScript(
+                    "({x: window.scrollX, y: window.scrollY})",
+                    lambda pos: setattr(tab_data, "saved_scroll", (pos.get("x", 0), pos.get("y", 0)) if isinstance(pos, dict) else (0, 0))
+                )
+            except Exception:
+                pass
+            acc = getattr(self, "current_accent", "#a855f7")
+            th = getattr(self, "current_theme", "dark")
+            bg = "#18181b" if th == "dark" else "#f8fafc"
+            card_bg = "#262624" if th == "dark" else "#ffffff"
+            card_border = "#3f3f46" if th == "dark" else "#cbd5e1"
+            fg_title = "#d4d4d8" if th == "dark" else "#1e293b"
+            fg_muted = "#71717a" if th == "dark" else "#64748b"
+            clean_title = html.escape(tab_data.title or "Web Page")
+            view.setHtml(f"""
+                <!DOCTYPE html><html><head><meta charset="utf-8"><title>{clean_title}</title></head>
+                <body onclick="window.location.reload()" style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;cursor:pointer;margin:0;">
+                <div style="border:1px solid {card_border};border-radius:0px;padding:32px;background:{card_bg};text-align:center;max-width:420px;box-shadow:0 6px 20px rgba(0,0,0,0.4);font-family:monospace;">
+                    <div style="font-size:22px;margin-bottom:12px;color:{acc};font-weight:bold;">[SLEEP]</div>
+                    <div style="color:{acc};font-weight:bold;font-size:13px;letter-spacing:1px;margin-bottom:8px;">[ВКЛАДКА В РЕЖИМЕ СНА // RAM SAVED]</div>
+                    <div style="color:{fg_title};font-size:14px;font-weight:bold;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{clean_title}</div>
+                    <div style="font-size:11px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена из памяти. Кликните для восстановления.</div>
+                    <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border:1px solid {card_border};display:inline-block;">НАЖМИТЕ ДЛЯ ПРОБУЖДЕНИЯ</div>
+                </div>
+                </body></html>
+            """)
+            if hasattr(self, "sidebar") and hasattr(self.sidebar, "list_widget"):
                 for row in range(self.sidebar.list_widget.count()):
                     item = self.sidebar.list_widget.item(row)
                     if item.data(Qt.ItemDataRole.UserRole) == tab_id:
@@ -1078,7 +1057,53 @@ class TabManager(QWidget):
                         if isinstance(widget, TabItemWidget):
                             widget.refresh_ui()
                         break
-                self.tabs_updated.emit()
+            self.tabs_updated.emit()
+            return True
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def wake_tab(self, tab_id: int) -> None:
+        try:
+            if tab_id in self.tabs:
+                tab_data = self.tabs[tab_id]
+                if tab_data.is_suspended:
+                    tab_data.is_suspended = False
+                    if not tab_data.split_container:
+                        return
+                    view = tab_data.split_container.get_active_view()
+                    if not view:
+                        return
+                    target_url = tab_data.url or "crux://startpage"
+                    if target_url.startswith("data:text/html") or target_url.startswith("data:"):
+                        target_url = "crux://startpage"
+                        tab_data.url = target_url
+                    view.load(QUrl(target_url))
+                    scroll_pos = getattr(tab_data, "saved_scroll", (0, 0))
+                    if scroll_pos and (scroll_pos[0] > 0 or scroll_pos[1] > 0):
+                        def _restore_scroll(ok):
+                            if ok and view:
+                                try:
+                                    view.page().runJavaScript(f"window.scrollTo({scroll_pos[0]}, {scroll_pos[1]});")
+                                except Exception:
+                                    pass
+                        try:
+                            view.loadFinished.connect(_restore_scroll)
+                        except Exception:
+                            pass
+                    if hasattr(self, "sidebar") and hasattr(self.sidebar, "list_widget"):
+                        for row in range(self.sidebar.list_widget.count()):
+                            item = self.sidebar.list_widget.item(row)
+                            if item.data(Qt.ItemDataRole.UserRole) == tab_id:
+                                widget = self.sidebar.list_widget.itemWidget(item)
+                                if isinstance(widget, TabItemWidget):
+                                    widget.refresh_ui()
+                                break
+                    self.tabs_updated.emit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def _check_tab_suspension(self) -> None:
         try:

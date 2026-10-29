@@ -261,38 +261,41 @@ class BrowserWindow(QMainWindow):
         layout.addWidget(self.url_bar, stretch=1)
         self._init_url_completer()
 
-        # Action Buttons (Retired from top bar to eliminate clutter; now accessible via MENU)
-        self.btn_reader = QPushButton(Icons.READER)
+        # Action Buttons (Retired from top bar; parented to hidden container to prevent tiling WM window spawning)
+        self._retired_btn_container = QWidget(self)
+        self._retired_btn_container.hide()
+
+        self.btn_reader = QPushButton(Icons.READER, self._retired_btn_container)
         self.btn_reader.clicked.connect(self._on_reader_mode_clicked)
 
-        self.btn_pip = QPushButton(Icons.PIP)
+        self.btn_pip = QPushButton(Icons.PIP, self._retired_btn_container)
         self.btn_pip.clicked.connect(self._on_pip_clicked)
 
-        self.btn_adblock = QPushButton(f"{Icons.ADBLOCK}: 0")
+        self.btn_adblock = QPushButton(f"{Icons.ADBLOCK}: 0", self._retired_btn_container)
         self.btn_adblock.clicked.connect(self._show_adblock_menu)
 
-        self.btn_split = QPushButton(Icons.SPLIT)
+        self.btn_split = QPushButton(Icons.SPLIT, self._retired_btn_container)
         self.btn_split.clicked.connect(lambda: self.tab_manager.split_active_tab())
 
-        self.btn_history = QPushButton(t("history_title"))
+        self.btn_history = QPushButton(t("history_title"), self._retired_btn_container)
         self.btn_history.clicked.connect(self._show_history_menu)
 
-        self.btn_downloads = QPushButton(Icons.DOWNLOADS)
+        self.btn_downloads = QPushButton(Icons.DOWNLOADS, self._retired_btn_container)
         self.btn_downloads.clicked.connect(self._toggle_downloads)
 
-        self.btn_tab_orient = QPushButton("TABS: VERT" if self.tab_orientation == "vertical" else "TABS: HORIZ")
+        self.btn_tab_orient = QPushButton("TABS: VERT" if self.tab_orientation == "vertical" else "TABS: HORIZ", self._retired_btn_container)
         self.btn_tab_orient.clicked.connect(lambda: self.set_tab_orientation("horizontal" if self.tab_orientation == "vertical" else "vertical"))
 
-        self.btn_mode = QPushButton("MODE: MINIMAL")
+        self.btn_mode = QPushButton("MODE: MINIMAL", self._retired_btn_container)
         self.btn_mode.clicked.connect(self._show_mode_menu)
 
-        self.btn_palette = QPushButton("KEYBINDS")
+        self.btn_palette = QPushButton("KEYBINDS", self._retired_btn_container)
         self.btn_palette.clicked.connect(lambda: self.command_palette.show_palette())
 
-        self.btn_ai = QPushButton(Icons.AI)
+        self.btn_ai = QPushButton(Icons.AI, self._retired_btn_container)
         self.btn_ai.clicked.connect(self._toggle_sidebar)
 
-        self.btn_more = QPushButton(getattr(Icons, "MORE", "»"))
+        self.btn_more = QPushButton(getattr(Icons, "MORE", "»"), self._retired_btn_container)
         self.btn_more.clicked.connect(self._show_overflow_menu)
 
         # Primary Browser Dropdown Menu (Consistent monospace font, no emoji)
@@ -1505,6 +1508,15 @@ class BrowserWindow(QMainWindow):
             lambda text: self.side_panel.ai_widget.receive_page_summary(title, url, text or "")
         )
 
+    def _show_status_message(self, msg: str, timeout: int = 3000) -> None:
+        try:
+            if hasattr(self, "status_label") and self.status_label:
+                self.status_label.setText(str(msg))
+            if hasattr(self, "status_bar") and self.status_bar:
+                self.status_bar.showMessage(str(msg), timeout)
+        except Exception:
+            pass
+
     def _handle_command_action(self, action: str, param: str) -> None:
         v = self.tab_manager.get_current_view()
         if action == "navigate" or action in ["o", "open"]:
@@ -1556,16 +1568,22 @@ class BrowserWindow(QMainWindow):
         elif action == "snooze_tab":
             self._show_status_message("Активную вкладку нельзя усыпить (выберите фоновую вкладку)")
         elif action == "snooze_others":
-            count = 0
-            for tid in list(self.tab_manager.tabs.keys()):
-                if tid != self.tab_manager.active_tab_id:
-                    if self.tab_manager.suspend_tab(tid):
-                        count += 1
-            self._show_status_message(f"Усыплено фоновых вкладок: {count} (ОЗУ освобождено)")
+            try:
+                count = 0
+                for tid in list(self.tab_manager.tabs.keys()):
+                    if tid != self.tab_manager.active_tab_id:
+                        if self.tab_manager.suspend_tab(tid):
+                            count += 1
+                self._show_status_message(f"Усыплено фоновых вкладок: {count} (ОЗУ освобождено)")
+            except Exception as e:
+                self._show_status_message(f"Ошибка усыпления: {e}")
         elif action == "wake_all":
-            for tid in list(self.tab_manager.tabs.keys()):
-                self.tab_manager.wake_tab(tid)
-            self._show_status_message("Woke all hibernated tabs")
+            try:
+                for tid in list(self.tab_manager.tabs.keys()):
+                    self.tab_manager.wake_tab(tid)
+                self._show_status_message("Woke all hibernated tabs")
+            except Exception as e:
+                self._show_status_message(f"Ошибка восстановления: {e}")
         elif action == "find":
             self._toggle_find_in_page()
         elif action == "pin":
@@ -1696,7 +1714,7 @@ class BrowserWindow(QMainWindow):
 
             # 1. Graphical Zoom & Scale Controller
             zoom_action = QWidgetAction(menu)
-            zoom_w = QWidget()
+            zoom_w = QWidget(menu)
             zoom_w.setStyleSheet("""
                 QWidget { background-color: #18181b; }
                 QLabel { color: #d4d4d8; font-family: "Iosevka Nerd Font", "JetBrains Mono", monospace; font-size: 12px; }
