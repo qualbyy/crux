@@ -57,6 +57,221 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
     Native URL scheme handler for zephyrium:// and zinc:// internal pages.
     Serves HTML/assets directly through Chromium's network stack without file:// restrictions.
     """
+    @staticmethod
+    def generate_tasks_html(win=None) -> str:
+        import html
+        from config import load_settings, CONTAINERS
+        from PyQt6.QtWidgets import QApplication
+        s = load_settings()
+        th = s.get("theme", "dark")
+        acc = s.get("accent_color", "#fe8019")
+        bg = "#18181b" if th == "dark" else "#f8fafc"
+        card_bg = "#262624" if th == "dark" else "#ffffff"
+        border = "#3f3f46" if th == "dark" else "#cbd5e1"
+        fg = "#d4d4d8" if th == "dark" else "#1e293b"
+        fg_bright = "#f5f5f0" if th == "dark" else "#0f172a"
+        fg_muted = "#71717a" if th == "dark" else "#64748b"
+
+        if win is None:
+            for w in QApplication.topLevelWidgets():
+                if hasattr(w, "tab_manager"):
+                    win = w
+                    break
+
+        tab_rows = ""
+        total_tabs = 0
+        sleeping_tabs = 0
+        active_tab_id = -1
+        if win and hasattr(win, "tab_manager"):
+            active_tab_id = getattr(win.tab_manager, "active_tab_id", -1)
+            total_tabs = len(win.tab_manager.tabs)
+            for tid, tab_data in win.tab_manager.tabs.items():
+                v = win.tab_manager.get_tab_view(tid)
+                raw_u = getattr(tab_data, "url", "") or (v.url().toString() if v else "")
+                u = raw_u if not raw_u.startswith("data:") else "zephyrium://startpage"
+                title = getattr(tab_data, "title", "New Tab")
+                if title.startswith("data:"):
+                    title = "Web Page"
+                cid = getattr(tab_data, "container_id", "default")
+                c_color = CONTAINERS.get(cid, {}).get("color", acc)
+                is_susp = getattr(tab_data, "is_suspended", False)
+                if is_susp:
+                    sleeping_tabs += 1
+                is_active_tab = (tid == active_tab_id)
+
+                if is_active_tab:
+                    status_badge = f"<span style='color: #10b981; border: 1px solid #10b981; padding: 2px 6px; font-weight: bold; font-size: 10px; font-family: monospace;'>● АКТИВНА</span>"
+                elif is_susp:
+                    status_badge = f"<span style='color: {acc}; border: 1px solid {acc}; padding: 2px 6px; font-weight: bold; font-size: 10px; font-family: monospace;'>💤 СПИТ</span>"
+                else:
+                    status_badge = f"<span style='color: {fg_muted}; border: 1px solid {border}; padding: 2px 6px; font-size: 10px; font-family: monospace;'>● ФОНОВАЯ</span>"
+
+                audible = " 🔊" if getattr(tab_data, "is_audible", False) else ""
+
+                if is_active_tab:
+                    suspend_action = f"<span style='color: {fg_muted}; border: 1px solid #27272a; padding: 3px 8px; font-size: 10px; cursor: not-allowed; opacity: 0.5;'>[АКТИВНА]</span>"
+                elif is_susp:
+                    suspend_action = f"<a href='zephyrium://action/wake-tab?id={tid}' style='color: #10b981; border: 1px solid #10b981; padding: 3px 8px; text-decoration: none; font-size: 10px; margin-right: 6px;'>[РАЗБУДИТЬ]</a>"
+                else:
+                    suspend_action = f"<a href='zephyrium://action/suspend-tab?id={tid}' style='color: {acc}; border: 1px solid {acc}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[УСЫПИТЬ]</a>"
+
+                row_bg = "background: rgba(254, 128, 25, 0.05);" if is_active_tab else ""
+
+                tab_rows += f"""
+                <tr style='border-bottom: 1px solid {border}; {row_bg}'>
+                    <td style='padding: 10px 12px; font-weight: bold; font-family: monospace;'>#{tid}</td>
+                    <td style='padding: 10px 12px;'><span style='border: 1px solid {c_color}; color: {c_color}; padding: 2px 6px; font-size: 10px; font-weight: bold; font-family: monospace;'>{cid.upper()}</span></td>
+                    <td style='padding: 10px 12px; font-weight: 600; color: {fg_bright};'>{html.escape(title)}{audible}</td>
+                    <td style='padding: 10px 12px; color: {fg_muted}; font-size: 11px; font-family: monospace; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{html.escape(u)}</td>
+                    <td style='padding: 10px 12px;'>{status_badge}</td>
+                    <td style='padding: 10px 12px; text-align: right; white-space: nowrap; font-family: monospace;'>
+                        {suspend_action}
+                        <a href='zephyrium://action/reload-tab?id={tid}' style='color: {fg}; border: 1px solid {border}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[ОБНОВИТЬ]</a>
+                        <a href='zephyrium://action/close-tab?id={tid}' style='color: #ef4444; border: 1px solid #ef4444; padding: 3px 8px; text-decoration: none; font-size: 10px;'>[ЗАКРЫТЬ]</a>
+                    </td>
+                </tr>
+                """
+
+        active_cnt = total_tabs - sleeping_tabs
+        saved_ram_mb = sleeping_tabs * 180
+
+        tasks_html = f"""<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Диспетчер задач — Zephyrium</title>
+            <style>
+                * {{ box-sizing: border-box; }}
+                body {{
+                    background: {bg};
+                    color: {fg};
+                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+                    padding: 28px 40px;
+                    margin: 0;
+                }}
+                .header {{
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 20px;
+                    padding-bottom: 16px;
+                    border-bottom: 1px solid {border};
+                }}
+                .title {{
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: {acc};
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    letter-spacing: 0.5px;
+                }}
+                .stats-row {{
+                    display: flex;
+                    gap: 12px;
+                    margin-bottom: 20px;
+                    flex-wrap: wrap;
+                }}
+                .stat-card {{
+                    background: {card_bg};
+                    border: 1px solid {border};
+                    padding: 10px 16px;
+                    flex: 1;
+                    min-width: 140px;
+                }}
+                .stat-label {{
+                    font-size: 10px;
+                    color: {fg_muted};
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                    margin-bottom: 4px;
+                }}
+                .stat-val {{
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: {fg_bright};
+                }}
+                .table-card {{
+                    background: {card_bg};
+                    border: 1px solid {border};
+                    overflow: hidden;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    text-align: left;
+                    font-size: 12px;
+                }}
+                th {{
+                    padding: 10px 12px;
+                    background: {bg};
+                    border-bottom: 1px solid {border};
+                    color: {fg_muted};
+                    font-size: 10px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }}
+                .btn-refresh {{
+                    background: {card_bg};
+                    color: {acc};
+                    border: 1px solid {acc};
+                    padding: 6px 14px;
+                    font-family: inherit;
+                    font-size: 11px;
+                    font-weight: bold;
+                    cursor: pointer;
+                }}
+                .btn-refresh:hover {{
+                    background: {acc};
+                    color: {bg};
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="title">⚡ ZEPHYRIUM // ДИСПЕТЧЕР ЗАДАЧ</div>
+                <button class="btn-refresh" onclick="window.location.reload()">⟳ ОБНОВИТЬ СПИСОК</button>
+            </div>
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-label">ВСЕГО ВКЛАДОК</div>
+                    <div class="stat-val">{total_tabs}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">АКТИВНЫХ</div>
+                    <div class="stat-val" style="color: #10b981;">{active_cnt}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">В РЕЖИМЕ СНА (💤)</div>
+                    <div class="stat-val" style="color: {acc};">{sleeping_tabs}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">ЭКОНОМИЯ ОЗУ</div>
+                    <div class="stat-val" style="color: {acc};">~{saved_ram_mb} MB</div>
+                </div>
+            </div>
+            <div class="table-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>КОНТЕЙНЕР</th>
+                            <th>НАЗВАНИЕ</th>
+                            <th>URL</th>
+                            <th>СТАТУС</th>
+                            <th style="text-align: right;">ДЕЙСТВИЯ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {tab_rows or "<tr><td colspan='6' style='padding: 24px; text-align: center; color: " + fg_muted + ";'>Нет открытых вкладок</td></tr>"}
+                    </tbody>
+                </table>
+            </div>
+        </body>
+        </html>
+        """
+        return tasks_html
+
     def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:
         try:
             url = job.requestUrl()
@@ -94,87 +309,7 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
                 mime = b"application/javascript"
 
             if resource in ["tasks", "taskmanager", "processes"]:
-                from config import load_settings
-                s = load_settings()
-                th = s.get("theme", "dark")
-                acc = s.get("accent_color", "#fe8019")
-                bg = "#18181b" if th == "dark" else "#f8fafc"
-                card_bg = "#262624" if th == "dark" else "#ffffff"
-                border = "#3f3f46" if th == "dark" else "#e2e8f0"
-                fg = "#d4d4d8" if th == "dark" else "#1e293b"
-                fg_muted = "#71717a" if th == "dark" else "#64748b"
-
-                win = None
-                for w in QApplication.topLevelWidgets():
-                    if hasattr(w, "tab_manager"):
-                        win = w
-                        break
-
-                tab_rows = ""
-                if win and hasattr(win, "tab_manager"):
-                    for tid, tab_data in win.tab_manager.tabs.items():
-                        v = win.tab_manager.get_tab_view(tid)
-                        u = getattr(tab_data, "url", "") or (v.url().toString() if v else "")
-                        title = getattr(tab_data, "title", "New Tab")
-                        cid = getattr(tab_data, "container_id", "default")
-                        is_susp = getattr(tab_data, "is_suspended", False)
-                        status_badge = f"<span style='color: {acc}; font-weight: 600;'>💤 Спит</span>" if is_susp else "<span style='color: #10b981; font-weight: 600;'>● Активна</span>"
-                        audible = " 🔊" if getattr(tab_data, "is_audible", False) else ""
-                        tab_rows += f"""
-                        <tr style='border-bottom: 1px solid {border};'>
-                            <td style='padding: 10px 12px; font-weight: bold;'>#{tid}</td>
-                            <td style='padding: 10px 12px;'><span style='background: {border}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;'>{cid.upper()}</span></td>
-                            <td style='padding: 10px 12px; font-weight: 500;'>{html.escape(title)}{audible}</td>
-                            <td style='padding: 10px 12px; color: {fg_muted}; font-size: 12px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{html.escape(u)}</td>
-                            <td style='padding: 10px 12px;'>{status_badge}</td>
-                            <td style='padding: 10px 12px; text-align: right;'>
-                                <a href='zephyrium://action/suspend-tab?id={tid}' style='color: {acc}; text-decoration: none; margin-right: 12px; font-size: 12px;'>[Усыпить]</a>
-                                <a href='zephyrium://action/reload-tab?id={tid}' style='color: {fg}; text-decoration: none; margin-right: 12px; font-size: 12px;'>[Обновить]</a>
-                                <a href='zephyrium://action/close-tab?id={tid}' style='color: #ef4444; text-decoration: none; font-size: 12px;'>[Закрыть]</a>
-                            </td>
-                        </tr>
-                        """
-
-                tasks_html = f"""<!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="utf-8">
-                    <title>Диспетчер задач — Zephyrium</title>
-                    <style>
-                        body {{ background: {bg}; color: {fg}; font-family: system-ui, -apple-system, sans-serif; padding: 32px 48px; margin: 0; }}
-                        .header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid {border}; }}
-                        .title {{ font-size: 20px; font-weight: bold; color: {acc}; display: flex; align-items: center; gap: 10px; }}
-                        .table-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 6px; overflow: hidden; }}
-                        table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }}
-                        th {{ padding: 12px; background: {bg}; border-bottom: 1px solid {border}; color: {fg_muted}; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }}
-                        .btn-refresh {{ background: {acc}; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; }}
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div class="title">⚡ Диспетчер задач Zephyrium</div>
-                        <button class="btn-refresh" onclick="window.location.reload()">Обновить список</button>
-                    </div>
-                    <div class="table-card">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Контейнер</th>
-                                    <th>Название</th>
-                                    <th>URL</th>
-                                    <th>Статус</th>
-                                    <th style="text-align: right;">Действия</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {tab_rows or "<tr><td colspan='6' style='padding: 24px; text-align: center; color: " + fg_muted + ";'>Нет открытых вкладок</td></tr>"}
-                            </tbody>
-                        </table>
-                    </div>
-                </body>
-                </html>
-                """
+                tasks_html = ZephyriumSchemeHandler.generate_tasks_html()
                 buf = QBuffer(job)
                 buf.setData(tasks_html.encode("utf-8"))
                 buf.open(QIODevice.OpenModeFlag.ReadOnly)
@@ -394,6 +529,15 @@ class ZincWebPage(QWebEnginePage):
     def acceptNavigationRequest(self, url: QUrl, _type: QWebEnginePage.NavigationType, isMainFrame: bool) -> bool:
         try:
             url_str = url.toString()
+            if url_str.endswith(".user.js") or ".user.js?" in url_str:
+                v = self.view()
+                if v and hasattr(v, "_get_main_window"):
+                    win = v._get_main_window()
+                    if win and hasattr(win, "_prompt_install_userscript"):
+                        fn = url.fileName() or "script.user.js"
+                        win._prompt_install_userscript(url_str, fn)
+                        return False
+
             if url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
                 v = self.view()
                 if v and hasattr(v, "handle_host_cmd"):
@@ -458,6 +602,7 @@ class ZincWebPage(QWebEnginePage):
 
 
 class ZincWebView(QWebEngineView):
+    _generate_tasks_html = staticmethod(ZephyriumSchemeHandler.generate_tasks_html)
     status_message = pyqtSignal(str)
     open_split_requested = pyqtSignal(QUrl)
     open_new_tab_requested = pyqtSignal(QUrl)
@@ -1033,8 +1178,14 @@ class ZincWebView(QWebEngineView):
                 s["download_dir"] = params["download_dir"][0]
             if "gemini_api_key" in params:
                 s["gemini_api_key"] = params["gemini_api_key"][0]
+            if "ai_provider" in params:
+                s["ai_provider"] = params["ai_provider"][0]
             if "ai_model" in params:
                 s["ai_model"] = params["ai_model"][0]
+            if "ollama_url" in params:
+                s["ollama_url"] = params["ollama_url"][0]
+            if "ollama_model" in params:
+                s["ollama_model"] = params["ollama_model"][0]
             if "ai_persona" in params:
                 s["ai_persona"] = params["ai_persona"][0]
             if "restore_session" in params:
@@ -1088,10 +1239,10 @@ class ZincWebView(QWebEngineView):
                 self.navigate("zephyrium://downloads")
             elif action == "open-downloads-folder":
                 from config import load_settings
-                from PyQt6.QtGui import QDesktopServices
+                from utils.bookmarks import open_folder_in_file_manager
                 s = load_settings()
                 ddir = s.get("download_dir", str(Path.home() / "Downloads"))
-                QDesktopServices.openUrl(QUrl.fromLocalFile(ddir))
+                open_folder_in_file_manager(ddir)
             elif action == "open-scripts-dir":
                 from core.userscript_manager import SCRIPTS_DIR
                 from PyQt6.QtGui import QDesktopServices
@@ -1123,10 +1274,20 @@ class ZincWebView(QWebEngineView):
                     tid = int(qs.get("id", ["0"])[0])
                     win = self._get_main_window()
                     if win and hasattr(win, "tab_manager") and tid in win.tab_manager.tabs:
-                        win.tab_manager.suspend_tab(tid)
+                        if tid != win.tab_manager.active_tab_id:
+                            win.tab_manager.suspend_tab(tid)
                     self.navigate("zephyrium://tasks")
                 except Exception as e:
                     print(f"Error suspending tab from tasks: {e}")
+            elif action == "wake-tab":
+                try:
+                    tid = int(qs.get("id", ["0"])[0])
+                    win = self._get_main_window()
+                    if win and hasattr(win, "tab_manager") and tid in win.tab_manager.tabs:
+                        win.tab_manager.wake_tab(tid)
+                    self.navigate("zephyrium://tasks")
+                except Exception as e:
+                    print(f"Error waking tab from tasks: {e}")
             elif action == "close-tab":
                 try:
                     tid = int(qs.get("id", ["0"])[0])
@@ -1147,6 +1308,25 @@ class ZincWebView(QWebEngineView):
                     self.navigate("zephyrium://tasks")
                 except Exception as e:
                     print(f"Error reloading tab from tasks: {e}")
+            elif action == "test-ollama":
+                import urllib.request
+                import json
+                test_url = qs.get("url", ["http://localhost:11434"])[0].rstrip("/")
+                try:
+                    req = urllib.request.Request(f"{test_url}/api/tags", headers={"User-Agent": "Zephyrium/1.0"})
+                    with urllib.request.urlopen(req, timeout=2.5) as resp:
+                        if resp.status == 200:
+                            data = json.loads(resp.read().decode("utf-8"))
+                            models = [m.get("name") for m in data.get("models", []) if m.get("name")]
+                            models_str = ", ".join(models) if models else "No models installed"
+                            js = f"if (window.onOllamaTestResult) window.onOllamaTestResult(true, '{models_str}');"
+                            self.page().runJavaScript(js)
+                            return
+                except Exception as e:
+                    err_msg = str(e).replace("'", "\\'")
+                    js = f"if (window.onOllamaTestResult) window.onOllamaTestResult(false, '{err_msg}');"
+                    self.page().runJavaScript(js)
+                return
             elif action == "unlock-vault":
                 import json
                 from config import CONFIG_DIR
@@ -1479,7 +1659,11 @@ class ZincWebView(QWebEngineView):
     def _inspect_element(self) -> None:
         from PyQt6.QtWebEngineCore import QWebEngineSettings
         self.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, True)
-        self.triggerPageAction(QWebEnginePage.WebAction.InspectElement)
+        win = self._get_main_window()
+        if win and hasattr(win, "open_devtools"):
+            win.open_devtools(inspect=True)
+        else:
+            self.triggerPageAction(QWebEnginePage.WebAction.InspectElement)
 
 def from_pyqt_clipboard(text: str):
     cb = QApplication.clipboard()

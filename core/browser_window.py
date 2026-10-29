@@ -50,7 +50,7 @@ class BrowserWindow(QMainWindow):
 
         # Core subsystems
         self.adblocker = AdBlockerInterceptor(self)
-        self.profile_manager = ProfileManager(self.adblocker, self)
+        self.profile_manager = ProfileManager(self.adblocker, self, is_incognito=self.is_incognito)
         
         # Connect download handler on all profiles
         self.download_manager = DownloadManager(self)
@@ -95,11 +95,18 @@ class BrowserWindow(QMainWindow):
         self._init_viewport_bar()
         self.root_layout.addWidget(self.viewport_bar)
 
-        self.root_layout.addWidget(self.workspace_splitter, stretch=1)
+        # 3. Main Workspace & DevTools Vertical Splitter
+        self.main_vertical_splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.main_vertical_splitter.setHandleWidth(2)
+        self.main_vertical_splitter.addWidget(self.workspace_splitter)
 
         # 3.5 Embedded Chromium DevTools Dock
         self._init_devtools_dock()
-        self.root_layout.addWidget(self.devtools_dock)
+        self.main_vertical_splitter.addWidget(self.devtools_dock)
+        self.main_vertical_splitter.setStretchFactor(0, 1)
+        self.main_vertical_splitter.setStretchFactor(1, 0)
+
+        self.root_layout.addWidget(self.main_vertical_splitter, stretch=1)
 
         # Find in Page Floating Bar
         self.find_bar = FindInPageBar(self)
@@ -153,7 +160,8 @@ class BrowserWindow(QMainWindow):
 
         if not restored:
             initial_url = self.settings.get("new_tab_url", self.settings.get("homepage", "zephyrium://startpage"))
-            self.tab_manager.create_tab("default", initial_url)
+            init_cid = "incognito" if self.is_incognito else "default"
+            self.tab_manager.create_tab(url=initial_url, container_id=init_cid)
 
         # If first run, launch modal OnboardingDialog over everything
         if self.settings.get("first_run", True) and not self.is_incognito:
@@ -334,12 +342,16 @@ class BrowserWindow(QMainWindow):
         layout.addWidget(self.btn_more)
         self.btn_more.hide()
 
-        self.btn_settings = QPushButton("SETTINGS")
-        self.btn_settings.setFixedHeight(28)
-        self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_settings.setToolTip("Open Settings & Browser Data Importer (Ctrl+,)")
-        self.btn_settings.clicked.connect(self.open_settings)
-        layout.addWidget(self.btn_settings)
+        # Primary Browser Dropdown Menu (Quick actions, reader, pip, modes, tools & settings)
+        self.btn_menu = QPushButton("☰")
+        self.btn_menu.setObjectName("accentBtn")
+        self.btn_menu.setFixedHeight(28)
+        self.btn_menu.setFixedWidth(34)
+        self.btn_menu.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_menu.setToolTip("Главное меню (F10 / Alt+F)")
+        self.btn_menu.clicked.connect(self._show_main_browser_menu)
+        layout.addWidget(self.btn_menu)
+        self.btn_settings = self.btn_menu  # Backward-compatibility alias
 
         self.root_layout.addWidget(self.top_bar)
         self._update_topbar_overflow()
@@ -398,9 +410,12 @@ class BrowserWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+K"), self, lambda: self.command_palette.show_palette())
         QShortcut(QKeySequence("Ctrl+L"), self, lambda: (self.url_bar.setFocus(), self.url_bar.selectAll()))
         QShortcut(QKeySequence("Ctrl+T"), self, lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "zephyrium://startpage")))
+        QShortcut(QKeySequence("Ctrl+N"), self, self._open_new_window)
         QShortcut(QKeySequence("Ctrl+W"), self, lambda: self.tab_manager.close_tab(self.tab_manager.active_tab_id))
         QShortcut(QKeySequence("Ctrl+F"), self, self._toggle_find_in_page)
         QShortcut(QKeySequence("Ctrl+Shift+N"), self, self._open_incognito_window)
+        QShortcut(QKeySequence("F10"), self, self._show_main_browser_menu)
+        QShortcut(QKeySequence("Alt+F"), self, self._show_main_browser_menu)
         QShortcut(QKeySequence("Ctrl+\\"), self, lambda: self.tab_manager.split_active_tab())
         QShortcut(QKeySequence("Ctrl+Alt+T"), self, lambda: self.set_tab_orientation("horizontal" if self.tab_orientation == "vertical" else "vertical"))
         QShortcut(QKeySequence("Ctrl+B"), self, self._toggle_sidebar)
@@ -652,8 +667,12 @@ class BrowserWindow(QMainWindow):
         self.btn_mode.setToolTip(t("ui_mode_label"))
         self.btn_palette.setText(t("keybinds"))
         self.btn_palette.setToolTip(t("keybinds_tooltip"))
-        self.btn_settings.setText(t("settings_btn"))
-        self.btn_settings.setToolTip(t("settings_tooltip"))
+        if hasattr(self, "btn_menu"):
+            self.btn_menu.setText("☰")
+            self.btn_menu.setToolTip("Меню браузера (F10 / Alt+F)")
+        elif hasattr(self, "btn_settings"):
+            self.btn_settings.setText(t("settings_btn"))
+            self.btn_settings.setToolTip(t("settings_tooltip"))
         self.url_bar.setPlaceholderText(t("url_placeholder"))
         if hasattr(self, "btn_toggle_vertical"):
             self.btn_toggle_vertical.setText(t("vertical_btn"))
@@ -977,10 +996,10 @@ class BrowserWindow(QMainWindow):
         self.status_label.setText("Downloads list cleared.")
 
     def _open_downloads_folder(self) -> None:
-        from PyQt6.QtGui import QDesktopServices
+        from utils.bookmarks import open_folder_in_file_manager
         from pathlib import Path
         ddir = self.settings.get("download_dir", str(Path.home() / "Downloads"))
-        QDesktopServices.openUrl(QUrl.fromLocalFile(ddir))
+        open_folder_in_file_manager(ddir)
 
     def _open_downloaded_file(self, path: str) -> None:
         import os
@@ -1142,16 +1161,72 @@ class BrowserWindow(QMainWindow):
                 self.download_manager.show()
 
     def _on_download_requested(self, item) -> None:
-        current_view = self.tab_manager.get_current_view()
-        active_tab_id = self.tab_manager.active_tab_id
-        if current_view and active_tab_id in self.tab_manager.tabs and len(self.tab_manager.tabs) > 1:
-            c_url = current_view.url().toString()
-            req_url = item.url().toString()
-            hist = current_view.history()
-            can_go_back = hist.canGoBack() if hist else False
-            if not can_go_back and (c_url in [req_url, "about:blank"] or (c_url in req_url and len(c_url) > 10) or req_url.startswith(c_url.split("?")[0])):
-                QTimer.singleShot(350, lambda: self.tab_manager.close_tab(active_tab_id))
+        url_str = item.url().toString()
+        filename = item.downloadFileName()
+        if filename.endswith(".user.js") or url_str.endswith(".user.js") or ".user.js?" in url_str:
+            item.cancel()
+            self._prompt_install_userscript(url_str, filename)
+            return
         self.download_manager.handle_download(item)
+
+    def _prompt_install_userscript(self, url_str: str, filename: str) -> None:
+        import html
+        import urllib.request
+        from PyQt6.QtWidgets import QMessageBox
+        from PyQt6.QtCore import QThread, pyqtSignal
+
+        class UserscriptFetchThread(QThread):
+            success = pyqtSignal(str, str, str)
+            failed = pyqtSignal(str)
+
+            def __init__(self, u, fn):
+                super().__init__()
+                self.u = u
+                self.fn = fn
+
+            def run(self):
+                try:
+                    req = urllib.request.Request(self.u, headers={"User-Agent": "Mozilla/5.0 Zephyrium/1.3.6"})
+                    with urllib.request.urlopen(req, timeout=12) as resp:
+                        code = resp.read().decode("utf-8", errors="replace")
+                        self.success.emit(self.u, self.fn, code)
+                except Exception as e:
+                    self.failed.emit(str(e))
+
+        def _on_success(u, fn, code):
+            if not code or not code.strip():
+                self._show_status_message("Ошибка: файл скрипта пуст")
+                return
+            meta = self.profile_manager.userscript_manager.parse_userscript_metadata(code)
+            name = meta.get("name") or fn
+            ver = meta.get("version") or "1.0"
+            desc = meta.get("description") or "Без описания"
+            matches = ", ".join(meta.get("matches", [])) or "Все сайты (*)"
+
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Установка скрипта // Zephyrium")
+            msg.setText(f"<b>Установить пользовательский скрипт?</b><br><br>"
+                        f"<b>Название:</b> {html.escape(name)}<br>"
+                        f"<b>Версия:</b> {html.escape(ver)}<br>"
+                        f"<b>Сайты:</b> <code>{html.escape(matches)}</code><br>"
+                        f"<b>Описание:</b> {html.escape(desc)}")
+            msg.setIcon(QMessageBox.Icon.Question)
+            btn_install = msg.addButton("Установить", QMessageBox.ButtonRole.AcceptRole)
+            btn_cancel = msg.addButton("Отмена", QMessageBox.ButtonRole.RejectRole)
+            msg.exec()
+
+            if msg.clickedButton() == btn_install:
+                clean_name = fn if fn.endswith(".user.js") else f"{name}.user.js"
+                self.profile_manager.userscript_manager.save_script(clean_name, code)
+                self._show_status_message(f"✓ Скрипт '{name}' успешно установлен в Zephyrium")
+
+        def _on_failed(err):
+            self._show_status_message(f"Ошибка загрузки скрипта: {err}")
+
+        self._us_fetcher = UserscriptFetchThread(url_str, filename)
+        self._us_fetcher.success.connect(_on_success)
+        self._us_fetcher.failed.connect(_on_failed)
+        self._us_fetcher.start()
 
     def _update_topbar_overflow(self) -> None:
         if not hasattr(self, "btn_more") or not hasattr(self, "url_bar"):
@@ -1404,8 +1479,19 @@ class BrowserWindow(QMainWindow):
             pass
         view.loadFinished.connect(self._on_view_load_finished)
 
+        # Switch DevTools target to the newly active tab
+        if hasattr(self, "devtools_dock") and self.devtools_dock.isVisible():
+            if view and hasattr(view, "page"):
+                view.page().setDevToolsPage(self.devtools_view.page())
+                host = view.url().host() or "Local Page"
+                self.devtools_title.setText(f"🛠 DevTools — {host}")
+
         # Sync active URL in omnibar and ensure beginning of URL is visible
         cur_u = view.url().toString()
+        active_tab = self.tab_manager.tabs.get(self.tab_manager.active_tab_id)
+        saved_u = getattr(active_tab, "url", "") if active_tab else ""
+        if cur_u.startswith("data:"):
+            cur_u = saved_u or "zephyrium://startpage"
         if "startpage" in cur_u:
             self.url_bar.setText("zephyrium://startpage")
         elif "welcome" in cur_u:
@@ -1501,15 +1587,14 @@ class BrowserWindow(QMainWindow):
             QApplication.clipboard().setText(param)
             self._show_status_message(f"Copied: {param}")
         elif action == "snooze_tab":
-            self.tab_manager.suspend_tab(self.tab_manager.active_tab_id)
-            self._show_status_message("Tab hibernated (💤 RAM saved)")
+            self._show_status_message("Активную вкладку нельзя усыпить (выберите фоновую вкладку)")
         elif action == "snooze_others":
             count = 0
             for tid in list(self.tab_manager.tabs.keys()):
                 if tid != self.tab_manager.active_tab_id:
-                    self.tab_manager.suspend_tab(tid)
-                    count += 1
-            self._show_status_message(f"Hibernated {count} background tabs")
+                    if self.tab_manager.suspend_tab(tid):
+                        count += 1
+            self._show_status_message(f"Усыплено фоновых вкладок: {count} (💤 ОЗУ освобождено)")
         elif action == "wake_all":
             for tid in list(self.tab_manager.tabs.keys()):
                 self.tab_manager.wake_tab(tid)
@@ -1540,6 +1625,200 @@ class BrowserWindow(QMainWindow):
     def show_onboarding(self) -> None:
         dlg = OnboardingDialog(self)
         dlg.exec()
+
+    def _open_new_window(self) -> None:
+        new_win = BrowserWindow(is_incognito=False)
+        if not hasattr(self, "_sub_windows"):
+            self._sub_windows = []
+        self._sub_windows.append(new_win)
+        new_win.show()
+
+    def _show_shortcuts_dialog(self) -> None:
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextBrowser, QPushButton, QHBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Горячие клавиши // Zephyrium")
+        dlg.setFixedSize(540, 520)
+        dlg.setStyleSheet("""
+            QDialog { background-color: #18181b; border: 1px solid #3f3f46; }
+            QLabel { color: #fe8019; font-family: monospace; font-weight: bold; font-size: 13px; }
+            QTextBrowser { background-color: #262624; border: 1px solid #3f3f46; color: #d4d4d8; font-family: monospace; font-size: 11px; }
+            QPushButton { background-color: #262624; border: 1px solid #fe8019; color: #fe8019; font-family: monospace; font-weight: bold; padding: 6px 14px; }
+            QPushButton:hover { background-color: #fe8019; color: #18181b; }
+        """)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(10)
+        title = QLabel("⌨️ СПРАВКА ПО ГОРЯЧИМ КЛАВИШАМ")
+        lay.addWidget(title)
+
+        tb = QTextBrowser(dlg)
+        html_keys = """
+        <table style='width:100%; border-collapse:collapse; color:#d4d4d8; font-family:monospace;'>
+            <tr style='border-bottom:1px solid #3f3f46; color:#fe8019;'>
+                <th style='padding:6px; text-align:left;'>КОМБИНАЦИЯ</th>
+                <th style='padding:6px; text-align:left;'>ДЕЙСТВИЕ</th>
+            </tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + T</b></td><td>Новая вкладка</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + W</b></td><td>Закрыть активную вкладку</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + N</b></td><td>Новое окно</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + N</b></td><td>Новое окно инкогнито</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + K / Ctrl + L</b></td><td>Палитра команд / Фокус адресной строки</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + F</b></td><td>Поиск на странице</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>F12 / Ctrl + Shift + I</b></td><td>Инструменты разработчика (DevTools)</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Shift + Esc</b></td><td>Диспетчер задач браузера (Tasks)</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + B</b></td><td>Панель AI-ассистента и заметок</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + D</b></td><td>Всплывающее окно загрузок</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + H</b></td><td>История посещений</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + O</b></td><td>Панель закладок</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Alt + R</b></td><td>Режим чтения (Reader Mode)</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Alt + P</b></td><td>Картинка в картинке (PiP видео)</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + [</b></td><td>Свернуть/развернуть боковую панель</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + \\</b></td><td>Разделить экран (Split View)</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>F11</b></td><td>Полноэкранный режим</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + ,</b></td><td>Настройки браузера</td></tr>
+            <tr style='border-top:1px solid #3f3f46;'><td colspan='2' style='padding-top:8px; color:#fe8019;'><b>КОМАНДЫ VIM MODE:</b></td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>j / k</b></td><td>Прокрутка вниз / вверх</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>d / u</b></td><td>Прокрутка на полстраницы вниз / вверх</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>gg / G</b></td><td>В самое начало / конец страницы</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>t / x</b></td><td>Новая вкладка / Закрыть вкладку</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>J / K</b></td><td>Следующая / Предыдущая вкладка</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>o / :</b></td><td>Открыть адрес или команду</td></tr>
+        </table>
+        """
+        tb.setHtml(html_keys)
+        lay.addWidget(tb)
+
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        btn_close = QPushButton("ЗАКРЫТЬ")
+        btn_close.clicked.connect(dlg.accept)
+        btn_box.addWidget(btn_close)
+        lay.addLayout(btn_box)
+        dlg.exec()
+
+    def _show_main_browser_menu(self) -> None:
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtCore import QPoint
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #18181b;
+                border: 1px solid #3f3f46;
+                color: #d4d4d8;
+                font-family: monospace;
+                font-size: 11px;
+                padding: 6px;
+            }
+            QMenu::item {
+                padding: 6px 20px 6px 14px;
+            }
+            QMenu::item:selected {
+                background-color: #262624;
+                color: #fe8019;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #27272a;
+                margin: 4px 6px;
+            }
+        """)
+
+        # Quick Actions
+        act_reader = menu.addAction("📖 Режим чтения / Reader (Ctrl+Alt+R)")
+        act_reader.triggered.connect(self._on_reader_mode_clicked)
+
+        act_pip = menu.addAction("⧉ Картинка в картинке / PiP (Ctrl+Alt+P)")
+        act_pip.triggered.connect(self._on_pip_clicked)
+
+        # Tab Orientation Submenu
+        tab_menu = menu.addMenu("📑 Расположение вкладок")
+        act_vert = tab_menu.addAction("✓ Вертикальные (слева)" if self.tab_orientation == "vertical" else "  Вертикальные (слева)")
+        act_vert.triggered.connect(lambda: self.set_tab_orientation("vertical"))
+        act_horiz = tab_menu.addAction("✓ Горизонтальные (сверху)" if self.tab_orientation == "horizontal" else "  Горизонтальные (сверху)")
+        act_horiz.triggered.connect(lambda: self.set_tab_orientation("horizontal"))
+
+        # UI Mode Submenu
+        ui_menu = menu.addMenu("🌓 Режим интерфейса")
+        act_min = ui_menu.addAction("✓ Обычный (Minimal)" if self.ui_mode == "minimal" else "  Обычный (Minimal)")
+        act_min.triggered.connect(lambda: self.switch_ui_mode("minimal"))
+        act_vim = ui_menu.addAction("✓ Vim Mode (без рамок)" if self.ui_mode == "vim" else "  Vim Mode (без рамок)")
+        act_vim.triggered.connect(lambda: self.switch_ui_mode("vim"))
+
+        # Windows & Tabs
+        menu.addSeparator()
+        act_new_tab = menu.addAction("➕ Новая вкладка (Ctrl+T)")
+        act_new_tab.triggered.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "zephyrium://startpage")))
+
+        # Container Submenu
+        from config import CONTAINERS
+        cont_menu = menu.addMenu("📦 Вкладка в контейнере")
+        for ck, cinfo in CONTAINERS.items():
+            badge = cinfo.get("badge", ck.upper())
+            name = cinfo.get("name", ck.capitalize())
+            act_c = cont_menu.addAction(f"[{badge}] {name}")
+            act_c.triggered.connect(lambda checked, c_id=ck: self.tab_manager.create_tab("zephyrium://startpage", container_id=c_id))
+
+        act_new_win = menu.addAction("🗔 Новое окно (Ctrl+N)")
+        act_new_win.triggered.connect(self._open_new_window)
+
+        act_incog = menu.addAction("🕵️ Новое окно инкогнито (Ctrl+Shift+N)")
+        act_incog.triggered.connect(self._open_incognito_window)
+
+        # View & Tools
+        menu.addSeparator()
+        act_find = menu.addAction("🔍 Поиск на странице (Ctrl+F)")
+        act_find.triggered.connect(self._toggle_find_in_page)
+
+        act_tasks = menu.addAction("⚡ Диспетчер задач (Shift+Esc)")
+        act_tasks.triggered.connect(lambda: self.tab_manager.create_tab("zephyrium://tasks"))
+
+        act_devtools = menu.addAction("🛠 Инструменты разработчика (F12)")
+        act_devtools.triggered.connect(self._toggle_devtools)
+
+        act_viewport = menu.addAction("📱 Мобильный эмулятор / Viewport")
+        act_viewport.triggered.connect(self._toggle_viewport_bar)
+
+        act_snooze_others = menu.addAction("💤 Усыпить фоновые вкладки (RAM)")
+        act_snooze_others.triggered.connect(lambda: self._handle_command_action("snooze_others", ""))
+
+        act_wake_all = menu.addAction("⏰ Разбудить все вкладки")
+        act_wake_all.triggered.connect(lambda: self._handle_command_action("wake_all", ""))
+
+        # Data & Panels
+        menu.addSeparator()
+        act_dl = menu.addAction("⬇️ Загрузки (Ctrl+Shift+D)")
+        act_dl.triggered.connect(self._toggle_downloads)
+
+        act_hist = menu.addAction("📜 История (Ctrl+H)")
+        act_hist.triggered.connect(self._open_full_history)
+
+        act_bm = menu.addAction("⭐ Закладки (Ctrl+Shift+O)")
+        act_bm.triggered.connect(self._toggle_bookmarks_panel)
+
+        act_ai = menu.addAction("🤖 AI-ассистент (Ctrl+B)")
+        act_ai.triggered.connect(self._toggle_sidebar)
+
+        act_adblock = menu.addAction(f"🛡️ Блокировщик рекламы ({getattr(self.adblocker, 'blocked_count', 0)} заблок.)")
+        act_adblock.triggered.connect(self._show_adblock_menu)
+
+        # System & Settings
+        menu.addSeparator()
+        act_keys = menu.addAction("⌨️ Горячие клавиши (Справка)")
+        act_keys.triggered.connect(self._show_shortcuts_dialog)
+
+        act_palette = menu.addAction("⌘ Палитра команд (Ctrl+K)")
+        act_palette.triggered.connect(self._open_command_palette)
+
+        menu.addSeparator()
+        act_settings = menu.addAction("⚙️ Настройки браузера (Ctrl+,)")
+        act_settings.triggered.connect(self.open_settings)
+
+        btn = getattr(self, "btn_menu", getattr(self, "btn_settings", None))
+        if btn:
+            menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 2)))
+        else:
+            from PyQt6.QtGui import QCursor
+            menu.exec(QCursor.pos())
 
     def open_settings(self, tab: str = "") -> None:
         target_url = "zephyrium://settings"
@@ -1766,8 +2045,10 @@ class BrowserWindow(QMainWindow):
 
     def _init_devtools_dock(self) -> None:
         from PyQt6.QtWebEngineWidgets import QWebEngineView
+        from PyQt6.QtGui import QColor
         self.devtools_dock = QWidget()
-        self.devtools_dock.setFixedHeight(300)
+        self.devtools_dock.setMinimumHeight(120)
+        self.devtools_dock.setStyleSheet("background: #18181b;")
         dt_layout = QVBoxLayout(self.devtools_dock)
         dt_layout.setContentsMargins(0, 0, 0, 0)
         dt_layout.setSpacing(0)
@@ -1779,35 +2060,83 @@ class BrowserWindow(QMainWindow):
         h_layout.setContentsMargins(8, 0, 8, 0)
 
         self.devtools_title = QLabel("🛠 DevTools (Chromium Inspector)")
-        self.devtools_title.setStyleSheet("color: #fe8019; font-weight: bold; font-size: 11px;")
+        self.devtools_title.setStyleSheet("color: #fe8019; font-weight: bold; font-size: 11px; font-family: monospace;")
         h_layout.addWidget(self.devtools_title)
         h_layout.addStretch()
 
         btn_close_dt = QPushButton("✕")
-        btn_close_dt.setFixedSize(20, 20)
+        btn_close_dt.setFixedSize(22, 22)
         btn_close_dt.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_close_dt.setStyleSheet("border: none; color: #a1a1aa; font-weight: bold;")
-        btn_close_dt.clicked.connect(self._toggle_devtools)
+        btn_close_dt.setStyleSheet("""
+            QPushButton {
+                border: 1px solid #3f3f46;
+                color: #a1a1aa;
+                font-weight: bold;
+                font-size: 11px;
+                background: #262624;
+                border-radius: 0px;
+            }
+            QPushButton:hover {
+                color: #ffffff;
+                background: #ef4444;
+                border-color: #ef4444;
+            }
+        """)
+        btn_close_dt.clicked.connect(self.close_devtools)
         h_layout.addWidget(btn_close_dt)
 
         dt_layout.addWidget(header)
         self.devtools_view = QWebEngineView()
+        self.devtools_view.page().setBackgroundColor(QColor("#18181b"))
+        self.devtools_view.loadFinished.connect(self._apply_devtools_theme)
         dt_layout.addWidget(self.devtools_view)
         self.devtools_dock.hide()
 
+    def _apply_devtools_theme(self, ok: bool) -> None:
+        js = """
+        (function() {
+            try {
+                if (window.Common && window.Common.settings) {
+                    window.Common.settings.createSetting('uiTheme', 'dark').set('dark');
+                }
+            } catch(e) {}
+            try {
+                if (window.DevToolsAPI && DevToolsAPI.setPreference) {
+                    DevToolsAPI.setPreference('uiTheme', '"dark"');
+                }
+            } catch(e) {}
+        })();
+        """
+        if self.devtools_view and self.devtools_view.page():
+            self.devtools_view.page().runJavaScript(js)
+
+    def open_devtools(self, inspect: bool = False) -> None:
+        v = self.tab_manager.get_current_view()
+        if not v or not v.page():
+            return
+        v.page().setDevToolsPage(self.devtools_view.page())
+        host = v.url().host() or "Local Page"
+        self.devtools_title.setText(f"🛠 DevTools — {host}")
+        self.devtools_dock.show()
+        if hasattr(self, "main_vertical_splitter"):
+            total_h = self.main_vertical_splitter.height() or 800
+            dt_h = max(240, int(total_h * 0.35))
+            self.main_vertical_splitter.setSizes([total_h - dt_h, dt_h])
+        if inspect:
+            from PyQt6.QtWebEngineCore import QWebEnginePage
+            v.triggerPageAction(QWebEnginePage.WebAction.InspectElement)
+
+    def close_devtools(self) -> None:
+        self.devtools_dock.hide()
+        v = self.tab_manager.get_current_view()
+        if v and v.page():
+            v.page().setDevToolsPage(None)
+
     def _toggle_devtools(self) -> None:
         if self.devtools_dock.isVisible():
-            self.devtools_dock.hide()
-            v = self.tab_manager.get_current_view()
-            if v and v.page():
-                v.page().setDevToolsPage(None)
+            self.close_devtools()
         else:
-            v = self.tab_manager.get_current_view()
-            if v and v.page():
-                v.page().setDevToolsPage(self.devtools_view.page())
-                host = v.url().host() or "Local Page"
-                self.devtools_title.setText(f"🛠 DevTools — {host}")
-                self.devtools_dock.show()
+            self.open_devtools()
 
     # --- VIM MODE SUPPORT ---
     def keyPressEvent(self, event: QKeyEvent):

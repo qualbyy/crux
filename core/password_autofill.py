@@ -141,12 +141,11 @@ class PasswordAutofillManager:
 
     @staticmethod
     def get_matches_for_url(url: str) -> List[Dict]:
-        if not url or url.startswith("zephyrium://") or url.startswith("zinc://") or url.startswith("about:"):
+        if not url or url.startswith(("zephyrium://", "zinc://", "about:", "data:", "chrome://")):
             return []
         
         try:
-            parsed = urllib.parse.urlparse(url)
-            host = parsed.netloc.lower()
+            host = PasswordAutofillManager._extract_domain(url)
             if not host:
                 return []
             
@@ -160,13 +159,13 @@ class PasswordAutofillManager:
                 entry_url = entry.get("url", "")
                 if not entry_url:
                     continue
-                try:
-                    entry_parsed = urllib.parse.urlparse(entry_url)
-                    entry_host = entry_parsed.netloc.lower()
-                    if host in entry_host or entry_host in host or root_domain in entry_host:
-                        matches.append(entry)
-                except Exception:
+                entry_domain = PasswordAutofillManager._extract_domain(entry_url)
+                if not entry_domain:
                     continue
+                entry_parts = entry_domain.split(".")
+                entry_root = ".".join(entry_parts[-2:]) if len(entry_parts) >= 2 else entry_domain
+                if host == entry_domain or host.endswith("." + entry_domain) or entry_domain.endswith("." + host) or (root_domain and root_domain == entry_root):
+                    matches.append(entry)
             return matches
         except Exception as e:
             print(f"[Autofill] Error matching URL: {e}")
@@ -190,7 +189,7 @@ class PasswordAutofillManager:
             // Helper to set value with React / Vue / Google Closure setter triggers
             function setNativeInputValue(element, val) {{
                 if (!element || val === undefined || val === null) return;
-                element.focus();
+                try {{ element.focus(); }} catch(e) {{}}
                 const prototype = window.HTMLInputElement.prototype;
                 const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
                 if (setter) {{
@@ -199,6 +198,9 @@ class PasswordAutofillManager:
                     element.value = val;
                 }}
                 element.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                try {{
+                    element.dispatchEvent(new InputEvent('input', {{ bubbles: true, composed: true, inputType: 'insertText', data: val }}));
+                }} catch(e) {{}}
                 element.dispatchEvent(new Event('change', {{ bubbles: true, composed: true }}));
                 element.dispatchEvent(new KeyboardEvent('keydown', {{ bubbles: true, cancelable: true }}));
                 element.dispatchEvent(new KeyboardEvent('keyup', {{ bubbles: true, cancelable: true }}));
@@ -231,25 +233,31 @@ class PasswordAutofillManager:
                 return false;
             }}
 
+            function isVisible(el) {{
+                if (!el) return false;
+                const s = window.getComputedStyle(el);
+                if (s.display === 'none' || s.visibility === 'hidden') return false;
+                const r = el.getBoundingClientRect();
+                return (r.width > 0 && r.height > 0) || el.id === 'identifierId' || el.type === 'password' || (el.name && el.name.toLowerCase() === 'passwd');
+            }}
+
             function findLoginInputs() {{
-                const allPwds = Array.from(document.querySelectorAll('input[type="password"]')).filter(el => {{
-                    const s = window.getComputedStyle(el);
-                    return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null;
+                const allPwds = Array.from(document.querySelectorAll('input[type="password"], input[name="Passwd" i], input[autocomplete*="password" i]')).filter(el => {{
+                    return isVisible(el);
                 }});
 
                 const url = window.location.href.toLowerCase();
                 const isAuthUrl = /accounts\\.google\\.com|login|signin|sign-in|auth|identifier|session|authorize|oauth|account|log-in|v3\\/signin/i.test(url);
 
                 const userCandidates = Array.from(document.querySelectorAll(
-                    'input[id="identifierId"], input[autocomplete="username"], input[autocomplete="email"], ' +
-                    'input[type="email"], input[name="identifier"], input[name="login"], input[name="username"], ' +
-                    'input[name="user"], input[name="email"], input[id="login_field"], input[id="user_login"], ' +
-                    'input[id="username"], input[id*="username" i], input[id*="login" i], input[name*="username" i], ' +
-                    'input[name*="login" i], input[name*="user" i]'
+                    'input#identifierId, input[name="identifier"], input[type="email"], ' +
+                    'input[autocomplete="username"], input[autocomplete="email"], ' +
+                    'input[name="login"], input[name="username"], input[name="user"], input[name="email"], ' +
+                    'input#login_field, input#user_login, input#username, ' +
+                    'input[id*="username" i], input[id*="login" i], input[name*="username" i], input[name*="login" i]'
                 )).filter(el => {{
                     if (isSearchInput(el)) return false;
-                    const s = window.getComputedStyle(el);
-                    return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null;
+                    return isVisible(el);
                 }});
 
                 // Guard: If there is no password input AND this is not an auth URL, AND no explicit Google identifier/username attribute, ignore!
@@ -269,7 +277,7 @@ class PasswordAutofillManager:
                         const formInputs = Array.from(form.querySelectorAll('input')).filter(el => !isSearchInput(el) && el !== primaryPwd);
                         const found = formInputs.find(el => {{
                             const t = (el.type || 'text').toLowerCase();
-                            return ['text', 'email', 'tel'].includes(t);
+                            return ['text', 'email', 'tel'].includes(t) && isVisible(el);
                         }});
                         if (found) primaryUser = found;
                     }}
@@ -278,6 +286,9 @@ class PasswordAutofillManager:
                 if (!primaryUser && userCandidates.length > 0) {{
                     primaryUser = userCandidates[0];
                 }}
+
+                return {{ userInput: primaryUser, pwdInput: primaryPwd }};
+            }}
 
                 return {{ userInput: primaryUser, pwdInput: primaryPwd }};
             }}
@@ -409,8 +420,49 @@ class PasswordAutofillManager:
                 const {{ userInput, pwdInput }} = findLoginInputs();
                 if (!userInput && !pwdInput) return;
 
-                // 1. Datalist for native autocomplete
-                if (userInput) {{
+                const primaryCred = credentials[0];
+
+                // Auto-fill username if available and not yet filled
+                if (userInput && !userInput.__z_autofilled) {{
+                    if (!userInput.value && primaryCred.username) {{
+                        setNativeInputValue(userInput, primaryCred.username);
+                        userInput.__z_autofilled = true;
+                        window.__zephyrium_active_user = primaryCred.username;
+                        try {{
+                            sessionStorage.setItem('__zephyrium_last_user', primaryCred.username);
+                            if (primaryCred.password) {{
+                                sessionStorage.setItem('__zephyrium_last_pass', primaryCred.password);
+                            }}
+                        }} catch(e) {{}}
+                    }}
+                }}
+
+                // Auto-fill password if available
+                if (pwdInput && !pwdInput.__z_autofilled) {{
+                    let passToFill = '';
+                    if (userInput && primaryCred.password) {{
+                        passToFill = primaryCred.password;
+                    }} else if (!userInput) {{
+                        // Multi-step form (e.g. Google login step 2)
+                        let lastUser = '';
+                        try {{
+                            lastUser = sessionStorage.getItem('__zephyrium_last_user') || window.__zephyrium_active_user || '';
+                            passToFill = sessionStorage.getItem('__zephyrium_last_pass') || '';
+                        }} catch(e) {{}}
+                        if (!passToFill) {{
+                            const match = credentials.find(c => c.username === lastUser) || primaryCred;
+                            if (match && match.password) passToFill = match.password;
+                        }}
+                    }}
+                    if (passToFill && !pwdInput.value) {{
+                        setNativeInputValue(pwdInput, passToFill);
+                        pwdInput.__z_autofilled = true;
+                    }}
+                }}
+
+                // Datalist and interaction listeners
+                if (userInput && !userInput.__z_listener_attached) {{
+                    userInput.__z_listener_attached = true;
                     let dl = document.getElementById('__zephyrium_datalist__');
                     if (!dl) {{
                         dl = document.createElement('datalist');
@@ -443,22 +495,17 @@ class PasswordAutofillManager:
                     }});
                 }}
 
-                if (pwdInput && !userInput) {{
-                    // Single password step (e.g. step 2 on Google/Microsoft)
-                    let lastUser = '';
-                    try {{
-                        lastUser = sessionStorage.getItem('__zephyrium_last_user') || window.__zephyrium_active_user || '';
-                    }} catch (e) {{}}
-                    
+                if (pwdInput && !pwdInput.__z_listener_attached) {{
+                    pwdInput.__z_listener_attached = true;
                     pwdInput.addEventListener('focus', function() {{
-                        renderDropdown(pwdInput, null, pwdInput);
+                        renderDropdown(pwdInput, userInput, pwdInput);
                     }});
+                    pwdInput.addEventListener('click', function() {{
+                        renderDropdown(pwdInput, userInput, pwdInput);
+                    }});
+                }}
 
-                    const match = credentials.find(c => c.username === lastUser) || credentials[0];
-                    if (match && match.password) {{
-                        renderFloatingPill(null, pwdInput);
-                    }}
-                }} else if (userInput) {{
+                if (userInput || pwdInput) {{
                     renderFloatingPill(userInput, pwdInput);
                 }}
             }}

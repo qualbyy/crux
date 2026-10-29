@@ -61,12 +61,12 @@ def test_v135():
     print(f"[TEST 1.3.5] Starting comprehensive verification suite for v{APP_VERSION}...")
 
     # 1. Version check
-    assert APP_VERSION == "1.3.5", f"Expected APP_VERSION == 1.3.5, got {APP_VERSION}"
+    assert APP_VERSION in ["1.3.5", "1.3.6"], f"Expected APP_VERSION >= 1.3.5, got {APP_VERSION}"
     iss_content = (PROJECT_ROOT / "installer.iss").read_text(encoding="utf-8")
-    assert '#define MyAppVersion "1.3.5"' in iss_content, "installer.iss version mismatch"
+    assert any(v in iss_content for v in ['#define MyAppVersion "1.3.5"', '#define MyAppVersion "1.3.6"']), "installer.iss version mismatch"
     settings_html = (PROJECT_ROOT / "resources" / "settings.html").read_text(encoding="utf-8")
-    assert "1.3.5 (Release)" in settings_html, "settings.html version mismatch"
-    print("  ✓ 1. Version 1.3.5 verified across config.py, installer.iss, settings.html")
+    assert any(v in settings_html for v in ["1.3.5 (Release)", "1.3.6 (Release)"]), "settings.html version mismatch"
+    print(f"  ✓ 1. Version {APP_VERSION} verified across config.py, installer.iss, settings.html")
 
     # 2. Atomic JSON file writes
     with tempfile.TemporaryDirectory() as td:

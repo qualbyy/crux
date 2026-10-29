@@ -548,6 +548,9 @@
                 <button class="tab-btn" data-tab="extensions" onclick="switchTab('extensions')">
                     [09] EXTENSIONS
                 </button>
+                <button class="tab-btn" data-tab="containers" onclick="switchTab('containers')" data-i18n="tab_containers">
+                    [10] CONTAINERS
+                </button>
             </div>
 
             <!-- Tab Contents -->
@@ -902,28 +905,67 @@
                 <!-- AI ASSISTANT -->
                 <div id="tab-ai" class="tab-content">
                     <div class="section-header">
-                        <h2 data-i18n="header_ai">GEMINI AI ASSISTANT</h2>
-                        <p data-i18n="desc_ai">Direct API integration, dynamic model selection, and prompt configuration.</p>
+                        <h2 data-i18n="header_ai">AI ASSISTANT // GEMINI & OLLAMA</h2>
+                        <p data-i18n="desc_ai">Cloud Google Gemini and local Ollama inference, model parameters, and system prompts.</p>
                     </div>
 
                     <div class="form-row">
                         <div class="label-wrap">
-                            <span class="label-title" data-i18n="lbl_gemini_key">Gemini API Key</span>
-                            <span class="label-desc" data-i18n="desc_gemini_key">Google AI Studio API key used for in-browser sidebar inference.</span>
+                            <span class="label-title" data-i18n="lbl_ai_provider">AI Provider</span>
+                            <span class="label-desc" data-i18n="desc_ai_provider">Select Google Gemini (cloud) or Ollama (offline local model).</span>
                         </div>
-                        <input type="password" id="setting-gemini-key" placeholder="AQ.Ab8... / AIzaSy..." style="width: 320px;" data-i18n="placeholder_gemini_key">
-                    </div>
-
-                    <div class="form-row">
-                        <div class="label-wrap">
-                            <span class="label-title" data-i18n="lbl_ai_model">Active AI Model</span>
-                            <span class="label-desc" data-i18n="desc_ai_model">Recommended: gemini-2.5-flash for fastest speed and high reasoning.</span>
-                        </div>
-                        <select id="setting-ai-model" style="width: 240px;">
-                            <option value="gemini-2.5-flash">gemini-2.5-flash [RECOMMENDED]</option>
-                            <option value="gemini-flash-lite-latest">gemini-flash-lite-latest [LIGHT & FAST]</option>
-                            <option value="gemini-2.5-pro">gemini-2.5-pro [DEEP REASONING]</option>
+                        <select id="setting-ai-provider" style="width: 260px;" onchange="toggleAIProviderUI()">
+                            <option value="gemini">Google Gemini (Cloud)</option>
+                            <option value="ollama">Ollama (Local / Self-hosted)</option>
                         </select>
+                    </div>
+
+                    <!-- GEMINI BLOCK -->
+                    <div id="block-gemini">
+                        <div class="form-row">
+                            <div class="label-wrap">
+                                <span class="label-title" data-i18n="lbl_gemini_key">Gemini API Key</span>
+                                <span class="label-desc" data-i18n="desc_gemini_key">Google AI Studio API key used for in-browser sidebar inference.</span>
+                            </div>
+                            <input type="password" id="setting-gemini-key" placeholder="AQ.Ab8... / AIzaSy..." style="width: 320px;" data-i18n="placeholder_gemini_key">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="label-wrap">
+                                <span class="label-title" data-i18n="lbl_ai_model">Gemini Model</span>
+                                <span class="label-desc" data-i18n="desc_ai_model">Recommended: gemini-2.5-flash for fastest speed and high reasoning.</span>
+                            </div>
+                            <select id="setting-ai-model" style="width: 260px;">
+                                <option value="gemini-2.5-flash">gemini-2.5-flash [RECOMMENDED]</option>
+                                <option value="gemini-flash-lite-latest">gemini-flash-lite-latest [LIGHT & FAST]</option>
+                                <option value="gemini-2.5-pro">gemini-2.5-pro [DEEP REASONING]</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- OLLAMA BLOCK -->
+                    <div id="block-ollama" style="border: 1px solid var(--border-muted); background: #1c1c1f; padding: 14px; margin: 12px 0;">
+                        <div style="font-weight: bold; color: var(--accent); margin-bottom: 10px; font-size: 11px; letter-spacing: 0.5px;">OLLAMA LOCAL LLM CONFIGURATION</div>
+                        <div class="form-row">
+                            <div class="label-wrap">
+                                <span class="label-title" data-i18n="lbl_ollama_url">Ollama Server URL</span>
+                                <span class="label-desc" data-i18n="desc_ollama_url">Address of local Ollama daemon (default: http://localhost:11434).</span>
+                            </div>
+                            <input type="text" id="setting-ollama-url" value="http://localhost:11434" style="width: 320px;" placeholder="http://localhost:11434">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="label-wrap">
+                                <span class="label-title" data-i18n="lbl_ollama_model">Ollama Model</span>
+                                <span class="label-desc" data-i18n="desc_ollama_model">Local model name (e.g. llama3, mistral, deepseek-r1, qwen2.5).</span>
+                            </div>
+                            <input type="text" id="setting-ollama-model" value="llama3" style="width: 260px;" placeholder="llama3">
+                        </div>
+
+                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 12px;">
+                            <button class="btn-action" type="button" onclick="testOllamaConnection()" style="border-color: var(--accent); color: var(--accent);" data-i18n="btn_test_ollama">ПРОВЕРИТЬ СОЕДИНЕНИЕ OLLAMA</button>
+                            <span id="ollama-status-badge" style="font-size: 11px; font-family: monospace; color: #71717a;">Статус: Не проверено</span>
+                        </div>
                     </div>
 
                     <div class="form-group" style="margin-top: 10px;">
@@ -1010,7 +1052,7 @@
                             Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
                         </p>
                         <p>
-                            <span data-i18n="about_version">Version:</span> <strong>1.3.5 (Release)</strong><br>
+                            <span data-i18n="about_version">Version:</span> <strong>1.3.6 (Release)</strong><br>
                             <span data-i18n="about_engine">Engine:</span> <strong>Chromium // Qt6WebEngine</strong><br>
                             <span data-i18n="about_arch">Architecture:</span> <strong>x86_64 Desktop</strong>
                         </p>
@@ -1050,6 +1092,73 @@
                         <div id="userstyles-list" style="border: 1px solid var(--border-muted); background: var(--bg-base); padding: 8px; min-height: 60px;">
                             <div style="color: var(--text-muted); font-size: 11px;">Нет установленных .user.css стилей</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- CONTAINERS -->
+                <div id="tab-containers" class="tab-content">
+                    <div class="section-header">
+                        <h2 data-i18n="header_containers">МУЛЬТИАККАУНТНЫЕ КОНТЕЙНЕРЫ</h2>
+                        <p data-i18n="desc_containers">Полная изоляция cookie, сессий и хранилища между контекстами в одном окне.</p>
+                    </div>
+
+                    <div style="font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
+                        <p>
+                            Контейнеры позволяют разделять профили работы, личных дел, банков и покупок. 
+                            Каждый контейнер использует независимый профиль Chromium (cookie, LocalStorage, IndexedDB),
+                            предотвращая отслеживание между сайтами и позволяя находиться под разными аккаунтами одновременно.
+                        </p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 24px;">
+                        <div style="border: 1px solid #38bdf8; background: #18181b; padding: 14px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background: #38bdf8;"></span>
+                                <strong style="color: #38bdf8; font-size: 12px;">ЛИЧНЫЙ (PERSONAL)</strong>
+                            </div>
+                            <div style="font-size: 11px; color: #a1a1aa;">Повседневный веб-серфинг, социальные сети, личная почта.</div>
+                        </div>
+
+                        <div style="border: 1px solid #fe8019; background: #18181b; padding: 14px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background: #fe8019;"></span>
+                                <strong style="color: #fe8019; font-size: 12px;">РАБОТА (WORK)</strong>
+                            </div>
+                            <div style="font-size: 11px; color: #a1a1aa;">Корпоративные почты, Jira, GitHub, рабочие сервисы.</div>
+                        </div>
+
+                        <div style="border: 1px solid #10b981; background: #18181b; padding: 14px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background: #10b981;"></span>
+                                <strong style="color: #10b981; font-size: 12px;">БАНКИНГ (BANKING)</strong>
+                            </div>
+                            <div style="font-size: 11px; color: #a1a1aa;">Финансовые операции, банковские кабинеты, платежные шлюзы.</div>
+                        </div>
+
+                        <div style="border: 1px solid #a855f7; background: #18181b; padding: 14px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background: #a855f7;"></span>
+                                <strong style="color: #a855f7; font-size: 12px;">ШОПИНГ (SHOPPING)</strong>
+                            </div>
+                            <div style="font-size: 11px; color: #a1a1aa;">Маркетплейсы, интернет-магазины, программы лояльности.</div>
+                        </div>
+
+                        <div style="border: 1px solid #f43f5e; background: #18181b; padding: 14px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background: #f43f5e;"></span>
+                                <strong style="color: #f43f5e; font-size: 12px;">ИЗОЛИРОВАННЫЙ (ISOLATED)</strong>
+                            </div>
+                            <div style="font-size: 11px; color: #a1a1aa;">Временные тесты, недоверенные сайты, изолированные сессии.</div>
+                        </div>
+                    </div>
+
+                    <div style="border: 1px solid var(--border-muted); background: var(--bg-base); padding: 16px;">
+                        <div style="font-weight: bold; color: var(--accent); margin-bottom: 10px; font-size: 12px;">КАК ИСПОЛЬЗОВАТЬ КОНТЕЙНЕРЫ:</div>
+                        <ul style="font-size: 12px; color: #d4d4d8; line-height: 1.8; margin-left: 20px;">
+                            <li><strong>Новая вкладка в контейнере:</strong> Нажмите стрелку <strong>▾</strong> рядом с кнопкой <code>+ НОВАЯ ВКЛАДКА</code> в левой панели, либо кликните по ней правой кнопкой мыши.</li>
+                            <li><strong>Переоткрыть существующую вкладку:</strong> Кликните правой кнопкой мыши по любой вкладке в списке и выберите <code>Переоткрыть в контейнере...</code>.</li>
+                            <li><strong>Индикация в интерфейсе:</strong> Вкладки контейнеров имеют цветную полосу слева и текстовый маркер с названием контейнера.</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -1258,15 +1367,25 @@
                 col_value: "ЗНАЧЕНИЕ",
                 empty_passwords: "Нет сохраненных паролей в хранилище.",
                 empty_cookies: "Нет сохраненных куки-файлов.",
-                header_ai: "AI АССИСТЕНТ GEMINI",
-                desc_ai: "Интеграция с Google Gemini API для помощи и анализа страниц.",
+                header_ai: "AI АССИСТЕНТ (GEMINI & OLLAMA)",
+                desc_ai: "Интеграция с Google Gemini API и локальной Ollama для помощи и анализа страниц.",
+                lbl_ai_provider: "Провайдер AI",
+                desc_ai_provider: "Выбор между облачным Google Gemini и локальной Ollama.",
                 lbl_gemini_key: "API ключ Gemini",
                 desc_gemini_key: "Ключ Google AI Studio для работы встроенного ассистента.",
                 placeholder_gemini_key: "AQ.Ab8... / AIzaSy...",
-                lbl_ai_model: "Модель AI",
+                lbl_ai_model: "Модель Gemini",
                 desc_ai_model: "Рекомендуется gemini-2.5-flash для максимальной скорости.",
+                lbl_ollama_url: "Адрес сервера Ollama",
+                desc_ollama_url: "URL локального демона Ollama (по умолчанию http://localhost:11434).",
+                lbl_ollama_model: "Модель Ollama",
+                desc_ollama_model: "Имя локальной модели (llama3, mistral, deepseek-r1, qwen2.5).",
+                btn_test_ollama: "ПРОВЕРИТЬ СОЕДИНЕНИЕ OLLAMA",
                 lbl_ai_persona: "Системный промпт / персона AI",
                 desc_ai_persona: "Базовые инструкции поведения и стиля ответов ассистента.",
+                tab_containers: "[10] КОНТЕЙНЕРЫ",
+                header_containers: "МУЛЬТИАККАУНТНЫЕ КОНТЕЙНЕРЫ",
+                desc_containers: "Изолированные окружения для куки, авторизаций и сессий в одном окне.",
                 header_shortcuts: "ГОРЯЧИЕ КЛАВИШИ",
                 desc_shortcuts: "Быстрые комбинации клавиш для эффективного управления.",
                 col_keybind: "КОМБИНАЦИЯ",
@@ -1392,15 +1511,25 @@
                 col_value: "VALUE",
                 empty_passwords: "No credentials saved in vault.",
                 empty_cookies: "No cookies stored.",
-                header_ai: "GEMINI AI ASSISTANT",
-                desc_ai: "Direct API integration, dynamic model selection, and prompt configuration.",
+                header_ai: "AI ASSISTANT (GEMINI & OLLAMA)",
+                desc_ai: "Google Gemini Cloud API & Local Ollama integration, dynamic models and system prompts.",
+                lbl_ai_provider: "AI Provider",
+                desc_ai_provider: "Choose between Google Gemini (Cloud) and private Ollama (Local).",
                 lbl_gemini_key: "Gemini API Key",
                 desc_gemini_key: "Google AI Studio API key used for in-browser sidebar inference.",
                 placeholder_gemini_key: "AQ.Ab8... / AIzaSy...",
-                lbl_ai_model: "Active AI Model",
+                lbl_ai_model: "Gemini Model",
                 desc_ai_model: "Recommended: gemini-2.5-flash for fastest speed and high reasoning.",
+                lbl_ollama_url: "Ollama Server URL",
+                desc_ollama_url: "Address of local Ollama daemon (default: http://localhost:11434).",
+                lbl_ollama_model: "Ollama Model",
+                desc_ollama_model: "Installed model name (llama3, mistral, deepseek-r1, qwen2.5).",
+                btn_test_ollama: "TEST OLLAMA CONNECTION",
                 lbl_ai_persona: "System Prompt / Persona",
                 desc_ai_persona: "Custom behavioral instructions for the AI assistant.",
+                tab_containers: "[10] CONTAINERS",
+                header_containers: "MULTI-ACCOUNT CONTAINERS",
+                desc_containers: "Isolated environments for cookies, logins, and session storage in a single window.",
                 header_shortcuts: "KEYBOARD SHORTCUTS",
                 desc_shortcuts: "Essential key combinations for keyboard-driven navigation.",
                 col_keybind: "KEYBIND",
@@ -1799,9 +1928,13 @@
             if (s.send_dnt !== undefined) document.getElementById('setting-send-dnt').checked = s.send_dnt;
             if (s.prevent_webrtc_leak !== undefined) document.getElementById('setting-prevent-webrtc').checked = s.prevent_webrtc_leak;
             if (s.download_dir) document.getElementById('setting-download-dir').value = s.download_dir;
+            if (s.ai_provider) document.getElementById('setting-ai-provider').value = s.ai_provider;
             if (s.gemini_api_key) document.getElementById('setting-gemini-key').value = s.gemini_api_key;
             if (s.ai_model) document.getElementById('setting-ai-model').value = s.ai_model;
+            if (s.ollama_url) document.getElementById('setting-ollama-url').value = s.ollama_url;
+            if (s.ollama_model) document.getElementById('setting-ollama-model').value = s.ollama_model;
             if (s.ai_persona) document.getElementById('setting-ai-persona').value = s.ai_persona;
+            toggleAIProviderUI();
             if (s.restore_session !== undefined) document.getElementById('setting-restore-session').checked = s.restore_session;
             if (s.tab_hibernation) document.getElementById('setting-tab-hibernation').value = s.tab_hibernation;
 
@@ -1896,8 +2029,11 @@
             params.set('send_dnt', document.getElementById('setting-send-dnt').checked ? 'true' : 'false');
             params.set('prevent_webrtc_leak', document.getElementById('setting-prevent-webrtc').checked ? 'true' : 'false');
             params.set('download_dir', document.getElementById('setting-download-dir').value);
+            params.set('ai_provider', document.getElementById('setting-ai-provider').value);
             params.set('gemini_api_key', document.getElementById('setting-gemini-key').value);
             params.set('ai_model', document.getElementById('setting-ai-model').value);
+            params.set('ollama_url', document.getElementById('setting-ollama-url').value);
+            params.set('ollama_model', document.getElementById('setting-ollama-model').value);
             params.set('ai_persona', document.getElementById('setting-ai-persona').value);
             params.set('restore_session', document.getElementById('setting-restore-session').checked ? 'true' : 'false');
             params.set('tab_hibernation', document.getElementById('setting-tab-hibernation').value);
@@ -1910,6 +2046,48 @@
             // Execute dynamically in Qt without page navigation
             sendToHost("zephyrium://apply-settings?" + params.toString());
         }
+
+        function toggleAIProviderUI() {
+            const provEl = document.getElementById('setting-ai-provider');
+            if (!provEl) return;
+            const prov = provEl.value;
+            const blockGemini = document.getElementById('block-gemini');
+            const blockOllama = document.getElementById('block-ollama');
+            if (blockGemini && blockOllama) {
+                if (prov === 'ollama') {
+                    blockOllama.style.opacity = '1';
+                    blockOllama.style.borderColor = 'var(--accent)';
+                    blockGemini.style.opacity = '0.5';
+                } else {
+                    blockGemini.style.opacity = '1';
+                    blockOllama.style.opacity = '0.5';
+                    blockOllama.style.borderColor = 'var(--border-muted)';
+                }
+            }
+        }
+
+        function testOllamaConnection() {
+            const url = document.getElementById('setting-ollama-url').value.trim() || 'http://localhost:11434';
+            const badge = document.getElementById('ollama-status-badge');
+            if (badge) {
+                badge.style.color = '#38bdf8';
+                badge.innerText = 'Проверка подключения к ' + url + '...';
+            }
+            sendToHost("zephyrium://action/test-ollama?url=" + encodeURIComponent(url));
+        }
+
+        window.onOllamaTestResult = function(success, info) {
+            const badge = document.getElementById('ollama-status-badge');
+            if (badge) {
+                if (success) {
+                    badge.style.color = '#10b981';
+                    badge.innerText = 'ONLINE // Модели: ' + info;
+                } else {
+                    badge.style.color = '#ef4444';
+                    badge.innerText = 'OFFLINE // ' + info;
+                }
+            }
+        };
 
         // On Load Check URL params & hash
         window.addEventListener('DOMContentLoaded', () => {

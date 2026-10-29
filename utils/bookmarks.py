@@ -30,6 +30,29 @@ def atomic_save_json(file_path: Path, data: Any, indent: int = 2) -> bool:
                 pass
         return False
 
+def open_folder_in_file_manager(folder_path: str) -> bool:
+    """Opens directory in the user's primary file manager (Dolphin, Nautilus, etc.) instead of Filelight."""
+    import sys, subprocess, shutil
+    p = str(Path(folder_path).resolve())
+    if sys.platform.startswith("linux"):
+        # Check standard GUI file managers first to avoid opening disk analyzers like filelight
+        for fm in ["dolphin", "nautilus", "thunar", "nemo", "pcmanfm", "caja", "io.elementary.files"]:
+            if shutil.which(fm):
+                try:
+                    subprocess.Popen([fm, p])
+                    return True
+                except Exception:
+                    pass
+        # Fallback to gio open or xdg-open
+        try:
+            subprocess.Popen(["xdg-open", p])
+            return True
+        except Exception:
+            pass
+    from PyQt6.QtGui import QDesktopServices
+    from PyQt6.QtCore import QUrl
+    return QDesktopServices.openUrl(QUrl.fromLocalFile(p))
+
 class DataStore:
     @staticmethod
     def load_bookmarks() -> List[Dict[str, str]]:

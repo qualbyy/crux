@@ -157,6 +157,23 @@ All configuration data is stored strictly within the user directory in accordanc
 
 ---
 
+## Release Notes (v1.3.6)
+
+Zephyrium 1.3.6 brings critical stability hardening, expanded AI provider capabilities, and enhanced keyboard and container controls:
+
+- **Primary Browser Menu (`☰`)**: Clean compact browser dropdown menu replacing the settings button, grouping Reader Mode, Picture-in-Picture, Tab orientation toggle, Layout modes (Minimal / Vim), Keybindings cheat sheet, and Command Palette shortcuts with Preferences at the bottom.
+- **Multi-Account Containers UI**: Dedicated Containers section in Settings (`[10] CONTAINERS`), dropdown and right-click menu on `+ NEW TAB` to launch into any container, and tab context menu `Reopen in Container...` to migrate existing tabs between isolated profiles.
+- **DevTools Resizing, Theme & Tab Tracking**: DevTools dock is embedded in a vertical `QSplitter` with drag handle for smooth resizing; automatically binds to whatever tab is currently active; context menu "Inspect Element" opens and focuses DevTools; fixed close button and dark theme styling.
+- **Ollama Local LLM Support**: Automatic local Ollama detection on `http://localhost:11434`, provider switcher `[GEMINI / OLLAMA]` in AI sidebar, dynamic model population (`llama3`, `mistral`, `deepseek-r1`), in-settings connection test, and CLI commands (`/provider`, `/ollama`, `/gemini`).
+- **Tab Hibernation Safety & URL Restoration**: Active tabs cannot be put to sleep (guarding against crashes from UI, hotkeys, and task manager); waking tabs restores original URL and title without leaking `data:text/html` into the omnibar.
+- **Ephemeral Incognito Mode**: Fully isolated in-memory `QWebEngineProfile` instances for incognito windows and tabs, avoiding persistent SQLite/LevelDB disk locks.
+- **Userscript Safety**: Non-blocking asynchronous install prompt for `.user.js` files, preventing download engine deadlocks and crashes.
+- **Smart System File Manager**: Linux directory opener prefers native file managers (`dolphin`, `nautilus`, `thunar`) over disk analyzer Filelight.
+- **Task Manager Redesign**: `zephyrium://tasks` redesigned in Claude Code Minimal Dark aesthetic with live statistics cards and disabled suspension for active tabs.
+- **Google Account Autofill**: Multi-step SPA login compatibility for Google authentication with password vault integration.
+
+---
+
 ## Author & Contacts
 
 - **Author:** qualbyy

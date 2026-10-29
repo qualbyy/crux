@@ -20,9 +20,10 @@ def get_clean_user_agent(raw_ua: str) -> str:
     return cleaned
 
 class ProfileManager(QObject):
-    def __init__(self, adblocker: AdBlockerInterceptor, parent=None):
+    def __init__(self, adblocker: AdBlockerInterceptor, parent=None, is_incognito: bool = False):
         super().__init__(parent)
         self.adblocker = adblocker
+        self.is_incognito = is_incognito
         self.userscript_manager = UserscriptManager(self)
         self._profiles: Dict[str, QWebEngineProfile] = {}
         self._clean_ua = ""
@@ -52,8 +53,8 @@ class ProfileManager(QObject):
             pass
 
         for profile_id, meta in CONTAINERS.items():
-            if meta["storage"] == "ephemeral":
-                # Off-the-record / Incognito profile (in-memory only)
+            if self.is_incognito or meta["storage"] == "ephemeral":
+                # Off-the-record / Incognito profile (100% in-memory only, no disk IO or locks)
                 profile = QWebEngineProfile(self)
             else:
                 profile_path = PROFILES_DIR / profile_id
@@ -79,7 +80,9 @@ class ProfileManager(QObject):
             self.userscript_manager.apply_to_profile(profile)
             self._profiles[profile_id] = profile
 
-    def get_profile(self, profile_id: str) -> QWebEngineProfile:
+    def get_profile(self, profile_id: str, is_incognito: bool = False) -> QWebEngineProfile:
+        if self.is_incognito or is_incognito:
+            return self._profiles.get("incognito", self._profiles.get(profile_id, QWebEngineProfile(self)))
         return self._profiles.get(profile_id, self._profiles.get("default", QWebEngineProfile.defaultProfile()))
 
     def get_meta(self, profile_id: str) -> dict:

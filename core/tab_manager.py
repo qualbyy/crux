@@ -4,6 +4,7 @@ Claude Code Minimal Dark aesthetic (Square UI, 0px radius, 1px borders)
 Features: Collapsible / Compact Mode (54px vs 240px), Tab Suspension & Memory Saving
 """
 import time
+import html
 from typing import List, Dict, Optional
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QSize, QTimer, QPoint, QMimeData
 from PyQt6.QtGui import QDrag
@@ -359,6 +360,8 @@ class VerticalTabSidebar(QWidget):
     tab_selected = pyqtSignal(int)
     tab_closed = pyqtSignal(int)
     new_tab_requested = pyqtSignal(str)  # container_id
+    new_tab_container_requested = pyqtSignal(str, str)  # url, container_id
+    reopen_in_container_requested = pyqtSignal(int, str)  # tab_id, container_id
     duplicate_tab_requested = pyqtSignal(int)
     split_tab_requested = pyqtSignal(int)
     suspend_tab_requested = pyqtSignal(int)
@@ -387,6 +390,15 @@ class VerticalTabSidebar(QWidget):
         self.btn_new_tab.setObjectName("accentBtn")
         self.btn_new_tab.setFixedHeight(26)
         self.btn_new_tab.clicked.connect(lambda: self.new_tab_requested.emit("zephyrium://startpage"))
+        self.btn_new_tab.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.btn_new_tab.customContextMenuRequested.connect(lambda p: self._show_containers_menu())
+
+        self.btn_new_tab_menu = QPushButton("▾")
+        self.btn_new_tab_menu.setObjectName("accentBtn")
+        self.btn_new_tab_menu.setFixedSize(20, 26)
+        self.btn_new_tab_menu.setToolTip("Open Tab in Container Profile...")
+        self.btn_new_tab_menu.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_new_tab_menu.clicked.connect(lambda: self._show_containers_menu())
 
         self.btn_collapse = QPushButton("<")
         self.btn_collapse.setFixedSize(26, 26)
@@ -394,6 +406,7 @@ class VerticalTabSidebar(QWidget):
         self.btn_collapse.clicked.connect(self.toggle_compact)
 
         row_exp_layout.addWidget(self.btn_new_tab, stretch=1)
+        row_exp_layout.addWidget(self.btn_new_tab_menu)
         row_exp_layout.addWidget(self.btn_collapse)
         self._main_layout.addWidget(self.row_expanded)
 
@@ -412,8 +425,10 @@ class VerticalTabSidebar(QWidget):
         self.btn_new_tab_compact = QPushButton("+")
         self.btn_new_tab_compact.setObjectName("accentBtn")
         self.btn_new_tab_compact.setFixedSize(28, 28)
-        self.btn_new_tab_compact.setToolTip("New Tab (Ctrl+T)")
+        self.btn_new_tab_compact.setToolTip("New Tab (Ctrl+T) | Right-click for Containers")
         self.btn_new_tab_compact.clicked.connect(lambda: self.new_tab_requested.emit("default"))
+        self.btn_new_tab_compact.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.btn_new_tab_compact.customContextMenuRequested.connect(lambda p: self._show_containers_menu())
 
         row_comp_layout.addWidget(self.btn_expand_compact)
         row_comp_layout.addWidget(self.btn_new_tab_compact)
@@ -532,8 +547,24 @@ class VerticalTabSidebar(QWidget):
         act_split = menu.addAction(t("split_view"))
         act_split.triggered.connect(lambda: self.split_tab_requested.emit(tab_id))
 
-        act_suspend = menu.addAction(t("suspend_tab"))
-        act_suspend.triggered.connect(lambda: self.suspend_tab_requested.emit(tab_id))
+        tm = self.parent()
+        is_active = (tm and hasattr(tm, "active_tab_id") and tm.active_tab_id == tab_id)
+        if is_active:
+            act_suspend = menu.addAction(t("suspend_tab") + " [Активна]")
+            act_suspend.setEnabled(False)
+            act_suspend.setToolTip("Нельзя усыпить активную вкладку")
+        else:
+            act_suspend = menu.addAction(t("suspend_tab"))
+            act_suspend.triggered.connect(lambda: self.suspend_tab_requested.emit(tab_id))
+
+        # Reopen in Container Submenu
+        from config import CONTAINERS
+        reopen_menu = menu.addMenu("Переоткрыть в контейнере" if t("app_title") == "Zephyrium" else "Reopen in Container")
+        for c_key, c_info in CONTAINERS.items():
+            badge = c_info.get("badge", c_key.upper())
+            name = c_info.get("name", c_key.capitalize())
+            act_c = reopen_menu.addAction(f"[{badge}] {name}")
+            act_c.triggered.connect(lambda checked, ck=c_key: self.reopen_in_container_requested.emit(tab_id, ck))
 
         menu.addSeparator()
 
@@ -542,6 +573,25 @@ class VerticalTabSidebar(QWidget):
         act_close.triggered.connect(lambda: self.tab_closed.emit(tab_id))
 
         menu.exec(self.list_widget.mapToGlobal(pos))
+
+    def _show_containers_menu(self) -> None:
+        from config import CONTAINERS
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QCursor
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu { background-color: #18181b; border: 1px solid #3f3f46; color: #d4d4d8; font-family: monospace; font-size: 11px; padding: 4px; }
+            QMenu::item { padding: 6px 14px; }
+            QMenu::item:selected { background-color: #262624; color: #fe8019; }
+        """)
+        hdr = menu.addAction("--- КОНТЕЙНЕРЫ ПРОФИЛЯ ---")
+        hdr.setEnabled(False)
+        for c_key, c_info in CONTAINERS.items():
+            badge = c_info.get("badge", c_key.upper())
+            name = c_info.get("name", c_key.capitalize())
+            act = menu.addAction(f"[{badge}] {name}")
+            act.triggered.connect(lambda checked, ck=c_key: self.new_tab_container_requested.emit("zephyrium://startpage", ck))
+        menu.exec(QCursor.pos())
 
     def _prompt_new_group(self, tab_id: int) -> None:
         from PyQt6.QtWidgets import QInputDialog
@@ -638,6 +688,8 @@ class TabManager(QWidget):
         self.sidebar.tab_selected.connect(self.select_tab)
         self.sidebar.tab_closed.connect(self.close_tab)
         self.sidebar.new_tab_requested.connect(self.create_tab)
+        self.sidebar.new_tab_container_requested.connect(lambda u, cid: self.create_tab(url=u, container_id=cid))
+        self.sidebar.reopen_in_container_requested.connect(self.reopen_in_container)
         self.sidebar.duplicate_tab_requested.connect(self.duplicate_tab)
         self.sidebar.split_tab_requested.connect(self.split_active_tab)
         self.sidebar.suspend_tab_requested.connect(self.suspend_tab)
@@ -663,6 +715,17 @@ class TabManager(QWidget):
             if sc:
                 return sc.get_active_view()
         return None
+
+    def reopen_in_container(self, tab_id: int, container_id: str) -> None:
+        if tab_id not in self.tabs:
+            return
+        tab_data = self.tabs[tab_id]
+        v = tab_data.split_container.get_active_view()
+        url = getattr(tab_data, "url", "") or (v.url().toString() if v else "zephyrium://startpage")
+        if url.startswith("data:text/html") or url.startswith("data:"):
+            url = "zephyrium://startpage"
+        self.create_tab(url=url, container_id=container_id)
+        self.close_tab(tab_id)
 
     def create_tab(self, url: str = "zephyrium://startpage", *args, **kwargs) -> int:
         target_url = url
@@ -693,9 +756,14 @@ class TabManager(QWidget):
         tab_id = self.tab_counter
 
         # Build Web View & Split Container (support container/profile selection)
-        container_id = kwargs.get("container_id", "default")
+        win = self.parent()
+        is_win_incognito = getattr(win, "is_incognito", False)
+        default_container = "incognito" if is_win_incognito else "default"
+        container_id = kwargs.get("container_id", default_container)
         if args and isinstance(args[0], str) and args[0] in CONTAINERS:
             container_id = args[0]
+        if is_win_incognito:
+            container_id = "incognito"
         profile = self.profile_manager.get_profile(container_id)
         web_view = ZincWebView(profile, container_id)
         
@@ -829,11 +897,18 @@ class TabManager(QWidget):
         if tab_id not in self.tabs:
             return
 
+        tab_data = self.tabs[tab_id]
+        clean_url = tab_data.url or "zephyrium://startpage"
+        if clean_url.startswith("data:text/html") or clean_url.startswith("data:"):
+            clean_url = "zephyrium://startpage"
+            tab_data.url = clean_url
+        clean_title = tab_data.title or "New Tab"
+
         # Wake up tab if suspended
-        self.wake_tab(tab_id)
+        if tab_data.is_suspended:
+            self.wake_tab(tab_id)
 
         self.active_tab_id = tab_id
-        tab_data = self.tabs[tab_id]
         tab_data.last_active_time = time.time()
         self.stack.setCurrentWidget(tab_data.split_container)
 
@@ -848,10 +923,9 @@ class TabManager(QWidget):
                 widget.set_active(is_active)
 
         self.active_tab_changed.emit(tab_data.split_container)
-        active_view = tab_data.split_container.get_active_view()
-        self.active_url_changed.emit(active_view.url())
-        current_title = tab_data.title or (active_view.title() if active_view else "")
-        self.active_title_changed.emit(current_title)
+        # Always emit real URL and title, never data:text/html
+        self.active_url_changed.emit(QUrl(clean_url))
+        self.active_title_changed.emit(clean_title)
 
     def close_tab(self, tab_id: int) -> None:
         if tab_id not in self.tabs:
@@ -917,21 +991,21 @@ class TabManager(QWidget):
         if target_id in self.tabs:
             self.tabs[target_id].split_container.toggle_split()
 
-    def suspend_tab(self, tab_id: int) -> None:
+    def suspend_tab(self, tab_id: int) -> bool:
         if tab_id not in self.tabs or tab_id == self.active_tab_id:
-            return
+            return False
         tab_data = self.tabs[tab_id]
         if tab_data.is_suspended or tab_data.is_pinned or getattr(tab_data, "is_audible", False):
-            return
+            return False
 
         view = tab_data.split_container.get_active_view()
         view_url = view.url().toString() if (view and not view.url().isEmpty()) else ""
-        url_str = view_url or getattr(tab_data, "url", "") or ""
+        url_str = getattr(tab_data, "url", "") or view_url or ""
         # Never suspend internal or special scheme pages (settings, startpage, history, etc.)
-        if not url_str or any(url_str.startswith(s) for s in ["zephyrium://", "zinc://", "about:", "chrome://"]):
-            return
+        if not url_str or any(url_str.startswith(s) for s in ["zephyrium://", "zinc://", "about:", "chrome://", "data:"]):
+            return False
         if any(k in url_str for k in ["settings.html", "startpage.html", "history.html", "downloads.html", "welcome.html"]):
-            return
+            return False
 
         tab_data.is_suspended = True
         tab_data.url = url_str
@@ -947,14 +1021,16 @@ class TabManager(QWidget):
         card_border = "#3f3f46" if th == "dark" else "#cbd5e1"
         fg_title = "#d4d4d8" if th == "dark" else "#1e293b"
         fg_muted = "#71717a" if th == "dark" else "#64748b"
+        clean_title = html.escape(tab_data.title or "Web Page")
         view.setHtml(f"""
-            <html><body onclick="window.location.reload()" style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;cursor:pointer;">
-            <div style="border:1px solid {card_border};border-radius:8px;padding:32px;background:{card_bg};text-align:center;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            <!DOCTYPE html><html><head><meta charset="utf-8"><title>{clean_title}</title></head>
+            <body onclick="window.location.reload()" style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;cursor:pointer;margin:0;">
+            <div style="border:1px solid {card_border};border-radius:0px;padding:32px;background:{card_bg};text-align:center;max-width:420px;box-shadow:0 6px 20px rgba(0,0,0,0.4);font-family:monospace;">
                 <div style="font-size:32px;margin-bottom:12px;">💤</div>
-                <div style="color:{acc};font-weight:bold;font-size:14px;letter-spacing:0.5px;margin-bottom:8px;">ТАБ В РЕЖИМЕ СНА // RAM SAVED</div>
-                <div style="color:{fg_title};font-size:15px;font-weight:600;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{tab_data.title}</div>
-                <div style="font-size:12px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена для освобождения оперативной памяти.</div>
-                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border-radius:4px;display:inline-block;border:1px solid {card_border};">Нажмите на вкладку или сюда для пробуждения</div>
+                <div style="color:{acc};font-weight:bold;font-size:13px;letter-spacing:1px;margin-bottom:8px;">[ВКЛАДКА В РЕЖИМЕ СНА // RAM SAVED]</div>
+                <div style="color:{fg_title};font-size:14px;font-weight:bold;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{clean_title}</div>
+                <div style="font-size:11px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена из памяти. Кликните для восстановления.</div>
+                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border:1px solid {card_border};display:inline-block;">⚡ НАЖМИТЕ ДЛЯ ПРОБУЖДЕНИЯ</div>
             </div>
             </body></html>
         """)
@@ -966,6 +1042,7 @@ class TabManager(QWidget):
                     widget.refresh_ui()
                 break
         self.tabs_updated.emit()
+        return True
 
     def wake_tab(self, tab_id: int) -> None:
         if tab_id in self.tabs:
@@ -974,13 +1051,19 @@ class TabManager(QWidget):
                 tab_data.is_suspended = False
                 view = tab_data.split_container.get_active_view()
                 target_url = tab_data.url or "zephyrium://startpage"
+                if target_url.startswith("data:text/html") or target_url.startswith("data:"):
+                    target_url = "zephyrium://startpage"
+                    tab_data.url = target_url
                 view.load(QUrl(target_url))
                 scroll_pos = getattr(tab_data, "saved_scroll", (0, 0))
                 if scroll_pos and (scroll_pos[0] > 0 or scroll_pos[1] > 0):
                     def _restore_scroll(ok):
-                        if ok:
+                        if ok and view:
                             view.page().runJavaScript(f"window.scrollTo({scroll_pos[0]}, {scroll_pos[1]});")
-                    view.loadFinished.connect(_restore_scroll)
+                    try:
+                        view.loadFinished.connect(_restore_scroll)
+                    except Exception:
+                        pass
                 for row in range(self.sidebar.list_widget.count()):
                     item = self.sidebar.list_widget.item(row)
                     if item.data(Qt.ItemDataRole.UserRole) == tab_id:
@@ -1023,9 +1106,13 @@ class TabManager(QWidget):
 
     def _on_title_changed(self, tab_id: int, title: str) -> None:
         if tab_id in self.tabs:
-            if title and title.strip():
-                self.tabs[tab_id].title = title.strip()
-            title_to_use = self.tabs[tab_id].title
+            tab_data = self.tabs[tab_id]
+            # NEVER overwrite title while tab is suspended or with data URIs
+            if tab_data.is_suspended:
+                return
+            if title and title.strip() and not title.strip().startswith("data:text/html") and not title.strip().startswith("data:"):
+                tab_data.title = title.strip()
+            title_to_use = tab_data.title
             for row in range(self.sidebar.list_widget.count()):
                 item = self.sidebar.list_widget.item(row)
                 if item.data(Qt.ItemDataRole.UserRole) == tab_id:
@@ -1039,6 +1126,11 @@ class TabManager(QWidget):
 
     def _on_url_changed(self, tab_id: int, url: QUrl) -> None:
         if tab_id in self.tabs:
-            self.tabs[tab_id].url = url.toString()
+            tab_data = self.tabs[tab_id]
+            url_str = url.toString()
+            # NEVER overwrite real URL if tab is suspended or with data URI
+            if tab_data.is_suspended or url_str.startswith("data:text/html") or url_str.startswith("data:"):
+                return
+            tab_data.url = url_str
             if tab_id == self.active_tab_id:
                 self.active_url_changed.emit(url)

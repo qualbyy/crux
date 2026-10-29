@@ -1,6 +1,6 @@
 ; Script generated for Inno Setup 6
 #define MyAppName "Zephyrium"
-#define MyAppVersion "1.3.5"
+#define MyAppVersion "1.3.6"
 #define MyAppPublisher "Qualbyy"
 #define MyAppURL "https://github.com/qualbyy/zephyrium"
 #define MyAppExeName "zephyrium.exe"

@@ -55,11 +55,11 @@ def test_v130():
     print("[TEST 1.3.0] Starting comprehensive verification suite...")
 
     # 1. Version check
-    assert APP_VERSION in ["1.3.0", "1.3.1", "1.3.5"], f"Expected APP_VERSION >= 1.3.0, got {APP_VERSION}"
+    assert APP_VERSION in ["1.3.0", "1.3.1", "1.3.5", "1.3.6"], f"Expected APP_VERSION >= 1.3.0, got {APP_VERSION}"
     iss_content = (PROJECT_ROOT / "installer.iss").read_text(encoding="utf-8")
-    assert any(v in iss_content for v in ['#define MyAppVersion "1.3.0"', '#define MyAppVersion "1.3.1"', '#define MyAppVersion "1.3.5"']), "installer.iss version mismatch"
+    assert any(v in iss_content for v in ['#define MyAppVersion "1.3.0"', '#define MyAppVersion "1.3.1"', '#define MyAppVersion "1.3.5"', '#define MyAppVersion "1.3.6"']), "installer.iss version mismatch"
     settings_html = (PROJECT_ROOT / "resources" / "settings.html").read_text(encoding="utf-8")
-    assert any(v in settings_html for v in ["1.3.0 (Release)", "1.3.1 (Release)", "1.3.5 (Release)"]), "settings.html version mismatch"
+    assert any(v in settings_html for v in ["1.3.0 (Release)", "1.3.1 (Release)", "1.3.5 (Release)", "1.3.6 (Release)"]), "settings.html version mismatch"
     print(f"  ✓ 1. Version {APP_VERSION} verified across config.py, installer.iss, settings.html")
 
     # 2. Windows QtCore DLL Fix & UPX Disabled
