@@ -685,7 +685,17 @@ class ZincWebView(QWebEngineView):
             return
         import json
         u = self.url().toString()
-        if "settings.html" in u:
+        is_settings_page = (
+            "settings.html" in u or
+            "crux://settings" in u or
+            "zephyrium://settings" in u or
+            "zinc://settings" in u or
+            "crux://vault" in u or
+            "crux://about" in u or
+            u.startswith("about:settings") or
+            u.startswith("about:preferences")
+        )
+        if is_settings_page:
             try:
                 from config import load_settings, CONFIG_DIR
                 s = load_settings()
@@ -708,7 +718,15 @@ class ZincWebView(QWebEngineView):
             except Exception as e:
                 print(f"[Settings Init Error] {e}")
             return
-        if "history.html" in u:
+
+        is_history_page = (
+            "history.html" in u or
+            "crux://history" in u or
+            "zephyrium://history" in u or
+            "zinc://history" in u or
+            u.startswith("about:history")
+        )
+        if is_history_page:
             try:
                 from utils.bookmarks import DataStore
                 from config import load_settings
@@ -719,7 +737,15 @@ class ZincWebView(QWebEngineView):
             except Exception as e:
                 print(f"[History Init Error] {e}")
             return
-        if "downloads.html" in u:
+
+        is_downloads_page = (
+            "downloads.html" in u or
+            "crux://downloads" in u or
+            "zephyrium://downloads" in u or
+            "zinc://downloads" in u or
+            u.startswith("about:downloads")
+        )
+        if is_downloads_page:
             try:
                 from utils.bookmarks import DataStore
                 from config import load_settings
