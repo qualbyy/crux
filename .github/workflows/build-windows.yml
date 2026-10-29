@@ -32,18 +32,18 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller zephyrium.spec --noconfirm --clean
+            pyinstaller crux.spec --noconfirm --clean
 
       - name: Verify build artifacts and smoke test
         shell: pwsh
         run: |
-          if (-not (Test-Path "dist/zephyrium/zephyrium.exe")) {
-            Write-Error "zephyrium.exe was not created!"
+          if (-not (Test-Path "dist/crux/crux.exe")) {
+            Write-Error "crux.exe was not created!"
             exit 1
           }
-          Write-Host "Found dist/zephyrium/zephyrium.exe successfully."
+          Write-Host "Found dist/crux/crux.exe successfully."
           # Run headless smoke test with --help to verify all DLLs (including QtCore) load without crashing
-          $proc = Start-Process -FilePath "dist/zephyrium/zephyrium.exe" -ArgumentList "--help" -PassThru -Wait
+          $proc = Start-Process -FilePath "dist/crux/crux.exe" -ArgumentList "--help" -PassThru -Wait
           Write-Host "Smoke test process exit code: $($proc.ExitCode)"
           if ($proc.ExitCode -ne 0) {
             Write-Error "Smoke test failed! DLL or startup exception occurred."
@@ -53,8 +53,8 @@ jobs:
       - name: Package portable ZIP and compute SHA-256
         shell: pwsh
         run: |
-          $zipName = "zephyrium-windows-x86_64.zip"
-          Compress-Archive -Path dist/zephyrium/* -DestinationPath dist/$zipName -Force
+          $zipName = "crux-windows-x86_64.zip"
+          Compress-Archive -Path dist/crux/* -DestinationPath dist/$zipName -Force
           $hash = (Get-FileHash -Algorithm SHA256 dist/$zipName).Hash
           Set-Content -Path dist/$zipName.sha256 -Value $hash
           Write-Host "Archive created: dist/$zipName"
@@ -66,7 +66,7 @@ jobs:
           # Download official Microsoft Visual C++ 2015-2022 Redistributable (x64)
           Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "vc_redist.x64.exe"
           iscc installer.iss
-          $installerName = "zephyrium-installer-windows-x86_64.exe"
+          $installerName = "crux-installer-windows-x86_64.exe"
           if (-not (Test-Path "dist/$installerName")) {
             Write-Error "Installer was not created!"
             exit 1
@@ -79,21 +79,21 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zephyrium-windows-x86_64
+          name: crux-windows-x86_64
           path: |
-            dist/zephyrium-installer-windows-x86_64.exe
-            dist/zephyrium-installer-windows-x86_64.exe.sha256
-            dist/zephyrium-windows-x86_64.zip
-            dist/zephyrium-windows-x86_64.zip.sha256
+            dist/crux-installer-windows-x86_64.exe
+            dist/crux-installer-windows-x86_64.exe.sha256
+            dist/crux-windows-x86_64.zip
+            dist/crux-windows-x86_64.zip.sha256
 
       - name: Attach to GitHub Release (if tagged)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/zephyrium-installer-windows-x86_64.exe
-            dist/zephyrium-installer-windows-x86_64.exe.sha256
-            dist/zephyrium-windows-x86_64.zip
-            dist/zephyrium-windows-x86_64.zip.sha256
+            dist/crux-installer-windows-x86_64.exe
+            dist/crux-installer-windows-x86_64.exe.sha256
+            dist/crux-windows-x86_64.zip
+            dist/crux-windows-x86_64.zip.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

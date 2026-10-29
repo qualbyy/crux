@@ -1,5 +1,5 @@
 """
-Userscript & UserCSS Extension Engine for Zephyrium Browser
+Userscript & UserCSS Extension Engine for Crux Browser
 Compatible with Violentmonkey / Greasemonkey metadata format (// ==UserScript==)
 and user stylesheets. Injects via native Chromium QWebEngineScriptCollection.
 """
@@ -159,7 +159,7 @@ class UserscriptManager(QObject):
             scripts_collection = profile.scripts()
             # Clear previously injected custom extensions
             for s in scripts_collection.toList():
-                if s.name().startswith("zephyrium_user_"):
+                if s.name().startswith("crux_user_"):
                     scripts_collection.remove(s)
 
             # 1. Ingest Userscripts
@@ -192,7 +192,7 @@ class UserscriptManager(QObject):
                         wrapped_code = code
 
                     script = QWebEngineScript()
-                    script.setName(f"zephyrium_user_js_{fn}")
+                    script.setName(f"crux_user_js_{fn}")
                     script.setSourceCode(wrapped_code)
                     if meta.get("run_at") == "document-start":
                         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
@@ -226,7 +226,7 @@ class UserscriptManager(QObject):
                     (function() {{
                         try {{
                             {style_guard}
-                            const styleId = 'zephyrium-style-{fn}';
+                            const styleId = 'crux-style-{fn}';
                             if (!document.getElementById(styleId)) {{
                                 const st = document.createElement('style');
                                 st.id = styleId;
@@ -237,7 +237,7 @@ class UserscriptManager(QObject):
                     }})();
                     """
                     script = QWebEngineScript()
-                    script.setName(f"zephyrium_user_css_{fn}")
+                    script.setName(f"crux_user_css_{fn}")
                     script.setSourceCode(inject_js)
                     script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
                     script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)

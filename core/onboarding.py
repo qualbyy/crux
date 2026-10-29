@@ -1,5 +1,5 @@
 """
-Native Onboarding Dialog for Zephyrium Browser
+Native Onboarding Dialog for Crux Browser
 Modal, clean, engineer-focused initial setup on top of the browser window.
 Guarantees zero crashes and prevents bypassing via new tabs.
 """
@@ -21,14 +21,14 @@ from core.i18n import t
 class OnboardingDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Zephyrium // Setup")
+        self.setWindowTitle("Crux // Setup")
         self.setModal(True)
         self.setFixedSize(920, 600)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint)
 
         self.settings = load_settings()
         self.selected_theme = self.settings.get("theme", "dark")
-        self.selected_accent = self.settings.get("accent_color", "#fe8019")
+        self.selected_accent = self.settings.get("accent_color", "#a855f7")
         self.selected_mode = self.settings.get("ui_mode", "minimal")
         self.selected_orientation = self.settings.get("tab_orientation", "vertical")
 

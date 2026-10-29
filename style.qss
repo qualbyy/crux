@@ -71,7 +71,7 @@ QPushButton:hover, QToolButton:hover {
 
 QPushButton:pressed, QToolButton:pressed {
     background-color: #18181b;
-    border-color: #fe8019;
+    border-color: #a855f7;
     color: #f5f5f0;
 }
 
@@ -85,7 +85,7 @@ QPushButton:disabled, QToolButton:disabled {
 QPushButton#accentBtn {
     background-color: transparent;
     border: 1px solid #3f3f46;
-    border-bottom: 2px solid #fe8019;
+    border-bottom: 2px solid #a855f7;
     color: #f5f5f0;
     font-weight: bold;
 }
@@ -93,21 +93,21 @@ QPushButton#accentBtn {
 QPushButton#accentBtn:hover {
     background-color: #2d2d2a;
     border: 1px solid #3f3f46;
-    border-bottom: 2px solid #fe8019;
-    color: #fe8019;
+    border-bottom: 2px solid #a855f7;
+    color: #a855f7;
 }
 
 QPushButton#accentWarmBtn {
     background-color: transparent;
-    border: 1px solid #fe8019;
-    color: #fe8019;
+    border: 1px solid #a855f7;
+    color: #a855f7;
     font-weight: bold;
 }
 
 QPushButton#accentWarmBtn:hover {
     background-color: #2d2d2a;
-    border: 1px solid #fe8019;
-    color: #fe8019;
+    border: 1px solid #a855f7;
+    color: #a855f7;
 }
 
 /* Inputs & Text Edits */
@@ -156,7 +156,7 @@ QListWidget#verticalTabsList::item:hover {
 QListWidget#verticalTabsList::item:selected {
     background-color: #18181b;
     color: #f5f5f0;
-    border-left: 2px solid #fe8019;
+    border-left: 2px solid #a855f7;
     border-right: none;
 }
 

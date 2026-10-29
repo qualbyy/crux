@@ -1,5 +1,5 @@
 """
-Scratchpad & Notes Panel for Zephyrium
+Scratchpad & Notes Panel for Crux
 Claude Code Minimal Dark aesthetic (Monospace, 1px border, Auto-save)
 """
 from PyQt6.QtCore import Qt, QTimer
@@ -79,5 +79,5 @@ class NotesWidget(QWidget):
             self.save_status.setText("SAVE ERR")
             self.save_status.setStyleSheet("color: #ef4444; font-size: 10px;")
 
-    def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.editor.setStyleSheet("")

@@ -1,5 +1,5 @@
 """
-Claude Code Terminal AI Assistant Panel for Zephyrium
+Claude Code Terminal AI Assistant Panel for Crux
 Aesthetic: Anthropic Minimal Dark / Terminal Interface
 Features: Dynamic Gemini Model Fetching & Recommendation Algorithm,
 In-Browser Key Setup, and Interactive Page Q&A.
@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 from config import load_settings, save_settings
 from core.i18n import t, get_current_language, LANGUAGES
 
-def format_markdown_to_html(md_text: str, accent: str = "#fe8019") -> str:
+def format_markdown_to_html(md_text: str, accent: str = "#a855f7") -> str:
     """
     Renders Markdown text to rich HTML with styled code blocks,
     inline code, bold, italic, headers, bullet lists, and links.
@@ -120,7 +120,7 @@ class ModelFetcherWorker(QThread):
     def run(self):
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models?key={self.api_key}"
-            req = urllib.request.Request(url, headers={"User-Agent": "Zephyrium/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Crux/1.3.6"})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode())
                 raw_models = [
@@ -231,7 +231,7 @@ class OllamaDetectorWorker(QThread):
     def run(self):
         try:
             url = f"{self.base_url}/api/tags"
-            req = urllib.request.Request(url, headers={"User-Agent": "Zephyrium/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Crux/1.3.6"})
             with urllib.request.urlopen(req, timeout=2.0) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
@@ -247,7 +247,7 @@ class KeyConfigDialog(QDialog):
     key_saved = pyqtSignal(str)
     config_saved = pyqtSignal(dict)
 
-    def __init__(self, current_key: str, accent: str = "#fe8019", parent=None):
+    def __init__(self, current_key: str, accent: str = "#a855f7", parent=None):
         super().__init__(parent, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setFixedSize(500, 320)
         self.accent = accent
@@ -417,7 +417,7 @@ class AIChatWidget(QWidget):
         self.active_model = self.settings.get("ai_model", "gemini-2.5-flash")
         self.ollama_url = self.settings.get("ollama_url", "http://localhost:11434")
         self.ollama_model = self.settings.get("ollama_model", "llama3")
-        self.accent = self.settings.get("accent_color", "#fe8019")
+        self.accent = self.settings.get("accent_color", "#a855f7")
         self.cached_page_context = ""
         self.worker = None
         self.ollama_online = False
@@ -430,7 +430,7 @@ class AIChatWidget(QWidget):
         # Header 1: Title, Provider Switcher, Status, Config Button
         header = QHBoxLayout()
         header.setSpacing(6)
-        self.title_lbl = QLabel("ZEPHYRIUM // AI")
+        self.title_lbl = QLabel("CRUX // AI")
         self.title_lbl.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {self.accent}; letter-spacing: 1px;")
         
         self.btn_provider = QPushButton(f"[{self.provider.upper()}]")
@@ -648,7 +648,7 @@ class AIChatWidget(QWidget):
         self._update_status_display()
 
     def open_key_dialog(self) -> None:
-        dlg = KeyConfigDialog(self.api_key, accent=getattr(self, "accent", "#fe8019"), parent=self)
+        dlg = KeyConfigDialog(self.api_key, accent=getattr(self, "accent", "#a855f7"), parent=self)
         dlg.key_saved.connect(self.save_api_key)
         dlg.config_saved.connect(self._on_config_saved)
         dlg.exec()
@@ -684,7 +684,7 @@ class AIChatWidget(QWidget):
         self.active_model = self.settings.get("ai_model", "gemini-2.5-flash")
         self.ollama_url = self.settings.get("ollama_url", "http://localhost:11434")
         self.ollama_model = self.settings.get("ollama_model", "llama3")
-        self.accent = self.settings.get("accent_color", "#fe8019")
+        self.accent = self.settings.get("accent_color", "#a855f7")
         self.btn_provider.setText(f"[{self.provider.upper()}]")
         self._update_status_display()
         self._update_model_list()
@@ -785,7 +785,7 @@ class AIChatWidget(QWidget):
             return
 
         prompt = (
-            f"You are a sharp AI assistant in Zephyrium. Answer the user's question "
+            f"You are a sharp AI assistant in Crux. Answer the user's question "
             f"strictly based on the following web page content:\n\n"
             f"Web Page Context:\n{self.cached_page_context[:5000]}\n\n"
             f"User Question: {question}"
@@ -797,7 +797,7 @@ class AIChatWidget(QWidget):
         lang_code = get_current_language()
         lang_name = LANGUAGES.get(lang_code, "Russian")
         system_instruction = (
-            f"You are Zephyrium AI Assistant, integrated directly into Zephyrium Minimal Browser. "
+            f"You are Crux AI Assistant, integrated directly into Crux Minimal Browser. "
             f"CRITICAL REQUIREMENT: You must ALWAYS communicate and respond in {lang_name} ({lang_code}), "
             f"matching the user's interface language setting, unless the user explicitly requests another language. "
             f"Keep explanations concise, precise, technical, and engineer-focused."
@@ -807,7 +807,7 @@ class AIChatWidget(QWidget):
             ollama_url = self.ollama_url or self.settings.get("ollama_url", "http://localhost:11434")
             ollama_model = self.ollama_model or self.settings.get("ollama_model", "llama3")
             self.status.setText(f"OLLAMA // THINKING")
-            self.status.setStyleSheet(f"color: {getattr(self, 'accent', '#fe8019')}; font-size: 10px; font-weight: bold;")
+            self.status.setStyleSheet(f"color: {getattr(self, 'accent', '#a855f7')}; font-size: 10px; font-weight: bold;")
             self.worker = OllamaWorker(query, base_url=ollama_url, model=ollama_model, system_instruction=system_instruction)
             self.worker.response_ready.connect(self._on_worker_response)
             self.worker.error_occurred.connect(self._on_worker_error)
@@ -824,7 +824,7 @@ class AIChatWidget(QWidget):
             return
 
         self.status.setText(t("ai_thinking"))
-        self.status.setStyleSheet(f"color: {getattr(self, 'accent', '#fe8019')}; font-size: 10px; font-weight: bold;")
+        self.status.setStyleSheet(f"color: {getattr(self, 'accent', '#a855f7')}; font-size: 10px; font-weight: bold;")
 
         self.worker = GeminiWorker(query, key, model=self.active_model, system_instruction=system_instruction)
         self.worker.response_ready.connect(self._on_worker_response)
@@ -854,7 +854,7 @@ class AIChatWidget(QWidget):
 
         self._append_user(f"Summarize page: '{title}' ({url})")
         prompt = (
-            f"You are a concise, engineer-focused AI assistant in Zephyrium. "
+            f"You are a concise, engineer-focused AI assistant in Crux. "
             f"Summarize the following web page content with bullet points and key takeaways:\n\n"
             f"Page Title: {title}\n"
             f"URL: {url}\n\n"
@@ -866,7 +866,7 @@ class AIChatWidget(QWidget):
         self.transcript.clear()
         self._append_system("Session cleared.")
 
-    def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.accent = accent
         if hasattr(self, "title_lbl"):
             self.title_lbl.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {accent}; letter-spacing: 1px;")

@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>zephyrium://downloads</title>
+    <title>crux://downloads</title>
     <style>
         :root, :root[data-theme="dark"] {
             --bg-base: #18181b;
             --bg-surface: #262624;
             --bg-elevated: #2d2d2a;
             --border-muted: #3f3f46;
-            --border-active: var(--accent, #fe8019);
+            --border-active: var(--accent, #a855f7);
             --text-primary: #d4d4d8;
             --text-bright: #f5f5f0;
             --text-muted: #71717a;
-            --accent: #fe8019;
+            --accent: #a855f7;
             --status-success: #10b981;
             --status-error: #ef4444;
             --font-mono: "Iosevka Nerd Font", "JetBrains Mono", monospace;
@@ -25,7 +25,7 @@
             --bg-surface: #ffffff;
             --bg-elevated: #f1f5f9;
             --border-muted: #cbd5e1;
-            --border-active: var(--accent, #fe8019);
+            --border-active: var(--accent, #a855f7);
             --text-primary: #334155;
             --text-bright: #0f172a;
             --text-muted: #64748b;
@@ -214,7 +214,7 @@
             </div>
             <div class="actions">
                 <button class="btn-action" onclick="openFolder()" data-i18n="btn_open_folder">OPEN DOWNLOADS FOLDER</button>
-                <a href="zephyrium://settings?tab=downloads" class="btn-action" data-i18n="btn_settings">SETTINGS</a>
+                <a href="crux://settings?tab=downloads" class="btn-action" data-i18n="btn_settings">SETTINGS</a>
                 <button class="btn-action" style="border-color: var(--status-error); color: var(--status-error);" onclick="clearDownloads()" data-i18n="btn_clear_list">CLEAR LIST</button>
             </div>
         </div>
@@ -326,25 +326,25 @@
 
         function sendToHost(url) {
             try {
-                window.prompt("ZEPHYRIUM_CMD:" + url);
+                try { window.prompt("CRUX_CMD:" + url); } catch(e) { window.prompt("ZEPHYRIUM_CMD:" + url); }
             } catch (e) {
-                console.log("ZEPHYRIUM_IPC:" + url);
+                console.log("CRUX_IPC:" + url);
             }
         }
         window.sendToHost = sendToHost;
 
         function openFile(encPath) {
-            sendToHost(`zephyrium://action/open-file?path=${encPath}`);
+            sendToHost(`crux://action/open-file?path=${encPath}`);
         }
 
         function openFolder() {
-            sendToHost("zephyrium://action/open-downloads-folder");
+            sendToHost("crux://action/open-downloads-folder");
         }
 
         function clearDownloads() {
             const dict = I18N_DOWNLOADS[currentLang] || I18N_DOWNLOADS['en'];
             if (confirm(dict.confirm_clear)) {
-                sendToHost("zephyrium://action/clear-downloads");
+                sendToHost("crux://action/clear-downloads");
             }
         }
 

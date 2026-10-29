@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtWebEngineCore import QWebEngineDownloadRequest
 
 class DownloadItemWidget(QFrame):
-    def __init__(self, item: QWebEngineDownloadRequest, accent: str = "#fe8019", parent=None):
+    def __init__(self, item: QWebEngineDownloadRequest, accent: str = "#a855f7", parent=None):
         super().__init__(parent)
         self.item = item
         self.accent = accent
@@ -140,10 +140,10 @@ class DownloadManager(QWidget):
         self.setFixedWidth(360)
         self.setMinimumHeight(180)
         self.setMaximumHeight(420)
-        self.accent = "#fe8019"
+        self.accent = "#a855f7"
         self.theme = "dark"
         if parent and hasattr(parent, "settings"):
-            self.accent = parent.settings.get("accent_color", "#fe8019")
+            self.accent = parent.settings.get("accent_color", "#a855f7")
             self.theme = parent.settings.get("theme", "dark")
 
         self._init_ui()
@@ -288,7 +288,7 @@ class DownloadManager(QWidget):
         item.accept()
 
         self.empty_label.hide()
-        widget = DownloadItemWidget(item, accent=getattr(self, "accent", "#fe8019"))
+        widget = DownloadItemWidget(item, accent=getattr(self, "accent", "#a855f7"))
         self.items_layout.insertWidget(0, widget)
 
         parent = self.parent()

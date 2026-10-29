@@ -26,7 +26,7 @@ class SearchSuggestWorker(QThread):
         try:
             encoded = urllib.parse.quote(q)
             url = f"https://suggestqueries.google.com/complete/search?client=firefox&q={encoded}"
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Zephyrium/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Crux/1.3.6"})
             with urllib.request.urlopen(req, timeout=1.5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
@@ -69,9 +69,9 @@ class CommandPalette(QDialog):
 
         # Search / Input Field
         parent = self.parent()
-        acc = "#fe8019"
+        acc = "#a855f7"
         if parent and hasattr(parent, "settings"):
-            acc = parent.settings.get("accent_color", "#fe8019")
+            acc = parent.settings.get("accent_color", "#a855f7")
 
         input_container = QHBoxLayout()
         self.prompt_label = QLabel("&gt;")
@@ -165,10 +165,10 @@ class CommandPalette(QDialog):
     def show_palette(self, initial_text: str = "") -> None:
         parent = self.parent()
         th = "dark"
-        acc = "#fe8019"
+        acc = "#a855f7"
         if parent and hasattr(parent, "settings"):
             th = parent.settings.get("theme", "dark")
-            acc = parent.settings.get("accent_color", "#fe8019")
+            acc = parent.settings.get("accent_color", "#a855f7")
         
         bg_base = "#ffffff" if th == "light" else "#18181b"
         bg_input = "#f8fafc" if th == "light" else "#262624"

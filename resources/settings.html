@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>zephyrium://settings</title>
+    <title>crux://settings</title>
     <style>
         :root, :root[data-theme="dark"] {
             --bg-base: #18181b;
             --bg-surface: #262624;
             --bg-elevated: #2d2d2a;
             --border-muted: #3f3f46;
-            --border-active: var(--accent, #fe8019);
+            --border-active: var(--accent, #a855f7);
             --text-primary: #d4d4d8;
             --text-bright: #f5f5f0;
             --text-muted: #71717a;
-            --accent: #fe8019;
+            --accent: #a855f7;
             --status-success: #10b981;
             --status-error: #ef4444;
             --font-mono: "Iosevka Nerd Font", "JetBrains Mono", monospace;
@@ -25,7 +25,7 @@
             --bg-surface: #ffffff;
             --bg-elevated: #f1f5f9;
             --border-muted: #cbd5e1;
-            --border-active: var(--accent, #fe8019);
+            --border-active: var(--accent, #a855f7);
             --text-primary: #334155;
             --text-bright: #0f172a;
             --text-muted: #64748b;
@@ -515,7 +515,7 @@
         </div>
 
         <div id="toastMessage" class="toast" data-i18n="toast_saved">
-            Settings saved and dynamically applied across Zephyrium.
+            Settings saved and dynamically applied across Crux.
         </div>
 
         <div class="layout-grid">
@@ -578,7 +578,7 @@
                             <span class="label-title" data-i18n="lbl_homepage">Homepage URL</span>
                             <span class="label-desc" data-i18n="desc_homepage">URL opened on startup.</span>
                         </div>
-                        <input type="text" id="setting-homepage" value="zephyrium://startpage" style="width: 280px;">
+                        <input type="text" id="setting-homepage" value="crux://startpage" style="width: 280px;">
                     </div>
 
                     <div class="form-row">
@@ -586,7 +586,7 @@
                             <span class="label-title" data-i18n="lbl_new_tab_url">New Tab URL</span>
                             <span class="label-desc" data-i18n="desc_new_tab_url">URL opened when opening a new tab.</span>
                         </div>
-                        <input type="text" id="setting-new-tab-url" value="zephyrium://startpage" style="width: 280px;">
+                        <input type="text" id="setting-new-tab-url" value="crux://startpage" style="width: 280px;">
                     </div>
 
                     <div class="form-row">
@@ -663,14 +663,14 @@
                             <span class="label-desc" data-i18n="desc_accent">Primary highlight color across tabs, buttons, and badges.</span>
                         </div>
                         <div class="color-palette">
-                            <div class="color-swatch selected" style="background-color: #fe8019;" data-color="#fe8019" onclick="selectAccent('#fe8019', this)"></div>
+                            <div class="color-swatch" style="background-color: #fe8019;" data-color="#fe8019" onclick="selectAccent('#fe8019', this)"></div>
                             <div class="color-swatch" style="background-color: #10b981;" data-color="#10b981" onclick="selectAccent('#10b981', this)"></div>
                             <div class="color-swatch" style="background-color: #38bdf8;" data-color="#38bdf8" onclick="selectAccent('#38bdf8', this)"></div>
-                            <div class="color-swatch" style="background-color: #a855f7;" data-color="#a855f7" onclick="selectAccent('#a855f7', this)"></div>
+                            <div class="color-swatch selected" style="background-color: #a855f7;" data-color="#a855f7" onclick="selectAccent('#a855f7', this)"></div>
                             <div class="color-swatch" style="background-color: #f43f5e;" data-color="#f43f5e" onclick="selectAccent('#f43f5e', this)"></div>
                             <div class="color-swatch" style="background-color: #94a3b8;" data-color="#94a3b8" onclick="selectAccent('#94a3b8', this)"></div>
                         </div>
-                        <input type="hidden" id="setting-accent" value="#fe8019">
+                        <input type="hidden" id="setting-accent" value="#a855f7">
                     </div>
 
                     <div class="form-row">
@@ -787,7 +787,7 @@
                             <span class="label-title" data-i18n="lbl_open_downloads">Open Full Downloads Page</span>
                             <span class="label-desc" data-i18n="desc_open_downloads">View all past and active file downloads in dedicated tab.</span>
                         </div>
-                        <a href="zephyrium://downloads" class="btn-action" style="text-decoration: none;" data-i18n="btn_open_downloads">OPEN ALL DOWNLOADS</a>
+                        <a href="crux://downloads" class="btn-action" style="text-decoration: none;" data-i18n="btn_open_downloads">OPEN ALL DOWNLOADS</a>
                     </div>
                 </div>
 
@@ -970,7 +970,7 @@
 
                     <div class="form-group" style="margin-top: 10px;">
                         <span class="label-title" data-i18n="lbl_ai_persona">AI Persona / System Instruction</span>
-                        <textarea id="setting-ai-persona" rows="3" style="width: 100%; margin-top: 6px;">You are an intelligent, engineer-focused AI assistant in Zephyrium Browser.</textarea>
+                        <textarea id="setting-ai-persona" rows="3" style="width: 100%; margin-top: 6px;">You are an intelligent, engineer-focused AI assistant in Crux Browser.</textarea>
                     </div>
                 </div>
 
@@ -1048,7 +1048,7 @@
 
                     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.6;">
                         <p data-i18n="about_body" data-i18n-html="true">
-                            <strong>Zephyrium</strong> is a lightweight, keyboard-driven browser engineered with a strict 
+                            <strong>Crux</strong> is a lightweight, keyboard-driven browser engineered with a strict 
                             Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
                         </p>
                         <p>
@@ -1189,9 +1189,9 @@
         // Host IPC mechanism (immune to navigation cancellation / about:blank#blocked)
         function sendToHost(url) {
             try {
-                window.prompt("ZEPHYRIUM_CMD:" + url);
+                try { window.prompt("CRUX_CMD:" + url); } catch(e) { window.prompt("ZEPHYRIUM_CMD:" + url); }
             } catch (e) {
-                console.log("ZEPHYRIUM_IPC:" + url);
+                console.log("CRUX_IPC:" + url);
             }
         }
         window.sendToHost = sendToHost;
@@ -1208,7 +1208,7 @@
             } else if (key === 'language') {
                 applyLanguage(value);
             }
-            sendToHost("zephyrium://live-setting?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
+            sendToHost("crux://live-setting?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
         }
         window.applySettingLive = applySettingLive;
 
@@ -1261,7 +1261,7 @@
         }
 
         function openExternalUrl(url) {
-            sendToHost("zephyrium://new-tab?url=" + encodeURIComponent(url));
+            sendToHost("crux://new-tab?url=" + encodeURIComponent(url));
         }
         window.openExternalUrl = openExternalUrl;
 
@@ -1404,7 +1404,7 @@
                 ctx_tab_manager: "Менеджер вкладок",
                 header_about: "О БРАУЗЕРЕ ZEPHYRIUM",
                 desc_about: "Минималистичный инженерный веб-браузер",
-                about_body: "<strong>Zephyrium</strong> — легковесный браузер с клавиатурным управлением, строгой эстетикой Anthropic Minimal Dark, квадратным дизайном (0px скругления), моноширинным шрифтом и полной локализацией.",
+                about_body: "<strong>Crux</strong> — легковесный браузер с клавиатурным управлением, строгой эстетикой Anthropic Minimal Dark, квадратным дизайном (0px скругления), моноширинным шрифтом и полной локализацией.",
                 about_version: "Версия:",
                 about_engine: "Движок:",
                 about_arch: "Архитектура:",
@@ -1548,7 +1548,7 @@
                 ctx_tab_manager: "Tab Manager",
                 header_about: "ABOUT ZEPHYRIUM",
                 desc_about: "Minimal, Engineer-Grade Web Browser",
-                about_body: "<strong>Zephyrium</strong> is a lightweight, keyboard-driven browser engineered with a strict Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.",
+                about_body: "<strong>Crux</strong> is a lightweight, keyboard-driven browser engineered with a strict Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.",
                 about_version: "Version:",
                 about_engine: "Engine:",
                 about_arch: "Architecture:",
@@ -1616,7 +1616,7 @@
                 btn.textContent = (currentLang === 'ru' ? 'ПРОВЕРКА...' : 'VERIFYING...');
                 btn.disabled = true;
             }
-            sendToHost('zephyrium://action/unlock-vault?password=' + encodeURIComponent(pwd));
+            sendToHost('crux://action/unlock-vault?password=' + encodeURIComponent(pwd));
         }
         window.submitVaultUnlock = submitVaultUnlock;
 
@@ -1754,7 +1754,7 @@
 
         function deletePassword(encDomain, encUser) {
             if (confirm("Delete this saved credential?")) {
-                sendToHost(`zephyrium://action/delete-password?domain=${encDomain}&username=${encUser}`);
+                sendToHost(`crux://action/delete-password?domain=${encDomain}&username=${encUser}`);
             }
         }
 
@@ -1804,7 +1804,7 @@
 
         function deleteCookie(encHost, encName) {
             if (confirm("Delete this cookie?")) {
-                sendToHost(`zephyrium://action/delete-cookie?host=${encHost}&name=${encName}`);
+                sendToHost(`crux://action/delete-cookie?host=${encHost}&name=${encName}`);
             }
         }
 
@@ -1859,7 +1859,7 @@
                 alert("No cookies to export.");
                 return;
             }
-            let txt = "# Netscape HTTP Cookie File\n# http://curl.haxx.se/rfc/cookie_spec.html\n# Generated by Zephyrium\n\n";
+            let txt = "# Netscape HTTP Cookie File\n# http://curl.haxx.se/rfc/cookie_spec.html\n# Generated by Crux\n\n";
             currentCookies.forEach(c => {
                 const domain = c.host || "";
                 const flag = domain.startsWith(".") ? "TRUE" : "FALSE";
@@ -1990,16 +1990,16 @@
         }
 
         function openScriptsFolder() {
-            sendToHost("zephyrium://action/open-scripts-dir");
+            sendToHost("crux://action/open-scripts-dir");
         }
 
         function toggleUserscript(name) {
-            sendToHost("zephyrium://action/toggle-userscript?name=" + encodeURIComponent(name));
+            sendToHost("crux://action/toggle-userscript?name=" + encodeURIComponent(name));
             setTimeout(() => { location.reload(); }, 250);
         }
 
         function toggleUserstyle(name) {
-            sendToHost("zephyrium://action/toggle-userstyle?name=" + encodeURIComponent(name));
+            sendToHost("crux://action/toggle-userstyle?name=" + encodeURIComponent(name));
             setTimeout(() => { location.reload(); }, 250);
         }
 
@@ -2044,7 +2044,7 @@
             setTimeout(() => { toast.style.display = 'none'; }, 3000);
 
             // Execute dynamically in Qt without page navigation
-            sendToHost("zephyrium://apply-settings?" + params.toString());
+            sendToHost("crux://apply-settings?" + params.toString());
         }
 
         function toggleAIProviderUI() {
@@ -2073,7 +2073,7 @@
                 badge.style.color = '#38bdf8';
                 badge.innerText = 'Проверка подключения к ' + url + '...';
             }
-            sendToHost("zephyrium://action/test-ollama?url=" + encodeURIComponent(url));
+            sendToHost("crux://action/test-ollama?url=" + encodeURIComponent(url));
         }
 
         window.onOllamaTestResult = function(success, info) {

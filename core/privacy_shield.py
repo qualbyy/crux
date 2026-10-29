@@ -1,5 +1,5 @@
 """
-Advanced Privacy Shield for Zephyrium Browser
+Advanced Privacy Shield for Crux Browser
 Provides AudioContext and anti-fingerprinting protection,
 Anti-Adblock script trap neutralizers, and URL tracking parameter stripping.
 Preserves compatibility with Cloudflare Turnstile, GitHub, and modern SPAs.
@@ -47,11 +47,11 @@ def install_privacy_shield(profile: QWebEngineProfile) -> None:
         # Remove any existing script with same name before re-inserting
         scripts = profile.scripts()
         for s in scripts.toList():
-            if s.name() == "zephyrium_stealth_privacy":
+            if s.name() == "crux_stealth_privacy":
                 scripts.remove(s)
 
         script = QWebEngineScript()
-        script.setName("zephyrium_stealth_privacy")
+        script.setName("crux_stealth_privacy")
         script.setSourceCode(STEALTH_SCRIPT_SOURCE)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
         script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)

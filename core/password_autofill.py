@@ -1,6 +1,6 @@
 """
-Password Autofill and Credential Suggestions for Zephyrium Browser
-Integrates ~/.config/zephyrium/passwords.json with web forms.
+Password Autofill and Credential Suggestions for Crux Browser
+Integrates ~/.config/crux/passwords.json with web forms.
 """
 import json
 import urllib.parse
@@ -121,7 +121,7 @@ class PasswordAutofillManager:
 
     @staticmethod
     def should_prompt_save(url: str, username: str, password: str) -> bool:
-        if not url or url.startswith(("zephyrium://", "zinc://", "about:")):
+        if not url or url.startswith(("crux://", "zephyrium://", "zinc://", "about:")):
             return False
         if not password or len(password.strip()) == 0:
             return False
@@ -141,7 +141,7 @@ class PasswordAutofillManager:
 
     @staticmethod
     def get_matches_for_url(url: str) -> List[Dict]:
-        if not url or url.startswith(("zephyrium://", "zinc://", "about:", "data:", "chrome://")):
+        if not url or url.startswith(("crux://", "zephyrium://", "zinc://", "about:", "data:", "chrome://")):
             return []
         
         try:
@@ -180,8 +180,8 @@ class PasswordAutofillManager:
 
         js_code = f"""
         (function() {{
-            if (window.__zephyrium_autofill_injected) return;
-            window.__zephyrium_autofill_injected = true;
+            if (window.__crux_autofill_injected) return;
+            window.__crux_autofill_injected = true;
 
             const credentials = {serialized};
             if (!credentials || credentials.length === 0) return;
@@ -296,11 +296,11 @@ class PasswordAutofillManager:
             function performAutofill(cred, primaryUser, primaryPwd) {{
                 if (primaryUser && cred.username) {{
                     setNativeInputValue(primaryUser, cred.username);
-                    window.__zephyrium_active_user = cred.username;
+                    window.__crux_active_user = cred.username;
                     try {{
-                        sessionStorage.setItem('__zephyrium_last_user', cred.username);
+                        sessionStorage.setItem('__crux_last_user', cred.username);
                         if (cred.password) {{
-                            sessionStorage.setItem('__zephyrium_last_pass', cred.password);
+                            sessionStorage.setItem('__crux_last_pass', cred.password);
                         }}
                     }} catch (e) {{}}
                 }}
@@ -310,22 +310,22 @@ class PasswordAutofillManager:
                 }}
 
                 // Show confirmation badge
-                const pill = document.getElementById('__zephyrium_pill__');
+                const pill = document.getElementById('__crux_pill__');
                 if (pill) {{
                     pill.style.backgroundColor = '#10b981';
                     pill.style.borderColor = '#10b981';
                     pill.innerHTML = `<span style="color:#ffffff; font-weight:bold;">✓ Заполнено: ${{cred.username}}</span>`;
                     setTimeout(() => pill.remove(), 2000);
                 }}
-                const menu = document.getElementById('__zephyrium_dropdown__');
+                const menu = document.getElementById('__crux_dropdown__');
                 if (menu) menu.remove();
             }}
 
             function renderDropdown(anchor, primaryUser, primaryPwd) {{
-                let menu = document.getElementById('__zephyrium_dropdown__');
+                let menu = document.getElementById('__crux_dropdown__');
                 if (!menu) {{
                     menu = document.createElement('div');
-                    menu.id = '__zephyrium_dropdown__';
+                    menu.id = '__crux_dropdown__';
                     menu.style.position = 'absolute';
                     menu.style.zIndex = '2147483647';
                     menu.style.backgroundColor = '#18181b';
@@ -382,9 +382,9 @@ class PasswordAutofillManager:
             }}
 
             function renderFloatingPill(primaryUser, primaryPwd) {{
-                if (document.getElementById('__zephyrium_pill__')) return;
+                if (document.getElementById('__crux_pill__')) return;
                 const pill = document.createElement('div');
-                pill.id = '__zephyrium_pill__';
+                pill.id = '__crux_pill__';
                 pill.style.position = 'fixed';
                 pill.style.top = '72px';
                 pill.style.right = '20px';
@@ -427,11 +427,11 @@ class PasswordAutofillManager:
                     if (!userInput.value && primaryCred.username) {{
                         setNativeInputValue(userInput, primaryCred.username);
                         userInput.__z_autofilled = true;
-                        window.__zephyrium_active_user = primaryCred.username;
+                        window.__crux_active_user = primaryCred.username;
                         try {{
-                            sessionStorage.setItem('__zephyrium_last_user', primaryCred.username);
+                            sessionStorage.setItem('__crux_last_user', primaryCred.username);
                             if (primaryCred.password) {{
-                                sessionStorage.setItem('__zephyrium_last_pass', primaryCred.password);
+                                sessionStorage.setItem('__crux_last_pass', primaryCred.password);
                             }}
                         }} catch(e) {{}}
                     }}
@@ -446,8 +446,8 @@ class PasswordAutofillManager:
                         // Multi-step form (e.g. Google login step 2)
                         let lastUser = '';
                         try {{
-                            lastUser = sessionStorage.getItem('__zephyrium_last_user') || window.__zephyrium_active_user || '';
-                            passToFill = sessionStorage.getItem('__zephyrium_last_pass') || '';
+                            lastUser = sessionStorage.getItem('__crux_last_user') || window.__crux_active_user || '';
+                            passToFill = sessionStorage.getItem('__crux_last_pass') || '';
                         }} catch(e) {{}}
                         if (!passToFill) {{
                             const match = credentials.find(c => c.username === lastUser) || primaryCred;
@@ -463,10 +463,10 @@ class PasswordAutofillManager:
                 // Datalist and interaction listeners
                 if (userInput && !userInput.__z_listener_attached) {{
                     userInput.__z_listener_attached = true;
-                    let dl = document.getElementById('__zephyrium_datalist__');
+                    let dl = document.getElementById('__crux_datalist__');
                     if (!dl) {{
                         dl = document.createElement('datalist');
-                        dl.id = '__zephyrium_datalist__';
+                        dl.id = '__crux_datalist__';
                         document.body.appendChild(dl);
                     }}
                     dl.innerHTML = '';
@@ -476,7 +476,7 @@ class PasswordAutofillManager:
                         opt.label = 'Zephyrium Vault';
                         dl.appendChild(opt);
                     }});
-                    userInput.setAttribute('list', '__zephyrium_datalist__');
+                    userInput.setAttribute('list', '__crux_datalist__');
 
                     userInput.addEventListener('focus', function() {{
                         renderDropdown(userInput, userInput, pwdInput);
@@ -512,7 +512,7 @@ class PasswordAutofillManager:
 
             // Close dropdown when clicking outside
             document.addEventListener('click', function(e) {{
-                const dd = document.getElementById('__zephyrium_dropdown__');
+                const dd = document.getElementById('__crux_dropdown__');
                 if (dd && !dd.contains(e.target)) {{
                     const isAnchor = (e.target.tagName === 'INPUT' && (e.target.type === 'password' || e.target.type === 'email' || e.target.id === 'identifierId'));
                     if (!isAnchor) {{
@@ -548,8 +548,8 @@ class PasswordAutofillManager:
     def generate_capture_js() -> str:
         return """
         (function() {
-            if (window.__zephyrium_capture_injected) return;
-            window.__zephyrium_capture_injected = true;
+            if (window.__crux_capture_injected) return;
+            window.__crux_capture_injected = true;
 
             // Track any typed username / email across steps (for multi-step logins like Google)
             document.addEventListener('input', function(e) {
@@ -559,9 +559,9 @@ class PasswordAutofillManager:
                 if (type === 'password') return;
                 const val = (t.value || '').trim();
                 if (val && (type === 'email' || t.id === 'identifierId' || t.name === 'identifier' || val.includes('@') || t.getAttribute('autocomplete') === 'username')) {
-                    window.__zephyrium_last_user = val;
+                    window.__crux_last_user = val;
                     try {
-                        sessionStorage.setItem('__zephyrium_last_user', val);
+                        sessionStorage.setItem('__crux_last_user', val);
                     } catch (err) {}
                 }
             }, true);
@@ -593,11 +593,11 @@ class PasswordAutofillManager:
                 }
 
                 // Check stored username from step 1
-                if (window.__zephyrium_last_user) {
-                    return window.__zephyrium_last_user;
+                if (window.__crux_last_user) {
+                    return window.__crux_last_user;
                 }
                 try {
-                    const stored = sessionStorage.getItem('__zephyrium_last_user');
+                    const stored = sessionStorage.getItem('__crux_last_user');
                     if (stored) return stored;
                 } catch (err) {}
 
@@ -619,10 +619,10 @@ class PasswordAutofillManager:
                 const url = window.location.href;
                 if (!pwd || pwd.length === 0) return;
 
-                const cmd = "zephyrium://action/prompt-save-password?url=" + encodeURIComponent(url) +
+                const cmd = "crux://action/prompt-save-password?url=" + encodeURIComponent(url) +
                             "&username=" + encodeURIComponent(user) +
                             "&password=" + encodeURIComponent(pwd);
-                console.log("ZEPHYRIUM_IPC:" + cmd);
+                console.log("CRUX_IPC:" + cmd);
             }
 
             // 1. Listen on form submit
@@ -653,9 +653,9 @@ class PasswordAutofillManager:
                     // If on step 1 (identifierNext), capture username to session
                     const idInp = document.querySelector('input[id="identifierId"], input[type="email"]');
                     if (idInp && idInp.value) {
-                        window.__zephyrium_last_user = idInp.value.trim();
+                        window.__crux_last_user = idInp.value.trim();
                         try {
-                            sessionStorage.setItem('__zephyrium_last_user', idInp.value.trim());
+                            sessionStorage.setItem('__crux_last_user', idInp.value.trim());
                         } catch (err) {}
                     }
 

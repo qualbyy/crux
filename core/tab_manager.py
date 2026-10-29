@@ -44,7 +44,7 @@ class TabItemWidget(QWidget):
         self.tab_data = tab_data
         self.is_compact = False
         self.theme = "dark"
-        self.accent = "#fe8019"
+        self.accent = "#a855f7"
         self.is_active = False
 
         self.setObjectName("tabItemWidget")
@@ -90,7 +90,7 @@ class TabItemWidget(QWidget):
             QPushButton {
                 background: transparent;
                 border: none;
-                color: #fe8019;
+                color: #a855f7;
                 font-size: 11px;
                 padding: 0;
             }
@@ -158,7 +158,7 @@ class TabItemWidget(QWidget):
 
         self.set_title(self.tab_data.title)
 
-    def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.theme = theme
         self.accent = accent
         close_hover_bg = "#e2e8f0" if theme == "light" else "#3f3f46"
@@ -284,6 +284,7 @@ class DraggableTabListWidget(QListWidget):
             return
 
         mime_data = QMimeData()
+        mime_data.setData("application/x-crux-tab-row", str(source_row).encode("utf-8"))
         mime_data.setData("application/x-zephyrium-tab-row", str(source_row).encode("utf-8"))
 
         drag = QDrag(self)
@@ -302,24 +303,27 @@ class DraggableTabListWidget(QListWidget):
         drag.exec(Qt.DropAction.MoveAction)
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
+        if event.mimeData().hasFormat("application/x-crux-tab-row") or event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event):
-        if event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
+        if event.mimeData().hasFormat("application/x-crux-tab-row") or event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
-        if not event.mimeData().hasFormat("application/x-zephyrium-tab-row"):
+        if not (event.mimeData().hasFormat("application/x-crux-tab-row") or event.mimeData().hasFormat("application/x-zephyrium-tab-row")):
             event.ignore()
             return
 
         try:
-            source_row = int(event.mimeData().data("application/x-zephyrium-tab-row").data().decode("utf-8"))
+            if event.mimeData().hasFormat("application/x-crux-tab-row"):
+                source_row = int(event.mimeData().data("application/x-crux-tab-row").data().decode("utf-8"))
+            else:
+                source_row = int(event.mimeData().data("application/x-zephyrium-tab-row").data().decode("utf-8"))
         except Exception:
             event.ignore()
             return
@@ -389,7 +393,7 @@ class VerticalTabSidebar(QWidget):
         self.btn_new_tab = QPushButton("+ NEW TAB")
         self.btn_new_tab.setObjectName("accentBtn")
         self.btn_new_tab.setFixedHeight(26)
-        self.btn_new_tab.clicked.connect(lambda: self.new_tab_requested.emit("zephyrium://startpage"))
+        self.btn_new_tab.clicked.connect(lambda: self.new_tab_requested.emit("crux://startpage"))
         self.btn_new_tab.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.btn_new_tab.customContextMenuRequested.connect(lambda p: self._show_containers_menu())
 
@@ -582,7 +586,7 @@ class VerticalTabSidebar(QWidget):
         menu.setStyleSheet("""
             QMenu { background-color: #18181b; border: 1px solid #3f3f46; color: #d4d4d8; font-family: monospace; font-size: 11px; padding: 4px; }
             QMenu::item { padding: 6px 14px; }
-            QMenu::item:selected { background-color: #262624; color: #fe8019; }
+            QMenu::item:selected { background-color: #262624; color: #a855f7; }
         """)
         hdr = menu.addAction("--- КОНТЕЙНЕРЫ ПРОФИЛЯ ---")
         hdr.setEnabled(False)
@@ -590,7 +594,7 @@ class VerticalTabSidebar(QWidget):
             badge = c_info.get("badge", c_key.upper())
             name = c_info.get("name", c_key.capitalize())
             act = menu.addAction(f"[{badge}] {name}")
-            act.triggered.connect(lambda checked, ck=c_key: self.new_tab_container_requested.emit("zephyrium://startpage", ck))
+            act.triggered.connect(lambda checked, ck=c_key: self.new_tab_container_requested.emit("crux://startpage", ck))
         menu.exec(QCursor.pos())
 
     def _prompt_new_group(self, tab_id: int) -> None:
@@ -605,7 +609,7 @@ class VerticalTabSidebar(QWidget):
         self.btn_expand_compact.setToolTip(t("expand_sidebar"))
         self.btn_new_tab_compact.setToolTip(t("new_tab"))
 
-    def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.current_theme = theme
         self.current_accent = accent
         border_muted = "#3f3f46" if theme == "dark" else "#cbd5e1"
@@ -662,7 +666,7 @@ class TabManager(QWidget):
     def retranslate_ui(self) -> None:
         self.sidebar.retranslate_ui()
 
-    def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.current_theme = theme
         self.current_accent = accent
         self.sidebar.update_theme(theme, accent)
@@ -671,10 +675,10 @@ class TabManager(QWidget):
         super().__init__(parent)
         self.profile_manager = profile_manager
         self.current_theme = "dark"
-        self.current_accent = "#fe8019"
+        self.current_accent = "#a855f7"
         if parent and hasattr(parent, "settings"):
             self.current_theme = parent.settings.get("theme", "dark")
-            self.current_accent = parent.settings.get("accent_color", "#fe8019")
+            self.current_accent = parent.settings.get("accent_color", "#a855f7")
         self.tabs: Dict[int, TabItemData] = {}
         self.tab_counter = 0
         self.active_tab_id = -1
@@ -721,24 +725,24 @@ class TabManager(QWidget):
             return
         tab_data = self.tabs[tab_id]
         v = tab_data.split_container.get_active_view()
-        url = getattr(tab_data, "url", "") or (v.url().toString() if v else "zephyrium://startpage")
+        url = getattr(tab_data, "url", "") or (v.url().toString() if v else "crux://startpage")
         if url.startswith("data:text/html") or url.startswith("data:"):
-            url = "zephyrium://startpage"
+            url = "crux://startpage"
         self.create_tab(url=url, container_id=container_id)
         self.close_tab(tab_id)
 
-    def create_tab(self, url: str = "zephyrium://startpage", *args, **kwargs) -> int:
+    def create_tab(self, url: str = "crux://startpage", *args, **kwargs) -> int:
         target_url = url
-        if args and isinstance(args[0], str) and ("://" in args[0] or args[0].startswith("about:") or args[0].startswith("zephyrium:") or args[0].startswith("zinc:")):
+        if args and isinstance(args[0], str) and ("://" in args[0] or args[0].startswith("about:") or args[0].startswith("crux:") or args[0].startswith("zephyrium:") or args[0].startswith("zinc:")):
             target_url = args[0]
-        elif not ("://" in str(target_url) or str(target_url).startswith("about:") or str(target_url).startswith("zephyrium:") or str(target_url).startswith("zinc:")):
-            target_url = "zephyrium://startpage"
+        elif not ("://" in str(target_url) or str(target_url).startswith("about:") or str(target_url).startswith("crux:") or str(target_url).startswith("zephyrium:") or str(target_url).startswith("zinc:")):
+            target_url = "crux://startpage"
             if args and isinstance(args[0], str):
                 target_url = args[0]
         if "url" in kwargs and kwargs["url"]:
             target_url = kwargs["url"]
 
-        if target_url in ["zephyrium://startpage", "default"]:
+        if target_url in ["crux://startpage", "zephyrium://startpage", "default"]:
             win = self.parent()
             pref_url = ""
             if win and hasattr(win, "settings"):
@@ -797,7 +801,7 @@ class TabManager(QWidget):
         tab_data.url = target_url
 
         item_widget = TabItemWidget(tab_data, self.sidebar.list_widget)
-        item_widget.update_theme(getattr(self, "current_theme", "dark"), getattr(self, "current_accent", "#fe8019"))
+        item_widget.update_theme(getattr(self, "current_theme", "dark"), getattr(self, "current_accent", "#a855f7"))
         item_widget.close_clicked.connect(self.close_tab)
         item_widget.mute_clicked.connect(self.toggle_mute_tab)
         item._stored_widget = item_widget
@@ -898,9 +902,9 @@ class TabManager(QWidget):
             return
 
         tab_data = self.tabs[tab_id]
-        clean_url = tab_data.url or "zephyrium://startpage"
+        clean_url = tab_data.url or "crux://startpage"
         if clean_url.startswith("data:text/html") or clean_url.startswith("data:"):
-            clean_url = "zephyrium://startpage"
+            clean_url = "crux://startpage"
             tab_data.url = clean_url
         clean_title = tab_data.title or "New Tab"
 
@@ -1002,7 +1006,7 @@ class TabManager(QWidget):
         view_url = view.url().toString() if (view and not view.url().isEmpty()) else ""
         url_str = getattr(tab_data, "url", "") or view_url or ""
         # Never suspend internal or special scheme pages (settings, startpage, history, etc.)
-        if not url_str or any(url_str.startswith(s) for s in ["zephyrium://", "zinc://", "about:", "chrome://", "data:"]):
+        if not url_str or any(url_str.startswith(s) for s in ["crux://", "zephyrium://", "zinc://", "about:", "chrome://", "data:"]):
             return False
         if any(k in url_str for k in ["settings.html", "startpage.html", "history.html", "downloads.html", "welcome.html"]):
             return False
@@ -1014,7 +1018,7 @@ class TabManager(QWidget):
             "({x: window.scrollX, y: window.scrollY})",
             lambda pos: setattr(tab_data, "saved_scroll", (pos.get("x", 0), pos.get("y", 0)) if isinstance(pos, dict) else (0, 0))
         )
-        acc = getattr(self, "current_accent", "#fe8019")
+        acc = getattr(self, "current_accent", "#a855f7")
         th = getattr(self, "current_theme", "dark")
         bg = "#18181b" if th == "dark" else "#f8fafc"
         card_bg = "#262624" if th == "dark" else "#ffffff"
@@ -1050,9 +1054,9 @@ class TabManager(QWidget):
             if tab_data.is_suspended:
                 tab_data.is_suspended = False
                 view = tab_data.split_container.get_active_view()
-                target_url = tab_data.url or "zephyrium://startpage"
+                target_url = tab_data.url or "crux://startpage"
                 if target_url.startswith("data:text/html") or target_url.startswith("data:"):
-                    target_url = "zephyrium://startpage"
+                    target_url = "crux://startpage"
                     tab_data.url = target_url
                 view.load(QUrl(target_url))
                 scroll_pos = getattr(tab_data, "saved_scroll", (0, 0))

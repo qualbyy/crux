@@ -52,9 +52,9 @@ HISTORY_PATH = get_resource_path("history.html")
 DOWNLOADS_PATH = get_resource_path("downloads.html")
 
 
-class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
+class CruxSchemeHandler(QWebEngineUrlSchemeHandler):
     """
-    Native URL scheme handler for zephyrium:// and zinc:// internal pages.
+    Native URL scheme handler for crux://, zephyrium:// and zinc:// internal pages.
     Serves HTML/assets directly through Chromium's network stack without file:// restrictions.
     """
     @staticmethod
@@ -64,7 +64,7 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
         from PyQt6.QtWidgets import QApplication
         s = load_settings()
         th = s.get("theme", "dark")
-        acc = s.get("accent_color", "#fe8019")
+        acc = s.get("accent_color", "#a855f7")
         bg = "#18181b" if th == "dark" else "#f8fafc"
         card_bg = "#262624" if th == "dark" else "#ffffff"
         border = "#3f3f46" if th == "dark" else "#cbd5e1"
@@ -88,7 +88,7 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
             for tid, tab_data in win.tab_manager.tabs.items():
                 v = win.tab_manager.get_tab_view(tid)
                 raw_u = getattr(tab_data, "url", "") or (v.url().toString() if v else "")
-                u = raw_u if not raw_u.startswith("data:") else "zephyrium://startpage"
+                u = raw_u if not raw_u.startswith("data:") else "crux://startpage"
                 title = getattr(tab_data, "title", "New Tab")
                 if title.startswith("data:"):
                     title = "Web Page"
@@ -111,11 +111,11 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
                 if is_active_tab:
                     suspend_action = f"<span style='color: {fg_muted}; border: 1px solid #27272a; padding: 3px 8px; font-size: 10px; cursor: not-allowed; opacity: 0.5;'>[АКТИВНА]</span>"
                 elif is_susp:
-                    suspend_action = f"<a href='zephyrium://action/wake-tab?id={tid}' style='color: #10b981; border: 1px solid #10b981; padding: 3px 8px; text-decoration: none; font-size: 10px; margin-right: 6px;'>[РАЗБУДИТЬ]</a>"
+                    suspend_action = f"<a href='crux://action/wake-tab?id={tid}' style='color: #10b981; border: 1px solid #10b981; padding: 3px 8px; text-decoration: none; font-size: 10px; margin-right: 6px;'>[РАЗБУДИТЬ]</a>"
                 else:
-                    suspend_action = f"<a href='zephyrium://action/suspend-tab?id={tid}' style='color: {acc}; border: 1px solid {acc}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[УСЫПИТЬ]</a>"
+                    suspend_action = f"<a href='crux://action/suspend-tab?id={tid}' style='color: {acc}; border: 1px solid {acc}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[УСЫПИТЬ]</a>"
 
-                row_bg = "background: rgba(254, 128, 25, 0.05);" if is_active_tab else ""
+                row_bg = "background: rgba(168, 85, 247, 0.08);" if is_active_tab else ""
 
                 tab_rows += f"""
                 <tr style='border-bottom: 1px solid {border}; {row_bg}'>
@@ -126,8 +126,8 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
                     <td style='padding: 10px 12px;'>{status_badge}</td>
                     <td style='padding: 10px 12px; text-align: right; white-space: nowrap; font-family: monospace;'>
                         {suspend_action}
-                        <a href='zephyrium://action/reload-tab?id={tid}' style='color: {fg}; border: 1px solid {border}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[ОБНОВИТЬ]</a>
-                        <a href='zephyrium://action/close-tab?id={tid}' style='color: #ef4444; border: 1px solid #ef4444; padding: 3px 8px; text-decoration: none; font-size: 10px;'>[ЗАКРЫТЬ]</a>
+                        <a href='crux://action/reload-tab?id={tid}' style='color: {fg}; border: 1px solid {border}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[ОБНОВИТЬ]</a>
+                        <a href='crux://action/close-tab?id={tid}' style='color: #ef4444; border: 1px solid #ef4444; padding: 3px 8px; text-decoration: none; font-size: 10px;'>[ЗАКРЫТЬ]</a>
                     </td>
                 </tr>
                 """
@@ -139,7 +139,7 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Диспетчер задач — Zephyrium</title>
+            <title>Диспетчер задач — Crux</title>
             <style>
                 * {{ box-sizing: border-box; }}
                 body {{
@@ -229,7 +229,7 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
         </head>
         <body>
             <div class="header">
-                <div class="title">⚡ ZEPHYRIUM // ДИСПЕТЧЕР ЗАДАЧ</div>
+                <div class="title">⚡ CRUX // ДИСПЕТЧЕР ЗАДАЧ</div>
                 <button class="btn-refresh" onclick="window.location.reload()">⟳ ОБНОВИТЬ СПИСОК</button>
             </div>
             <div class="stats-row">
@@ -309,7 +309,7 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
                 mime = b"application/javascript"
 
             if resource in ["tasks", "taskmanager", "processes"]:
-                tasks_html = ZephyriumSchemeHandler.generate_tasks_html()
+                tasks_html = CruxSchemeHandler.generate_tasks_html()
                 buf = QBuffer(job)
                 buf.setData(tasks_html.encode("utf-8"))
                 buf.open(QIODevice.OpenModeFlag.ReadOnly)
@@ -332,7 +332,7 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
                 from config import load_settings
                 s = load_settings()
                 th = s.get("theme", "dark")
-                acc = s.get("accent_color", "#fe8019")
+                acc = s.get("accent_color", "#a855f7")
                 lang = s.get("language", "ru")
 
                 tab = ""
@@ -346,6 +346,10 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
 
                 inject_js = f"""
                 <script>
+                    window.CRUX_THEME = "{th}";
+                    window.CRUX_ACCENT = "{acc}";
+                    window.CRUX_LANG = "{lang}";
+                    window.CRUX_TAB = "{tab}";
                     window.ZEPHYRIUM_THEME = "{th}";
                     window.ZEPHYRIUM_ACCENT = "{acc}";
                     window.ZEPHYRIUM_LANG = "{lang}";
@@ -376,8 +380,11 @@ class ZephyriumSchemeHandler(QWebEngineUrlSchemeHandler):
             buf.open(QIODevice.OpenModeFlag.ReadOnly)
             job.reply(mime, buf)
         except Exception as e:
-            print(f"Error serving zephyrium resource: {e}")
+            print(f"Error serving crux resource: {e}")
             job.fail(QWebEngineUrlRequestJob.Error.RequestFailed)
+
+# Alias for backwards compatibility
+ZephyriumSchemeHandler = CruxSchemeHandler
 
 PERMISSIONS_FILE = CONFIG_DIR / "permissions.json"
 
@@ -500,10 +507,16 @@ class ZincWebPage(QWebEnginePage):
         return super().chooseFiles(mode, oldFiles, acceptedMimeTypes)
 
     def javaScriptPrompt(self, securityOrigin: QUrl, msg: str, defaultValue: str) -> tuple[bool, str]:
-        if msg.startswith("ZEPHYRIUM_CMD:") or msg.startswith("zephyrium:") or msg.startswith("zinc:"):
+        if (msg.startswith("CRUX_CMD:") or msg.startswith("crux:") or
+            msg.startswith("ZEPHYRIUM_CMD:") or msg.startswith("zephyrium:") or msg.startswith("zinc:")):
             origin_scheme = securityOrigin.scheme().lower()
-            if origin_scheme in ["zephyrium", "zinc", "qrc"] or not origin_scheme:
-                cmd = msg[len("ZEPHYRIUM_CMD:"):] if msg.startswith("ZEPHYRIUM_CMD:") else msg
+            if origin_scheme in ["crux", "zephyrium", "zinc", "qrc"] or not origin_scheme:
+                if msg.startswith("CRUX_CMD:"):
+                    cmd = msg[len("CRUX_CMD:"):]
+                elif msg.startswith("ZEPHYRIUM_CMD:"):
+                    cmd = msg[len("ZEPHYRIUM_CMD:"):]
+                else:
+                    cmd = msg
                 v = self.view()
                 if v and hasattr(v, "handle_host_cmd"):
                     v.handle_host_cmd(cmd)
@@ -514,9 +527,16 @@ class ZincWebPage(QWebEnginePage):
         return super().javaScriptPrompt(securityOrigin, msg, defaultValue)
 
     def javaScriptConsoleMessage(self, level, message: str, lineNumber: int, sourceID: str):
-        if message.startswith("ZEPHYRIUM_IPC:") or message.startswith("zephyrium:") or message.startswith("zinc:"):
-            if sourceID.startswith("zephyrium://") or sourceID.startswith("zinc://") or not sourceID:
-                cmd = message[len("ZEPHYRIUM_IPC:"):] if message.startswith("ZEPHYRIUM_IPC:") else message
+        if (message.startswith("CRUX_IPC:") or message.startswith("crux:") or
+            message.startswith("ZEPHYRIUM_IPC:") or message.startswith("zephyrium:") or message.startswith("zinc:")):
+            if (sourceID.startswith("crux://") or sourceID.startswith("zephyrium://") or
+                sourceID.startswith("zinc://") or not sourceID):
+                if message.startswith("CRUX_IPC:"):
+                    cmd = message[len("CRUX_IPC:"):]
+                elif message.startswith("ZEPHYRIUM_IPC:"):
+                    cmd = message[len("ZEPHYRIUM_IPC:"):]
+                else:
+                    cmd = message
                 v = self.view()
                 if v and hasattr(v, "handle_host_cmd"):
                     v.handle_host_cmd(cmd)
@@ -538,19 +558,20 @@ class ZincWebPage(QWebEnginePage):
                         win._prompt_install_userscript(url_str, fn)
                         return False
 
-            if url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
+            if (url_str.startswith("crux://") or url_str.startswith("zephyrium://") or url_str.startswith("zinc://")):
                 v = self.view()
                 if v and hasattr(v, "handle_host_cmd"):
                     # Non-navigating commands / actions should not alter the current page DOM
                     if any(url_str.startswith(p) for p in [
-                        "zephyrium://live-setting", "zinc://live-setting",
-                        "zephyrium://apply-settings", "zinc://apply-settings",
-                        "zephyrium://action/", "zinc://action/",
-                        "zephyrium://setup", "zinc://setup"
+                        "crux://live-setting", "zephyrium://live-setting", "zinc://live-setting",
+                        "crux://apply-settings", "zephyrium://apply-settings", "zinc://apply-settings",
+                        "crux://action/", "zephyrium://action/", "zinc://action/",
+                        "crux://setup", "zephyrium://setup", "zinc://setup"
                     ]):
                         # SECURITY: Only allow executing actions if current page is internal!
                         current_url = self.url().toString()
                         is_trusted = (
+                            current_url.startswith("crux://") or
                             current_url.startswith("zephyrium://") or
                             current_url.startswith("zinc://") or
                             current_url.startswith("about:") or
@@ -561,7 +582,7 @@ class ZincWebPage(QWebEnginePage):
                             return False
                         v.handle_host_cmd(url_str)
                         return False
-                    # Real page navigation (zephyrium://settings, zephyrium://downloads, etc.)
+                    # Real page navigation (crux://settings, crux://downloads, etc.)
                     return True
                 return True
             return super().acceptNavigationRequest(url, _type, isMainFrame)
@@ -710,7 +731,7 @@ class ZincWebView(QWebEngineView):
                 print(f"[Downloads Init Error] {e}")
             return
 
-        if not u or u.startswith("zephyrium://") or u.startswith("zinc://") or u.startswith("about:"):
+        if not u or u.startswith("crux://") or u.startswith("zephyrium://") or u.startswith("zinc://") or u.startswith("about:"):
             return
 
         # Website theme preference and PiP video overlay injection
@@ -864,19 +885,22 @@ class ZincWebView(QWebEngineView):
     def handle_host_cmd(self, url_clean: str) -> None:
         if not url_clean:
             return
-        if url_clean.startswith("zephyrium://setup") or url_clean.startswith("zinc://setup"):
+        if url_clean.startswith("crux://setup") or url_clean.startswith("zephyrium://setup") or url_clean.startswith("zinc://setup"):
             self._apply_setup(url_clean)
             return
-        if url_clean.startswith("zephyrium://live-setting") or url_clean.startswith("zinc://live-setting"):
+        if url_clean.startswith("crux://live-setting") or url_clean.startswith("zephyrium://live-setting") or url_clean.startswith("zinc://live-setting"):
             self._apply_live_setting(url_clean)
             return
-        if url_clean.startswith("zephyrium://apply-settings") or url_clean.startswith("zinc://apply-settings"):
+        if url_clean.startswith("crux://apply-settings") or url_clean.startswith("zephyrium://apply-settings") or url_clean.startswith("zinc://apply-settings"):
             self._apply_settings_from_url(url_clean)
             return
-        if url_clean.startswith("zephyrium://action/") or url_clean.startswith("zinc://action/"):
+        if url_clean.startswith("crux://action/") or url_clean.startswith("zephyrium://action/") or url_clean.startswith("zinc://action/"):
             self._handle_action(url_clean)
             return
-        if url_clean.startswith("zephyrium://new-tab") or url_clean.startswith("zinc://new-tab") or url_clean.startswith("zephyrium://open-tab"):
+        if any(url_clean.startswith(p) for p in [
+            "crux://new-tab", "crux://open-tab",
+            "zephyrium://new-tab", "zinc://new-tab", "zephyrium://open-tab"
+        ]):
             try:
                 import urllib.parse
                 parsed = urllib.parse.urlparse(url_clean)
@@ -884,7 +908,7 @@ class ZincWebView(QWebEngineView):
                 target = qs.get("url", [""])[0]
                 win = self._get_main_window()
                 if win and hasattr(win, "tab_manager"):
-                    win.tab_manager.create_tab(url=target or "zephyrium://startpage")
+                    win.tab_manager.create_tab(url=target or "crux://startpage")
             except Exception as e:
                 print(f"Error handling new-tab navigation: {e}")
             return
@@ -901,11 +925,12 @@ class ZincWebView(QWebEngineView):
 
         s = load_settings()
         th = s.get("theme", "dark")
-        acc = s.get("accent_color", "#fe8019")
+        acc = s.get("accent_color", "#a855f7")
         lang = s.get("language", "ru")
         ws_th = s.get("website_theme", "light")
 
-        is_internal = (url_clean.startswith("zephyrium://") or
+        is_internal = (url_clean.startswith("crux://") or
+                       url_clean.startswith("zephyrium://") or
                        url_clean.startswith("zinc://") or
                        url_clean.startswith("about:") or
                        "startpage.html" in url_clean or
@@ -927,71 +952,75 @@ class ZincWebView(QWebEngineView):
             else:
                 self.page().setBackgroundColor(QColor("#ffffff"))
 
-        if url_clean in ["zephyrium://startpage", "zinc://startpage", "about:blank"]:
-            self.load(QUrl("zephyrium://startpage"))
+        if url_clean in ["crux://startpage", "zephyrium://startpage", "zinc://startpage", "about:blank"]:
+            self.load(QUrl("crux://startpage"))
             return
 
-        if url_clean in ["zephyrium://welcome", "zinc://welcome"]:
+        if url_clean in ["crux://welcome", "zephyrium://welcome", "zinc://welcome"]:
             win = self._get_main_window()
             if win and hasattr(win, "show_onboarding"):
                 win.show_onboarding()
             else:
-                self.load(QUrl("zephyrium://startpage"))
+                self.load(QUrl("crux://startpage"))
             return
 
-        if url_clean.startswith("zephyrium://setup") or url_clean.startswith("zinc://setup"):
+        if url_clean.startswith("crux://setup") or url_clean.startswith("zephyrium://setup") or url_clean.startswith("zinc://setup"):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, lambda: self._apply_setup(url_clean))
             return
 
-        if url_clean.startswith("zephyrium://live-setting") or url_clean.startswith("zinc://live-setting"):
+        if url_clean.startswith("crux://live-setting") or url_clean.startswith("zephyrium://live-setting") or url_clean.startswith("zinc://live-setting"):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, lambda: self._apply_live_setting(url_clean))
             return
 
-        if url_clean.startswith("zephyrium://apply-settings") or url_clean.startswith("zinc://apply-settings"):
+        if url_clean.startswith("crux://apply-settings") or url_clean.startswith("zephyrium://apply-settings") or url_clean.startswith("zinc://apply-settings"):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, lambda: self._apply_settings_from_url(url_clean))
             return
 
-        if url_clean.startswith("zephyrium://action/") or url_clean.startswith("zinc://action/"):
+        if url_clean.startswith("crux://action/") or url_clean.startswith("zephyrium://action/") or url_clean.startswith("zinc://action/"):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, lambda: self._handle_action(url_clean))
             return
 
-        if url_clean.startswith("zephyrium://settings") or url_clean.startswith("zinc://settings") or url_clean in ["about:settings", "about:preferences"]:
-            target_scheme_url = url_clean if url_clean.startswith("zephyrium://") else "zephyrium://settings"
+        if (url_clean.startswith("crux://settings") or url_clean.startswith("zephyrium://settings") or
+            url_clean.startswith("zinc://settings") or url_clean in ["about:settings", "about:preferences"]):
+            target_scheme_url = url_clean if (url_clean.startswith("crux://") or url_clean.startswith("zephyrium://")) else "crux://settings"
             self.load(QUrl(target_scheme_url))
             return
 
-        if url_clean.startswith("zephyrium://history") or url_clean.startswith("zinc://history") or url_clean in ["about:history"]:
-            self.load(QUrl("zephyrium://history"))
+        if url_clean.startswith("crux://history") or url_clean.startswith("zephyrium://history") or url_clean.startswith("zinc://history") or url_clean in ["about:history"]:
+            self.load(QUrl("crux://history"))
             return
 
-        if url_clean.startswith("zephyrium://downloads") or url_clean.startswith("zinc://downloads") or url_clean in ["about:downloads"]:
-            self.load(QUrl("zephyrium://downloads"))
+        if url_clean.startswith("crux://downloads") or url_clean.startswith("zephyrium://downloads") or url_clean.startswith("zinc://downloads") or url_clean in ["about:downloads"]:
+            self.load(QUrl("crux://downloads"))
             return
 
-        if url_clean.startswith("zephyrium://tasks") or url_clean.startswith("zinc://tasks") or url_clean in ["about:tasks", "about:processes"]:
-            self.load(QUrl("zephyrium://tasks"))
+        if url_clean.startswith("crux://tasks") or url_clean.startswith("zephyrium://tasks") or url_clean.startswith("zinc://tasks") or url_clean in ["about:tasks", "about:processes"]:
+            self.load(QUrl("crux://tasks"))
             return
 
-        if url_clean in ["zephyrium://about", "zinc://about", "about:about"]:
-            self.load(QUrl("zephyrium://settings?tab=about"))
+        if url_clean in ["crux://about", "zephyrium://about", "zinc://about", "about:about"]:
+            self.load(QUrl("crux://settings?tab=about"))
             return
 
-        if url_clean in ["zephyrium://vault", "zinc://vault"]:
-            self.load(QUrl("zephyrium://settings?tab=vault"))
+        if url_clean in ["crux://vault", "zephyrium://vault", "zinc://vault"]:
+            self.load(QUrl("crux://settings?tab=vault"))
             return
 
-        if url_clean.startswith("zephyrium://new-tab") or url_clean.startswith("zinc://new-tab") or url_clean.startswith("zephyrium://open-tab"):
+        if any(url_clean.startswith(p) for p in [
+            "crux://new-tab", "crux://open-tab",
+            "zephyrium://new-tab", "zinc://new-tab", "zephyrium://open-tab"
+        ]):
             try:
                 parsed = urllib.parse.urlparse(url_clean)
                 qs = urllib.parse.parse_qs(parsed.query)
                 target = qs.get("url", [""])[0]
                 win = self._get_main_window()
                 if win and hasattr(win, "tab_manager"):
-                    win.tab_manager.create_tab(url=target or "zephyrium://startpage")
+                    win.tab_manager.create_tab(url=target or "crux://startpage")
             except Exception as e:
                 print(f"Error handling new-tab navigation: {e}")
             return
@@ -1226,17 +1255,17 @@ class ZincWebView(QWebEngineView):
             elif action == "clear-history":
                 from utils.bookmarks import DataStore
                 DataStore.clear_history()
-                self.navigate("zephyrium://history")
+                self.navigate("crux://history")
             elif action == "delete-history":
                 from utils.bookmarks import DataStore
                 url_to_del = qs.get("url", [""])[0]
                 if url_to_del:
                     DataStore.delete_history_item(urllib.parse.unquote(url_to_del))
-                self.navigate("zephyrium://history")
+                self.navigate("crux://history")
             elif action == "clear-downloads":
                 from utils.bookmarks import DataStore
                 DataStore.clear_downloads()
-                self.navigate("zephyrium://downloads")
+                self.navigate("crux://downloads")
             elif action == "open-downloads-folder":
                 from config import load_settings
                 from utils.bookmarks import open_folder_in_file_manager
@@ -1276,7 +1305,7 @@ class ZincWebView(QWebEngineView):
                     if win and hasattr(win, "tab_manager") and tid in win.tab_manager.tabs:
                         if tid != win.tab_manager.active_tab_id:
                             win.tab_manager.suspend_tab(tid)
-                    self.navigate("zephyrium://tasks")
+                    self.navigate("crux://tasks")
                 except Exception as e:
                     print(f"Error suspending tab from tasks: {e}")
             elif action == "wake-tab":
@@ -1285,7 +1314,7 @@ class ZincWebView(QWebEngineView):
                     win = self._get_main_window()
                     if win and hasattr(win, "tab_manager") and tid in win.tab_manager.tabs:
                         win.tab_manager.wake_tab(tid)
-                    self.navigate("zephyrium://tasks")
+                    self.navigate("crux://tasks")
                 except Exception as e:
                     print(f"Error waking tab from tasks: {e}")
             elif action == "close-tab":
@@ -1294,7 +1323,7 @@ class ZincWebView(QWebEngineView):
                     win = self._get_main_window()
                     if win and hasattr(win, "tab_manager"):
                         win.tab_manager.close_tab(tid)
-                    self.navigate("zephyrium://tasks")
+                    self.navigate("crux://tasks")
                 except Exception as e:
                     print(f"Error closing tab from tasks: {e}")
             elif action == "reload-tab":
@@ -1305,7 +1334,7 @@ class ZincWebView(QWebEngineView):
                         tv = win.tab_manager.get_tab_view(tid)
                         if tv:
                             tv.reload()
-                    self.navigate("zephyrium://tasks")
+                    self.navigate("crux://tasks")
                 except Exception as e:
                     print(f"Error reloading tab from tasks: {e}")
             elif action == "test-ollama":
@@ -1313,7 +1342,7 @@ class ZincWebView(QWebEngineView):
                 import json
                 test_url = qs.get("url", ["http://localhost:11434"])[0].rstrip("/")
                 try:
-                    req = urllib.request.Request(f"{test_url}/api/tags", headers={"User-Agent": "Zephyrium/1.0"})
+                    req = urllib.request.Request(f"{test_url}/api/tags", headers={"User-Agent": "Crux/1.3.6"})
                     with urllib.request.urlopen(req, timeout=2.5) as resp:
                         if resp.status == 200:
                             data = json.loads(resp.read().decode("utf-8"))
@@ -1637,7 +1666,7 @@ class ZincWebView(QWebEngineView):
                 <div class="reader-container">
                     <div class="reader-header">
                         <div class="reader-title">{data.get('title', '')}</div>
-                        <button class="btn-exit" onclick="window.location.href='zephyrium://action/exit-reader'">[ВЫЙТИ ИЗ ЧТЕНИЯ]</button>
+                        <button class="btn-exit" onclick="window.location.href='crux://action/exit-reader'">[ВЫЙТИ ИЗ ЧТЕНИЯ]</button>
                     </div>
                     <div class="reader-body">
                         {data.get('html', '')}

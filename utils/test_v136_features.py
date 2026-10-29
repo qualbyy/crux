@@ -25,7 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWebEngineCore import QWebEngineUrlScheme
 
-for s_name in [b"zephyrium", b"zinc"]:
+for s_name in [b"crux", b"zephyrium", b"zinc"]:
     scheme = QWebEngineUrlScheme(s_name)
     scheme.setSyntax(QWebEngineUrlScheme.Syntax.Path)
     scheme.setDefaultPort(QWebEngineUrlScheme.SpecialPort.PortUnspecified.value)
@@ -133,7 +133,7 @@ class TestZephyriumV136(unittest.TestCase):
 
         self.assertIn("identifierId", script, "Script missing Google identifierId pattern")
         self.assertIn('type="email"', script, "Script missing email input selector")
-        self.assertIn("__zephyrium_last_user", script, "Script missing multi-step session storage logic")
+        self.assertIn("__crux_last_user", script, "Script missing multi-step session storage logic")
         print("  ✓ 5. Password autofill SPA & Google multi-step patterns verified")
 
     def test_06_tasks_page_minimal_dark_aesthetic(self):

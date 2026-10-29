@@ -1,9 +1,9 @@
 ; Script generated for Inno Setup 6
-#define MyAppName "Zephyrium"
+#define MyAppName "Crux"
 #define MyAppVersion "1.3.6"
 #define MyAppPublisher "Qualbyy"
 #define MyAppURL "https://github.com/qualbyy/zephyrium"
-#define MyAppExeName "zephyrium.exe"
+#define MyAppExeName "crux.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
@@ -18,8 +18,8 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ; Output
 OutputDir=dist
-OutputBaseFilename=zephyrium-installer-windows-x86_64
-SetupIconFile=resources\zephyrium.ico
+OutputBaseFilename=crux-installer-windows-x86_64
+SetupIconFile=resources\crux.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -35,7 +35,7 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\zephyrium\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\crux\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall; Check: VCRedistNeedsInstall
 
 [Icons]

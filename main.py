@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Zephyrium — Lightweight, Feature-Rich Web Browser
+Crux — Lightweight, Feature-Rich Web Browser
 Design Code: Minimal Aesthetic & Vim Mode
 """
 import sys
@@ -18,7 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if sys.platform == "win32":
     try:
         import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Zephyrium.Browser.App")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Crux.Browser.App")
     except Exception:
         pass
 else:
@@ -26,7 +26,7 @@ else:
         import ctypes
         libc = ctypes.CDLL("libc.so.6")
         PR_SET_NAME = 15
-        libc.prctl(PR_SET_NAME, b"zephyrium\0", 0, 0, 0)
+        libc.prctl(PR_SET_NAME, b"crux\0", 0, 0, 0)
     except Exception:
         pass
 
@@ -145,7 +145,7 @@ for venv_candidate in candidates:
 from PyQt6.QtCore import Qt, QCoreApplication
 from PyQt6.QtWebEngineCore import QWebEngineUrlScheme
 
-for s_name in [b"zephyrium", b"zinc"]:
+for s_name in [b"crux", b"zephyrium", b"zinc"]:
     scheme = QWebEngineUrlScheme(s_name)
     scheme.setSyntax(QWebEngineUrlScheme.Syntax.Path)
     scheme.setDefaultPort(QWebEngineUrlScheme.SpecialPort.PortUnspecified.value)
@@ -166,11 +166,11 @@ from config import APP_NAME, APP_VERSION, CONFIG_DIR, load_settings
 from core.browser_window import BrowserWindow
 from core.theme_manager import apply_app_theme
 
-IPC_NAME = "zephyrium_ipc_sock"
+IPC_NAME = "crux_ipc_sock"
 
 def load_stylesheet(app: QApplication) -> None:
     settings = load_settings()
-    apply_app_theme(app, settings.get("theme", "dark"), settings.get("accent_color", "#fe8019"))
+    apply_app_theme(app, settings.get("theme", "dark"), settings.get("accent_color", "#a855f7"))
     
     custom_qss = CONFIG_DIR / "custom.qss"
     if custom_qss.exists():
@@ -195,12 +195,12 @@ class IPCServer(QLocalServer):
             data = client.readAll().data().decode("utf-8")
             try:
                 cmd = json.loads(data)
-                url = cmd.get("url", "zephyrium://startpage")
+                url = cmd.get("url", "crux://startpage")
                 container = cmd.get("container", "default")
                 mode = cmd.get("mode")
                 if mode and mode in ["minimal", "vim"]:
                     self.window.apply_mode(mode)
-                if url in ["zephyrium://welcome", "zinc://welcome"]:
+                if url in ["crux://welcome", "zephyrium://welcome", "zinc://welcome"]:
                     self.window.show_onboarding()
                 else:
                     self.window.tab_manager.create_tab(container, url)
@@ -212,7 +212,7 @@ class IPCServer(QLocalServer):
 
 def main():
     settings = load_settings()
-    default_target = "zephyrium://startpage"
+    default_target = "crux://startpage"
 
     parser = argparse.ArgumentParser(description=f"{APP_NAME} v{APP_VERSION}")
     parser.add_argument("url", nargs="?", default=default_target, help="Initial URL to open")
@@ -223,12 +223,12 @@ def main():
     # Qt Application setup
     app = QApplication(sys.argv)
     
-    # Wayland app_id and Desktop integration: MUST match zephyrium.desktop
-    app.setDesktopFileName("zephyrium.desktop")
-    app.setApplicationName("zephyrium")
-    app.setApplicationDisplayName("Zephyrium")
-    app.setOrganizationName("Zephyrium")
-    app.setOrganizationDomain("zephyrium.org")
+    # Wayland app_id and Desktop integration: MUST match crux.desktop
+    app.setDesktopFileName("crux.desktop")
+    app.setApplicationName("crux")
+    app.setApplicationDisplayName("Crux")
+    app.setOrganizationName("Crux")
+    app.setOrganizationDomain("crux.org")
 
     # Fast IPC Check: If another instance is already running, send command and exit!
     sock = QLocalSocket()
@@ -250,7 +250,9 @@ def main():
     load_stylesheet(app)
 
     # Set Application & Window Icon
-    icon_path = Path(__file__).resolve().parent / "resources" / "zephyrium.svg"
+    icon_path = Path(__file__).resolve().parent / "resources" / "crux.svg"
+    if not icon_path.exists():
+        icon_path = Path(__file__).resolve().parent / "resources" / "zephyrium.svg"
     if not icon_path.exists():
         icon_path = Path(__file__).resolve().parent / "resources" / "zinc-browser.svg"
     if icon_path.exists():
@@ -259,15 +261,15 @@ def main():
 
     # Launch window
     window = BrowserWindow(initial_mode=args.mode)
-    window.setObjectName("ZephyriumBrowserWindow")
+    window.setObjectName("CruxBrowserWindow")
     if icon_path.exists():
         window.setWindowIcon(app_icon)
     
     # If a specific url was given on CLI and differs from initial tab, open it
-    if args.url in ["zephyrium://welcome", "zinc://welcome"]:
+    if args.url in ["crux://welcome", "zephyrium://welcome", "zinc://welcome"]:
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(150, window.show_onboarding)
-    elif args.url != "zephyrium://startpage" or args.container != "default":
+    elif args.url not in ["crux://startpage", "zephyrium://startpage"] or args.container != "default":
         window.tab_manager.create_tab(args.container, args.url)
 
     # Start IPC server to accept future CLI tabs

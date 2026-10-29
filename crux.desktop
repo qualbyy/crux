@@ -1,0 +1,32 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Version=1.0
+Name=Crux
+GenericName=Web Browser
+Comment=Fast, keyboard-driven web browser
+Exec=/home/qualbyy/.local/bin/crux %u
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=crux
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/crux;x-scheme-handler/zephyrium;
+StartupWMClass=crux
+StartupNotify=true
+Actions=NewTab;Incognito;Work;Dev;
+
+[Desktop Action NewTab]
+Name=New Tab
+Exec=/home/qualbyy/.local/bin/crux crux://startpage
+
+[Desktop Action Incognito]
+Name=Open in Incognito Container
+Exec=/home/qualbyy/.local/bin/crux --container incognito
+
+[Desktop Action Work]
+Name=Open in Work Container
+Exec=/home/qualbyy/.local/bin/crux --container work
+
+[Desktop Action Dev]
+Name=Open in Dev Container
+Exec=/home/qualbyy/.local/bin/crux --container dev

@@ -36,8 +36,8 @@ class ProfileManager(QObject):
             install_privacy_shield(p)
 
     def _setup_profiles(self) -> None:
-        from core.web_view import ZephyriumSchemeHandler
-        self._scheme_handler = ZephyriumSchemeHandler(self)
+        from core.web_view import CruxSchemeHandler
+        self._scheme_handler = CruxSchemeHandler(self)
         
         default_prof = QWebEngineProfile.defaultProfile()
         self._clean_ua = get_clean_user_agent(default_prof.httpUserAgent())
@@ -45,6 +45,7 @@ class ProfileManager(QObject):
             default_prof.setHttpUserAgent(self._clean_ua)
 
         try:
+            default_prof.installUrlSchemeHandler(b"crux", self._scheme_handler)
             default_prof.installUrlSchemeHandler(b"zephyrium", self._scheme_handler)
             default_prof.installUrlSchemeHandler(b"zinc", self._scheme_handler)
             install_privacy_shield(default_prof)
@@ -59,7 +60,7 @@ class ProfileManager(QObject):
             else:
                 profile_path = PROFILES_DIR / profile_id
                 profile_path.mkdir(parents=True, exist_ok=True)
-                profile = QWebEngineProfile(f"zephyrium-profile-{profile_id}", self)
+                profile = QWebEngineProfile(f"crux-profile-{profile_id}", self)
                 profile.setPersistentStoragePath(str(profile_path / "storage"))
                 profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies)
                 profile.setCachePath(str(profile_path / "cache"))
@@ -67,8 +68,9 @@ class ProfileManager(QObject):
             if self._clean_ua:
                 profile.setHttpUserAgent(self._clean_ua)
 
-            # Install scheme handlers for internal zephyrium:// and zinc:// pages
+            # Install scheme handlers for internal crux://, zephyrium:// and zinc:// pages
             try:
+                profile.installUrlSchemeHandler(b"crux", self._scheme_handler)
                 profile.installUrlSchemeHandler(b"zephyrium", self._scheme_handler)
                 profile.installUrlSchemeHandler(b"zinc", self._scheme_handler)
             except Exception:

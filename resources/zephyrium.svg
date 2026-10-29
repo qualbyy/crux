@@ -1,20 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <!-- Zephyrium Minimal Dark / Claude Code Aesthetic: Square 0px, 1px border -->
-  <rect x="0.5" y="0.5" width="127" height="127" fill="#18181b" stroke="#94a3b8" stroke-width="1"/>
-  
-  <!-- Inner Surface Frame -->
-  <rect x="8.5" y="8.5" width="111" height="111" fill="#262624" stroke="#3f3f46" stroke-width="1"/>
-  
-  <!-- Subtle Grid Accent -->
-  <line x1="8.5" y1="28.5" x2="119.5" y2="28.5" stroke="#3f3f46" stroke-width="1"/>
-  <rect x="14" y="15" width="6" height="6" fill="#10b981"/>
-  <rect x="24" y="15" width="6" height="6" fill="#38bdf8"/>
-  <rect x="34" y="15" width="6" height="6" fill="#fe8019"/>
-  
-  <!-- Monospace Angular 'Z' Monogram in Zephyrium Warm Amber & Slate -->
-  <path d="M 36 44 L 92 44 L 92 54 L 54 84 L 92 84 L 92 94 L 36 94 L 36 84 L 74 54 L 36 54 Z" 
-        fill="#fe8019" />
-  
-  <!-- Terminal Prompt Indicator -->
-  <rect x="40" y="60" width="3" height="12" fill="#94a3b8" />
+  <!-- Crux Minimalist Geometric Icon (Anthropic / Minimal Dark Aesthetic) -->
+  <rect x="0" y="0" width="128" height="128" fill="#121214"/>
+  <rect x="0.5" y="0.5" width="127" height="127" fill="none" stroke="#27272a" stroke-width="1"/>
+  <rect x="5.5" y="5.5" width="117" height="117" fill="none" stroke="#3f3f46" stroke-width="1" opacity="0.3"/>
+
+  <defs>
+    <linearGradient id="cruxPurpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#7e22ce"/>
+    </linearGradient>
+    <linearGradient id="coreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e9d5ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Crux 4-Pointed Star Cross (Pure geometry, sharp and recognizable) -->
+  <path d="M 64 14 L 74 52 L 114 64 L 74 76 L 64 114 L 54 76 L 14 64 L 54 52 Z" 
+        fill="url(#cruxPurpleGrad)" />
+
+  <!-- Inner Diamond Core -->
+  <polygon points="64,46 74,64 64,82 54,64" fill="url(#coreGrad)"/>
+
+  <!-- Center Focal Dot -->
+  <circle cx="64" cy="64" r="3.5" fill="#581c87"/>
 </svg>

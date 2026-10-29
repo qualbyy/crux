@@ -159,7 +159,7 @@ class BrowserWindow(QMainWindow):
                     print(f"[Session Restore Error] {e}")
 
         if not restored:
-            initial_url = self.settings.get("new_tab_url", self.settings.get("homepage", "zephyrium://startpage"))
+            initial_url = self.settings.get("new_tab_url", self.settings.get("homepage", "crux://startpage"))
             init_cid = "incognito" if self.is_incognito else "default"
             self.tab_manager.create_tab(url=initial_url, container_id=init_cid)
 
@@ -196,7 +196,7 @@ class BrowserWindow(QMainWindow):
 
         btn_new_h_tab = QPushButton("+")
         btn_new_h_tab.setFixedSize(26, 26)
-        btn_new_h_tab.clicked.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "zephyrium://startpage")))
+        btn_new_h_tab.clicked.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "crux://startpage")))
 
         self.btn_toggle_vertical = QPushButton("VERTICAL")
         self.btn_toggle_vertical.setFixedHeight(26)
@@ -292,7 +292,7 @@ class BrowserWindow(QMainWindow):
         self.btn_history = QPushButton(t("history_title"))
         self.btn_history.setFixedHeight(28)
         self.btn_history.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_history.setToolTip("Browsing History (zephyrium://history)")
+        self.btn_history.setToolTip("Browsing History (crux://history)")
         self.btn_history.clicked.connect(self._show_history_menu)
         layout.addWidget(self.btn_history)
 
@@ -409,7 +409,7 @@ class BrowserWindow(QMainWindow):
     def _init_shortcuts(self) -> None:
         QShortcut(QKeySequence("Ctrl+K"), self, lambda: self.command_palette.show_palette())
         QShortcut(QKeySequence("Ctrl+L"), self, lambda: (self.url_bar.setFocus(), self.url_bar.selectAll()))
-        QShortcut(QKeySequence("Ctrl+T"), self, lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "zephyrium://startpage")))
+        QShortcut(QKeySequence("Ctrl+T"), self, lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "crux://startpage")))
         QShortcut(QKeySequence("Ctrl+N"), self, self._open_new_window)
         QShortcut(QKeySequence("Ctrl+W"), self, lambda: self.tab_manager.close_tab(self.tab_manager.active_tab_id))
         QShortcut(QKeySequence("Ctrl+F"), self, self._toggle_find_in_page)
@@ -434,7 +434,7 @@ class BrowserWindow(QMainWindow):
         QShortcut(QKeySequence("F12"), self, self._toggle_devtools)
         QShortcut(QKeySequence("Ctrl+Shift+I"), self, self._toggle_devtools)
         QShortcut(QKeySequence("Ctrl+Shift+M"), self, self._toggle_viewport_bar)
-        QShortcut(QKeySequence("Shift+Esc"), self, lambda: self.tab_manager.create_tab("zephyrium://tasks"))
+        QShortcut(QKeySequence("Shift+Esc"), self, lambda: self.tab_manager.create_tab("crux://tasks"))
 
     def set_tab_orientation(self, orient: str) -> None:
         self.tab_orientation = orient
@@ -913,7 +913,7 @@ class BrowserWindow(QMainWindow):
 
         menu.addSeparator()
         act_settings = menu.addAction(t("adblock_settings_tab"))
-        act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "zephyrium://settings?tab=adblock"))
+        act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://settings?tab=adblock"))
 
         menu.exec(self.btn_adblock.mapToGlobal(self.btn_adblock.rect().bottomLeft()))
 
@@ -937,13 +937,13 @@ class BrowserWindow(QMainWindow):
         menu.addSeparator()
 
         act_full = menu.addAction(t("open_full_history"))
-        act_full.triggered.connect(lambda: self.tab_manager.create_tab("default", "zephyrium://history"))
+        act_full.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://history"))
 
         act_clear = menu.addAction(t("clear_history"))
         act_clear.triggered.connect(self._clear_history_action)
 
         act_settings = menu.addAction(t("history_settings"))
-        act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "zephyrium://settings?tab=general"))
+        act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://settings?tab=general"))
 
         menu.exec(self.btn_history.mapToGlobal(self.btn_history.rect().bottomLeft()))
 
@@ -967,7 +967,7 @@ class BrowserWindow(QMainWindow):
         menu.addSeparator()
 
         act_all = menu.addAction(t("open_all_downloads"))
-        act_all.triggered.connect(lambda: self.tab_manager.create_tab("default", "zephyrium://downloads"))
+        act_all.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://downloads"))
 
         act_folder = menu.addAction(t("open_downloads_folder"))
         act_folder.triggered.connect(self._open_downloads_folder)
@@ -976,7 +976,7 @@ class BrowserWindow(QMainWindow):
         act_clear.triggered.connect(self._clear_downloads_action)
 
         act_settings = menu.addAction(t("downloads_settings"))
-        act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "zephyrium://settings?tab=downloads"))
+        act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://settings?tab=downloads"))
 
         menu.exec(self.btn_downloads.mapToGlobal(self.btn_downloads.rect().bottomLeft()))
 
@@ -1075,7 +1075,7 @@ class BrowserWindow(QMainWindow):
             "wikipedia.org", "duckduckgo.com", "habr.com", "vk.com", "telegram.org",
             "archlinux.org", "kde.org", "gitlab.com", "stackoverflow.com",
             "news.ycombinator.com", "chatgpt.com", "developer.mozilla.org",
-            "zephyrium://startpage", "zephyrium://settings", "zephyrium://history", "zephyrium://downloads"
+            "crux://startpage", "crux://settings", "crux://history", "crux://downloads"
         ]
         try:
             hist = DataStore.get_history()
@@ -1118,23 +1118,26 @@ class BrowserWindow(QMainWindow):
         text = self.url_bar.text().strip()
         if not text:
             return
-        if text in ["zephyrium://settings", "zinc://settings", "about:settings", "about:preferences"]:
+        if text in ["crux://settings", "zephyrium://settings", "zinc://settings", "about:settings", "about:preferences"]:
             self.open_settings()
             return
-        if text in ["zephyrium://about", "zinc://about"]:
+        if text in ["crux://about", "zephyrium://about", "zinc://about"]:
             self.open_settings("about")
             return
-        if text in ["zephyrium://welcome", "zinc://welcome"]:
+        if text in ["crux://welcome", "zephyrium://welcome", "zinc://welcome"]:
             self.show_onboarding()
             return
-        if text in ["zephyrium://vault", "zinc://vault"]:
+        if text in ["crux://vault", "zephyrium://vault", "zinc://vault"]:
             self.open_settings("vault")
             return
-        if text in ["zephyrium://history", "zinc://history", "about:history"]:
-            self.tab_manager.create_tab("default", "zephyrium://history")
+        if text in ["crux://history", "zephyrium://history", "zinc://history", "about:history"]:
+            self.tab_manager.create_tab("default", "crux://history")
             return
-        if text in ["zephyrium://downloads", "zinc://downloads", "about:downloads"]:
-            self.tab_manager.create_tab("default", "zephyrium://downloads")
+        if text in ["crux://downloads", "zephyrium://downloads", "zinc://downloads", "about:downloads"]:
+            self.tab_manager.create_tab("default", "crux://downloads")
+            return
+        if text in ["crux://tasks", "zephyrium://tasks", "zinc://tasks", "about:tasks"]:
+            self.tab_manager.create_tab("default", "crux://tasks")
             return
         v = self.tab_manager.get_current_view()
         if v:
@@ -1186,7 +1189,7 @@ class BrowserWindow(QMainWindow):
 
             def run(self):
                 try:
-                    req = urllib.request.Request(self.u, headers={"User-Agent": "Mozilla/5.0 Zephyrium/1.3.6"})
+                    req = urllib.request.Request(self.u, headers={"User-Agent": "Mozilla/5.0 Crux/1.3.6"})
                     with urllib.request.urlopen(req, timeout=12) as resp:
                         code = resp.read().decode("utf-8", errors="replace")
                         self.success.emit(self.u, self.fn, code)
@@ -1204,7 +1207,7 @@ class BrowserWindow(QMainWindow):
             matches = ", ".join(meta.get("matches", [])) or "Все сайты (*)"
 
             msg = QMessageBox(self)
-            msg.setWindowTitle("Установка скрипта // Zephyrium")
+            msg.setWindowTitle("Установка скрипта // Crux")
             msg.setText(f"<b>Установить пользовательский скрипт?</b><br><br>"
                         f"<b>Название:</b> {html.escape(name)}<br>"
                         f"<b>Версия:</b> {html.escape(ver)}<br>"
@@ -1218,7 +1221,7 @@ class BrowserWindow(QMainWindow):
             if msg.clickedButton() == btn_install:
                 clean_name = fn if fn.endswith(".user.js") else f"{name}.user.js"
                 self.profile_manager.userscript_manager.save_script(clean_name, code)
-                self._show_status_message(f"✓ Скрипт '{name}' успешно установлен в Zephyrium")
+                self._show_status_message(f"✓ Скрипт '{name}' успешно установлен в Crux")
 
         def _on_failed(err):
             self._show_status_message(f"Ошибка загрузки скрипта: {err}")
@@ -1293,7 +1296,7 @@ class BrowserWindow(QMainWindow):
         u_str = v.url().toString() if v else ""
         menu = QMenu(self)
 
-        is_internal = any(k in u_str for k in ["zephyrium://", "zinc://", "about:", "startpage.html", "settings.html", "history.html", "downloads.html"])
+        is_internal = any(k in u_str for k in ["crux://", "zephyrium://", "zinc://", "about:", "startpage.html", "settings.html", "history.html", "downloads.html"])
         if is_internal:
             act_title = menu.addAction(f"🔒 {t('security_internal_title')}")
             act_title.setEnabled(False)
@@ -1399,26 +1402,30 @@ class BrowserWindow(QMainWindow):
     def _on_active_url_changed(self, url: QUrl) -> None:
         url_str = url.toString()
         if "welcome" in url_str:
-            self.url_bar.setText("zephyrium://welcome")
+            self.url_bar.setText("crux://welcome")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "startpage" in url_str:
-            self.url_bar.setText("zephyrium://startpage")
+            self.url_bar.setText("crux://startpage")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "settings" in url_str:
-            self.url_bar.setText(url_str if url_str.startswith("zephyrium://") else "zephyrium://settings")
+            self.url_bar.setText(url_str if (url_str.startswith("crux://") or url_str.startswith("zephyrium://")) else "crux://settings")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "history" in url_str:
-            self.url_bar.setText("zephyrium://history")
+            self.url_bar.setText("crux://history")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "downloads" in url_str:
-            self.url_bar.setText("zephyrium://downloads")
+            self.url_bar.setText("crux://downloads")
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
-        elif url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
+        elif "tasks" in url_str or "taskmanager" in url_str:
+            self.url_bar.setText("crux://tasks")
+            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setStyleSheet("color: #94a3b8;")
+        elif url_str.startswith("crux://") or url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
             self.url_bar.setText(url_str)
             self.ssl_badge.setText("INTERNAL")
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
@@ -1491,17 +1498,19 @@ class BrowserWindow(QMainWindow):
         active_tab = self.tab_manager.tabs.get(self.tab_manager.active_tab_id)
         saved_u = getattr(active_tab, "url", "") if active_tab else ""
         if cur_u.startswith("data:"):
-            cur_u = saved_u or "zephyrium://startpage"
+            cur_u = saved_u or "crux://startpage"
         if "startpage" in cur_u:
-            self.url_bar.setText("zephyrium://startpage")
+            self.url_bar.setText("crux://startpage")
         elif "welcome" in cur_u:
-            self.url_bar.setText("zephyrium://welcome")
+            self.url_bar.setText("crux://welcome")
         elif "settings" in cur_u:
-            self.url_bar.setText(cur_u if cur_u.startswith("zephyrium://") else "zephyrium://settings")
+            self.url_bar.setText(cur_u if (cur_u.startswith("crux://") or cur_u.startswith("zephyrium://")) else "crux://settings")
         elif "history" in cur_u:
-            self.url_bar.setText("zephyrium://history")
+            self.url_bar.setText("crux://history")
         elif "downloads" in cur_u:
-            self.url_bar.setText("zephyrium://downloads")
+            self.url_bar.setText("crux://downloads")
+        elif "tasks" in cur_u or "taskmanager" in cur_u:
+            self.url_bar.setText("crux://tasks")
         elif cur_u:
             self.url_bar.setText(cur_u)
         if not self.url_bar.hasFocus():
@@ -1541,13 +1550,13 @@ class BrowserWindow(QMainWindow):
     def _handle_command_action(self, action: str, param: str) -> None:
         v = self.tab_manager.get_current_view()
         if action == "navigate" or action in ["o", "open"]:
-            target = param if param else "zephyrium://startpage"
+            target = param if param else "crux://startpage"
             if v:
                 v.navigate(target)
         elif action in ["t", "tabnew"]:
-            self.tab_manager.create_tab(param or "zephyrium://startpage")
+            self.tab_manager.create_tab(param or "crux://startpage")
         elif action in ["tasks", "taskmanager"]:
-            self.tab_manager.create_tab("zephyrium://tasks")
+            self.tab_manager.create_tab("crux://tasks")
         elif action in ["q", "close"]:
             self.tab_manager.close_tab(self.tab_manager.active_tab_id)
         elif action == "split":
@@ -1605,7 +1614,7 @@ class BrowserWindow(QMainWindow):
             self.tab_manager.toggle_pin_tab(self.tab_manager.active_tab_id)
         elif action.startswith("container:"):
             c_id = action.split(":")[-1]
-            self.tab_manager.create_tab(url="zephyrium://startpage", container_id=c_id)
+            self.tab_manager.create_tab(url="crux://startpage", container_id=c_id)
         elif action in ["clean_cookies", "cleardata"]:
             try:
                 from PyQt6.QtWebEngineCore import QWebEngineProfile
@@ -1636,14 +1645,14 @@ class BrowserWindow(QMainWindow):
     def _show_shortcuts_dialog(self) -> None:
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextBrowser, QPushButton, QHBoxLayout
         dlg = QDialog(self)
-        dlg.setWindowTitle("Горячие клавиши // Zephyrium")
+        dlg.setWindowTitle("Горячие клавиши // Crux")
         dlg.setFixedSize(540, 520)
         dlg.setStyleSheet("""
             QDialog { background-color: #18181b; border: 1px solid #3f3f46; }
-            QLabel { color: #fe8019; font-family: monospace; font-weight: bold; font-size: 13px; }
+            QLabel { color: #a855f7; font-family: monospace; font-weight: bold; font-size: 13px; }
             QTextBrowser { background-color: #262624; border: 1px solid #3f3f46; color: #d4d4d8; font-family: monospace; font-size: 11px; }
-            QPushButton { background-color: #262624; border: 1px solid #fe8019; color: #fe8019; font-family: monospace; font-weight: bold; padding: 6px 14px; }
-            QPushButton:hover { background-color: #fe8019; color: #18181b; }
+            QPushButton { background-color: #262624; border: 1px solid #a855f7; color: #a855f7; font-family: monospace; font-weight: bold; padding: 6px 14px; }
+            QPushButton:hover { background-color: #a855f7; color: #18181b; }
         """)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(16, 16, 16, 16)
@@ -1654,7 +1663,7 @@ class BrowserWindow(QMainWindow):
         tb = QTextBrowser(dlg)
         html_keys = """
         <table style='width:100%; border-collapse:collapse; color:#d4d4d8; font-family:monospace;'>
-            <tr style='border-bottom:1px solid #3f3f46; color:#fe8019;'>
+            <tr style='border-bottom:1px solid #3f3f46; color:#a855f7;'>
                 <th style='padding:6px; text-align:left;'>КОМБИНАЦИЯ</th>
                 <th style='padding:6px; text-align:left;'>ДЕЙСТВИЕ</th>
             </tr>
@@ -1676,7 +1685,7 @@ class BrowserWindow(QMainWindow):
             <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + \\</b></td><td>Разделить экран (Split View)</td></tr>
             <tr><td style='padding:5px; color:#38bdf8;'><b>F11</b></td><td>Полноэкранный режим</td></tr>
             <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + ,</b></td><td>Настройки браузера</td></tr>
-            <tr style='border-top:1px solid #3f3f46;'><td colspan='2' style='padding-top:8px; color:#fe8019;'><b>КОМАНДЫ VIM MODE:</b></td></tr>
+            <tr style='border-top:1px solid #3f3f46;'><td colspan='2' style='padding-top:8px; color:#a855f7;'><b>КОМАНДЫ VIM MODE:</b></td></tr>
             <tr><td style='padding:4px; color:#a855f7;'><b>j / k</b></td><td>Прокрутка вниз / вверх</td></tr>
             <tr><td style='padding:4px; color:#a855f7;'><b>d / u</b></td><td>Прокрутка на полстраницы вниз / вверх</td></tr>
             <tr><td style='padding:4px; color:#a855f7;'><b>gg / G</b></td><td>В самое начало / конец страницы</td></tr>
@@ -1714,7 +1723,7 @@ class BrowserWindow(QMainWindow):
             }
             QMenu::item:selected {
                 background-color: #262624;
-                color: #fe8019;
+                color: #a855f7;
             }
             QMenu::separator {
                 height: 1px;
@@ -1747,7 +1756,7 @@ class BrowserWindow(QMainWindow):
         # Windows & Tabs
         menu.addSeparator()
         act_new_tab = menu.addAction("➕ Новая вкладка (Ctrl+T)")
-        act_new_tab.triggered.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "zephyrium://startpage")))
+        act_new_tab.triggered.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "crux://startpage")))
 
         # Container Submenu
         from config import CONTAINERS
@@ -1756,7 +1765,7 @@ class BrowserWindow(QMainWindow):
             badge = cinfo.get("badge", ck.upper())
             name = cinfo.get("name", ck.capitalize())
             act_c = cont_menu.addAction(f"[{badge}] {name}")
-            act_c.triggered.connect(lambda checked, c_id=ck: self.tab_manager.create_tab("zephyrium://startpage", container_id=c_id))
+            act_c.triggered.connect(lambda checked, c_id=ck: self.tab_manager.create_tab("crux://startpage", container_id=c_id))
 
         act_new_win = menu.addAction("🗔 Новое окно (Ctrl+N)")
         act_new_win.triggered.connect(self._open_new_window)
@@ -1770,7 +1779,7 @@ class BrowserWindow(QMainWindow):
         act_find.triggered.connect(self._toggle_find_in_page)
 
         act_tasks = menu.addAction("⚡ Диспетчер задач (Shift+Esc)")
-        act_tasks.triggered.connect(lambda: self.tab_manager.create_tab("zephyrium://tasks"))
+        act_tasks.triggered.connect(lambda: self.tab_manager.create_tab("crux://tasks"))
 
         act_devtools = menu.addAction("🛠 Инструменты разработчика (F12)")
         act_devtools.triggered.connect(self._toggle_devtools)
@@ -1821,7 +1830,7 @@ class BrowserWindow(QMainWindow):
             menu.exec(QCursor.pos())
 
     def open_settings(self, tab: str = "") -> None:
-        target_url = "zephyrium://settings"
+        target_url = "crux://settings"
         if tab:
             target_url += f"?tab={tab}"
         if hasattr(self, "tab_manager") and hasattr(self.tab_manager, "tabs"):
@@ -2040,7 +2049,7 @@ class BrowserWindow(QMainWindow):
                 if target_ua:
                     prof.setHttpUserAgent(target_ua)
                 else:
-                    prof.setHttpUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Zephyrium/1.3.0")
+                    prof.setHttpUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Crux/1.3.6")
                 v.reload()
 
     def _init_devtools_dock(self) -> None:
@@ -2060,7 +2069,7 @@ class BrowserWindow(QMainWindow):
         h_layout.setContentsMargins(8, 0, 8, 0)
 
         self.devtools_title = QLabel("🛠 DevTools (Chromium Inspector)")
-        self.devtools_title.setStyleSheet("color: #fe8019; font-weight: bold; font-size: 11px; font-family: monospace;")
+        self.devtools_title.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 11px; font-family: monospace;")
         h_layout.addWidget(self.devtools_title)
         h_layout.addStretch()
 

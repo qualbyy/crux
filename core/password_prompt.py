@@ -1,5 +1,5 @@
 """
-Password Save Prompt Banner for Zephyrium Browser
+Password Save Prompt Banner for Crux Browser
 Floats non-intrusively in the top-right corner when login/password submission is detected.
 Allows saving to vault, adding to exclusions ('Больше не спрашивать'), or dismissing.
 Anthropic Minimal Dark aesthetic (Square UI, 0px border-radius, 1px border, monospace typography).
@@ -24,7 +24,7 @@ class PasswordSaveBanner(QFrame):
 
         self.current_url = ""
         self.current_domain = ""
-        self.accent = "#fe8019"
+        self.accent = "#a855f7"
         self.theme = "dark"
         self.is_password_visible = False
 
@@ -121,7 +121,7 @@ class PasswordSaveBanner(QFrame):
         self.btns_layout.addWidget(self.btn_not_now, stretch=2)
         main_layout.addLayout(self.btns_layout)
 
-        self.update_theme("dark", "#fe8019")
+        self.update_theme("dark", "#a855f7")
 
     def set_credentials(self, url: str, username: str, password: str) -> None:
         self.current_url = url
@@ -169,7 +169,7 @@ class PasswordSaveBanner(QFrame):
         self.never_save.emit(self.current_domain)
         QTimer.singleShot(900, self.hide)
 
-    def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.theme = theme
         self.accent = accent
         bg = "#18181b" if theme == "dark" else "#ffffff"

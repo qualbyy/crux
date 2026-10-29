@@ -1,20 +1,31 @@
 """
-Zephyrium Browser Configuration
+Crux Browser Configuration
 Supports Claude Code Minimal Dark, Sleek Light, and Material 3 Expressive themes.
 """
 import os
 import sys
 import json
+import shutil
 from pathlib import Path
 
 # Base Paths
-APP_NAME = "Zephyrium"
+APP_NAME = "Crux"
 APP_VERSION = "1.3.6"
 
 if sys.platform == "win32":
-    CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Zephyrium"
+    CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Crux"
+    OLD_CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Zephyrium"
 else:
-    CONFIG_DIR = Path.home() / ".config" / "zephyrium"
+    CONFIG_DIR = Path.home() / ".config" / "crux"
+    OLD_CONFIG_DIR = Path.home() / ".config" / "zephyrium"
+
+# Auto-migrate settings and user data from legacy Zephyrium config directory if it exists
+if not CONFIG_DIR.exists() and OLD_CONFIG_DIR.exists():
+    try:
+        shutil.copytree(OLD_CONFIG_DIR, CONFIG_DIR)
+    except Exception as _mig_err:
+        print(f"[Config] Migration error from {OLD_CONFIG_DIR}: {_mig_err}")
+
 PROFILES_DIR = CONFIG_DIR / "profiles"
 NOTES_FILE = CONFIG_DIR / "notes.txt"
 BOOKMARKS_FILE = CONFIG_DIR / "bookmarks.json"
@@ -36,10 +47,10 @@ DEFAULT_SETTINGS = {
     "tab_orientation": "vertical",  # "vertical", "horizontal"
     "theme": "dark",            # "dark", "light"
     "website_theme": "light",   # "light" (standard clean web), "dark" (CSS prefers-color-scheme: dark), "system"
-    "accent_color": "#fe8019",  # Orange (#fe8019), Emerald (#10b981), Blue (#38bdf8), Purple (#a855f7), Rose (#f43f5e), Slate (#94a3b8)
+    "accent_color": "#a855f7",  # Purple (#a855f7) as key accent, Emerald (#10b981), Blue (#38bdf8), Orange (#fe8019), Rose (#f43f5e), Slate (#94a3b8)
     "language": "ru",
-    "homepage": "zephyrium://startpage",
-    "new_tab_url": "zephyrium://startpage",
+    "homepage": "crux://startpage",
+    "new_tab_url": "crux://startpage",
     "download_dir": str(Path.home() / "Downloads"),
     "restore_session": False,
     "tab_hibernation": "30",    # Inactive tab hibernation timeout in minutes ("never", "15", "30", "60")
@@ -50,7 +61,7 @@ DEFAULT_SETTINGS = {
     "font_family": "Iosevka Nerd Font",
     "font_size": 13,
     "sidebar_width": 240,
-    "ai_persona": "You are an intelligent, engineer-focused AI assistant in Zephyrium Browser.",
+    "ai_persona": "You are an intelligent, engineer-focused AI assistant in Crux Browser.",
     "gpu_accel": True,
     "proxy_host": "",
     "proxy_port": "",
@@ -91,15 +102,15 @@ def save_settings(settings: dict) -> None:
 
 # Search Engine & URLs
 SEARCH_ENGINE_URL = "https://duckduckgo.com/?q={query}"
-DEFAULT_HOME_URL = "zephyrium://startpage"
-WELCOME_URL = "zephyrium://welcome"
+DEFAULT_HOME_URL = "crux://startpage"
+WELCOME_URL = "crux://welcome"
 
 # Preset Accent Colors
 ACCENT_PRESETS = {
-    "orange": {"name": "Zephyrium Amber", "hex": "#fe8019"},
+    "purple": {"name": "Crux Purple", "hex": "#a855f7"},
     "emerald": {"name": "Emerald Green", "hex": "#10b981"},
     "blue": {"name": "Sky Blue", "hex": "#38bdf8"},
-    "purple": {"name": "Lavender Purple", "hex": "#a855f7"},
+    "orange": {"name": "Amber Orange", "hex": "#fe8019"},
     "rose": {"name": "Nordic Rose", "hex": "#f43f5e"},
     "slate": {"name": "Monochrome Slate", "hex": "#94a3b8"},
 }
@@ -111,12 +122,12 @@ COLORS = {
     "bg-elevated": "#2d2d2a",
     "border-muted": "#3f3f46",
     "border-subtle": "#2b2b29",
-    "border-active": "#94a3b8",
+    "border-active": "#a855f7",
     "text-primary": "#d4d4d8",
     "text-bright": "#f5f5f0",
     "text-muted": "#71717a",
-    "accent": "#94a3b8",
-    "accent-warm": "#fe8019",
+    "accent": "#a855f7",
+    "accent-warm": "#a855f7",
     "status-success": "#10b981",
     "status-warning": "#f59e0b",
     "status-error": "#ef4444",

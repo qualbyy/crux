@@ -1,5 +1,5 @@
 """
-Right Sidebar Container for Zephyrium
+Right Sidebar Container for Crux
 Houses AI Assistant and Notes Panels with square toggle buttons
 """
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -21,7 +21,7 @@ class SidePanel(QWidget):
         self.setMinimumWidth(320)
         self.setMaximumWidth(420)
         self.theme = "dark"
-        self.accent = "#fe8019"
+        self.accent = "#a855f7"
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -94,7 +94,7 @@ class SidePanel(QWidget):
             self.btn_notes.setStyleSheet(f"border-color: {self.accent}; color: {text_bright}; background-color: {active_bg}; font-weight: bold;")
             self.btn_ai.setStyleSheet(f"border-color: {border_muted}; color: {text_primary}; background-color: {inactive_bg};")
 
-    def update_theme(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.theme = theme
         self.accent = accent
         self.switch_tab(self.stack.currentIndex())

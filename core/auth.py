@@ -22,21 +22,24 @@ _ACTIVE_VAULT_PASSPHRASE = ""
 def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
-def get_machine_seed() -> str:
-    return f"{getpass.getuser()}:{platform.node()}:zephyrium_vault_seed_v1"
+def get_machine_seed(legacy: bool = False) -> str:
+    if legacy:
+        return f"{getpass.getuser()}:{platform.node()}:zephyrium_vault_seed_v1"
+    return f"{getpass.getuser()}:{platform.node()}:crux_vault_seed_v1"
 
-def derive_vault_key(passphrase: str = "") -> bytes:
-    effective = passphrase if passphrase else _ACTIVE_VAULT_PASSPHRASE or get_machine_seed()
+def derive_vault_key(passphrase: str = "", legacy: bool = False) -> bytes:
+    effective = passphrase if passphrase else _ACTIVE_VAULT_PASSPHRASE or get_machine_seed(legacy)
+    salt = b"zephyrium_vault_salt_v1" if legacy else b"crux_vault_salt_v1"
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=b"zephyrium_vault_salt_v1",
+        salt=salt,
         iterations=100000,
     )
     return base64.urlsafe_b64encode(kdf.derive(effective.encode("utf-8")))
 
 def encrypt_vault_data(data: list, passphrase: str = "") -> dict:
-    key = derive_vault_key(passphrase)
+    key = derive_vault_key(passphrase, legacy=False)
     f = Fernet(key)
     raw = json.dumps(data, ensure_ascii=False).encode("utf-8")
     return {
@@ -49,10 +52,21 @@ def decrypt_vault_data(payload: any, passphrase: str = "") -> list:
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict) and payload.get("encrypted"):
-        key = derive_vault_key(passphrase)
-        f = Fernet(key)
-        raw = f.decrypt(payload["ciphertext"].encode("utf-8"))
-        return json.loads(raw.decode("utf-8"))
+        # Try modern crux key first
+        try:
+            key = derive_vault_key(passphrase, legacy=False)
+            f = Fernet(key)
+            raw = f.decrypt(payload["ciphertext"].encode("utf-8"))
+            return json.loads(raw.decode("utf-8"))
+        except Exception:
+            # Fall back to legacy zephyrium key
+            try:
+                key_leg = derive_vault_key(passphrase, legacy=True)
+                f_leg = Fernet(key_leg)
+                raw = f_leg.decrypt(payload["ciphertext"].encode("utf-8"))
+                return json.loads(raw.decode("utf-8"))
+            except Exception:
+                pass
     return []
 
 def has_master_password() -> bool:

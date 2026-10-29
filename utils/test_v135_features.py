@@ -25,7 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Ensure QtWebEngine URL schemes are registered before QApplication
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWebEngineCore import QWebEngineUrlScheme
-for s_name in [b"zephyrium", b"zinc"]:
+for s_name in [b"crux", b"zephyrium", b"zinc"]:
     scheme = QWebEngineUrlScheme(s_name)
     scheme.setSyntax(QWebEngineUrlScheme.Syntax.Path)
     scheme.setDefaultPort(QWebEngineUrlScheme.SpecialPort.PortUnspecified.value)

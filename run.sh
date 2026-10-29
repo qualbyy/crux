@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Zephyrium Launch Script
+# Crux Launch Script
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

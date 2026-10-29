@@ -1,10 +1,10 @@
 """
-Dynamic Theme and Color Engine for Zephyrium Browser
+Dynamic Theme and Color Engine for Crux Browser
 Supports Dark (Minimal Claude Code), Light (Clean Paper), and custom Accent Colors.
 """
 from PyQt6.QtWidgets import QApplication
 
-def generate_stylesheet(theme: str = "dark", accent: str = "#fe8019") -> str:
+def generate_stylesheet(theme: str = "dark", accent: str = "#a855f7") -> str:
     if theme == "light":
         bg_base = "#f8fafc"
         bg_surface = "#ffffff"
@@ -448,7 +448,7 @@ def generate_stylesheet(theme: str = "dark", accent: str = "#fe8019") -> str:
     """
     return qss
 
-def apply_app_theme(app: QApplication, theme: str = "dark", accent: str = "#fe8019") -> None:
+def apply_app_theme(app: QApplication, theme: str = "dark", accent: str = "#a855f7") -> None:
     if not app:
         return
     qss = generate_stylesheet(theme, accent)

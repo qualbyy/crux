@@ -1,5 +1,5 @@
 """
-Find in Page Minimal Floating Bar for Zephyrium Browser
+Find in Page Minimal Floating Bar for Crux Browser
 Claude Code Minimal Dark aesthetic (Square UI, 0px radius, 1px borders)
 """
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -17,7 +17,7 @@ class FindInPageBar(QFrame):
         self.setObjectName("findInPageBar")
         self.setFixedHeight(34)
         self.setMinimumWidth(320)
-        self.accent = "#fe8019"
+        self.accent = "#a855f7"
         self.theme = "dark"
 
         layout = QHBoxLayout(self)
@@ -62,7 +62,7 @@ class FindInPageBar(QFrame):
 
         self.update_style()
 
-    def update_style(self, theme: str = "dark", accent: str = "#fe8019") -> None:
+    def update_style(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.theme = theme
         self.accent = accent
         bg = "#18181b" if theme == "dark" else "#ffffff"

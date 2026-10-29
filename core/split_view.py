@@ -44,7 +44,7 @@ class SplitViewContainer(QWidget):
         if url:
             self.secondary_view.load(url)
         else:
-            self.secondary_view.navigate("zephyrium://startpage")
+            self.secondary_view.navigate("crux://startpage")
 
         self.splitter.addWidget(self.secondary_view)
         self.splitter.setSizes([int(self.width() / 2), int(self.width() / 2)])
