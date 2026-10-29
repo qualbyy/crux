@@ -189,7 +189,7 @@ class SettingsWindow(QDialog):
         layout.addWidget(self.input_homepage)
 
         # New Tab URL
-        layout.addWidget(QLabel("URL новой вкладки (New Tab URL):"))
+        layout.addWidget(QLabel(t("new_tab_url_label")))
         self.input_new_tab_url = QLineEdit(self.settings.get("new_tab_url", self.settings.get("homepage", "crux://startpage")))
         layout.addWidget(self.input_new_tab_url)
 

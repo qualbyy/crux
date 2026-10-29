@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QScrollArea, QFrame, QFileDialog
 )
 from PyQt6.QtWebEngineCore import QWebEngineDownloadRequest
+from core.i18n import t
 
 class DownloadItemWidget(QFrame):
     def __init__(self, item: QWebEngineDownloadRequest, accent: str = "#a855f7", parent=None):
@@ -156,15 +157,15 @@ class DownloadManager(QWidget):
 
         # Header
         header = QHBoxLayout()
-        title = QLabel("DOWNLOADS // ACTIVE")
-        title.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {self.accent}; letter-spacing: 1px;")
+        self.header_title = QLabel(t("dl_popup_title"))
+        self.header_title.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {self.accent}; letter-spacing: 1px;")
 
-        self.btn_open_folder = QPushButton("FOLDER")
+        self.btn_open_folder = QPushButton(t("dl_popup_folder"))
         self.btn_open_folder.setFixedHeight(22)
         self.btn_open_folder.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_open_folder.clicked.connect(self._open_folder)
 
-        self.btn_clear = QPushButton("CLEAR")
+        self.btn_clear = QPushButton(t("dl_popup_clear"))
         self.btn_clear.setFixedHeight(22)
         self.btn_clear.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_clear.clicked.connect(self._clear_completed)
@@ -174,7 +175,7 @@ class DownloadManager(QWidget):
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.close_btn.clicked.connect(self.hide)
 
-        header.addWidget(title)
+        header.addWidget(self.header_title)
         header.addStretch()
         header.addWidget(self.btn_open_folder)
         header.addWidget(self.btn_clear)
@@ -191,7 +192,7 @@ class DownloadManager(QWidget):
         self.items_layout.setContentsMargins(0, 0, 0, 0)
         self.items_layout.setSpacing(6)
 
-        self.empty_label = QLabel("No active downloads")
+        self.empty_label = QLabel(t("dl_popup_empty"))
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.setStyleSheet("color: #71717a; font-size: 12px; padding: 20px 0;")
         self.items_layout.addWidget(self.empty_label)
@@ -200,6 +201,16 @@ class DownloadManager(QWidget):
 
         self.scroll.setWidget(self.items_container)
         main_layout.addWidget(self.scroll)
+
+    def retranslate_ui(self) -> None:
+        if hasattr(self, 'header_title'):
+            self.header_title.setText(t("dl_popup_title"))
+        if hasattr(self, 'btn_open_folder'):
+            self.btn_open_folder.setText(t("dl_popup_folder"))
+        if hasattr(self, 'btn_clear'):
+            self.btn_clear.setText(t("dl_popup_clear"))
+        if hasattr(self, 'empty_label'):
+            self.empty_label.setText(t("dl_popup_empty"))
 
     def update_style(self, theme: str = None, accent: str = None) -> None:
         if theme:

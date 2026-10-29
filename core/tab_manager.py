@@ -556,16 +556,16 @@ class VerticalTabSidebar(QWidget):
         tm = self.parent()
         is_active = (tm and hasattr(tm, "active_tab_id") and tm.active_tab_id == tab_id)
         if is_active:
-            act_suspend = menu.addAction(t("suspend_tab") + " [Активна]")
+            act_suspend = menu.addAction(t("suspend_tab") + f" [{t('tab_active_badge')}]")
             act_suspend.setEnabled(False)
-            act_suspend.setToolTip("Нельзя усыпить активную вкладку")
+            act_suspend.setToolTip(t("suspend_active_error"))
         else:
             act_suspend = menu.addAction(t("suspend_tab"))
             act_suspend.triggered.connect(lambda: self.suspend_tab_requested.emit(tab_id))
 
         # Reopen in Container Submenu
         from config import CONTAINERS
-        reopen_title = "Переоткрыть в контейнере" if t("app_title") in ["Crux", "Zephyrium"] and t("new_tab").startswith("Новая") else "Reopen in Container"
+        reopen_title = t("reopen_in_container")
         reopen_menu = menu.addMenu(reopen_title)
         for c_key, c_info in CONTAINERS.items():
             badge = c_info.get("badge", c_key.upper())
@@ -591,7 +591,7 @@ class VerticalTabSidebar(QWidget):
             QMenu::item { padding: 6px 14px; }
             QMenu::item:selected { background-color: #262624; color: #a855f7; }
         """)
-        hdr = menu.addAction("--- КОНТЕЙНЕРЫ ПРОФИЛЯ ---")
+        hdr = menu.addAction(t("profile_containers_header"))
         hdr.setEnabled(False)
         for c_key, c_info in CONTAINERS.items():
             badge = c_info.get("badge", c_key.upper())
@@ -1042,10 +1042,10 @@ class TabManager(QWidget):
                 <body onclick="window.location.reload()" style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;cursor:pointer;margin:0;">
                 <div style="border:1px solid {card_border};border-radius:0px;padding:32px;background:{card_bg};text-align:center;max-width:420px;box-shadow:0 6px 20px rgba(0,0,0,0.4);font-family:monospace;">
                     <div style="font-size:22px;margin-bottom:12px;color:{acc};font-weight:bold;">[SLEEP]</div>
-                    <div style="color:{acc};font-weight:bold;font-size:13px;letter-spacing:1px;margin-bottom:8px;">[ВКЛАДКА В РЕЖИМЕ СНА // RAM SAVED]</div>
+                    <div style="color:{acc};font-weight:bold;font-size:13px;letter-spacing:1px;margin-bottom:8px;">{t("tab_suspended_title")}</div>
                     <div style="color:{fg_title};font-size:14px;font-weight:bold;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{clean_title}</div>
-                    <div style="font-size:11px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена из памяти. Кликните для восстановления.</div>
-                    <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border:1px solid {card_border};display:inline-block;">НАЖМИТЕ ДЛЯ ПРОБУЖДЕНИЯ</div>
+                    <div style="font-size:11px;color:{fg_muted};margin-bottom:16px;">{t("tab_suspended_hint")}</div>
+                    <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border:1px solid {card_border};display:inline-block;">{t("wake_tab").upper()}</div>
                 </div>
                 </body></html>
             """)

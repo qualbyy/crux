@@ -304,7 +304,7 @@ class BrowserWindow(QMainWindow):
         self.btn_menu.setFixedHeight(28)
         self.btn_menu.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_menu.setStyleSheet("font-family: \"Iosevka Nerd Font\", \"JetBrains Mono\", monospace; font-size: 12px; font-weight: bold; padding: 4px 10px;")
-        self.btn_menu.setToolTip("Главное меню (F10 / Alt+F)")
+        self.btn_menu.setToolTip(t("main_menu_tooltip"))
         self.btn_menu.clicked.connect(self._show_main_browser_menu)
         layout.addWidget(self.btn_menu)
         self.btn_settings = self.btn_menu  # Backward-compatibility alias
@@ -596,19 +596,22 @@ class BrowserWindow(QMainWindow):
                     for v in views:
                         if v and hasattr(v, "url"):
                             url_str = v.url().toString()
-                            if any(p in url_str for p in ["startpage.html", "settings.html", "history.html", "downloads.html"]):
+                            if any(p in url_str for p in ["startpage", "settings", "history", "downloads", "tasks", "welcome", "vault", "about"]):
                                 v.page().setBackgroundColor(QColor("#18181b" if th == "dark" else "#f8fafc"))
-                                js = f"""
-                                (function() {{
-                                    if (window.applyTheme) {{ window.applyTheme('{th}', '{acc}'); }}
-                                    else {{
-                                        document.documentElement.setAttribute('data-theme', '{th}');
-                                        document.documentElement.style.setProperty('--accent', '{acc}');
-                                    }}
-                                    if (window.applyLanguage) {{ window.applyLanguage('{lang}'); }}
-                                }})();
-                                """
-                                v.page().runJavaScript(js)
+                                if any(x in url_str for x in ["tasks", "processes"]):
+                                    v.reload()
+                                else:
+                                    js = f"""
+                                    (function() {{
+                                        if (window.applyTheme) {{ window.applyTheme('{th}', '{acc}'); }}
+                                        else {{
+                                            document.documentElement.setAttribute('data-theme', '{th}');
+                                            document.documentElement.style.setProperty('--accent', '{acc}');
+                                        }}
+                                        if (window.applyLanguage) {{ window.applyLanguage('{lang}'); }}
+                                    }})();
+                                    """
+                                    v.page().runJavaScript(js)
 
     def retranslate_ui(self) -> None:
         self.btn_adblock.setText(f"{t('adblock_title')}: {self.adblocker.blocked_count}")
@@ -630,7 +633,7 @@ class BrowserWindow(QMainWindow):
         self.btn_palette.setToolTip(t("keybinds_tooltip"))
         if hasattr(self, "btn_menu"):
             self.btn_menu.setText("MENU")
-            self.btn_menu.setToolTip("Меню браузера (F10 / Alt+F)")
+            self.btn_menu.setToolTip(t("main_menu_tooltip"))
         elif hasattr(self, "btn_settings"):
             self.btn_settings.setText(t("settings_btn"))
             self.btn_settings.setToolTip(t("settings_tooltip"))
@@ -647,12 +650,17 @@ class BrowserWindow(QMainWindow):
         v = self.tab_manager.get_current_view()
         if v:
             url_str = v.url().toString()
-            if "startpage.html" in url_str or "welcome.html" in url_str:
+            if "startpage" in url_str or "welcome" in url_str:
                 self.ssl_badge.setText(t("internal_page"))
         if hasattr(self, "tab_manager"):
             self.tab_manager.retranslate_ui()
         if hasattr(self, "side_panel"):
             self.side_panel.retranslate_ui()
+        if hasattr(self, "password_save_banner"):
+            self.password_save_banner.retranslate_ui()
+        if hasattr(self, "download_manager"):
+            self.download_manager.retranslate_ui()
+        self._update_pinned_toolbar()
         if hasattr(self, "password_save_banner"):
             self.password_save_banner.retranslate_ui()
 
@@ -1186,33 +1194,33 @@ class BrowserWindow(QMainWindow):
 
         def _on_success(u, fn, code):
             if not code or not code.strip():
-                self._show_status_message("Ошибка: файл скрипта пуст")
+                self._show_status_message(t("userscript_empty_err"))
                 return
             meta = self.profile_manager.userscript_manager.parse_userscript_metadata(code)
             name = meta.get("name") or fn
             ver = meta.get("version") or "1.0"
-            desc = meta.get("description") or "Без описания"
-            matches = ", ".join(meta.get("matches", [])) or "Все сайты (*)"
+            desc = meta.get("description") or t("userscript_no_desc")
+            matches = ", ".join(meta.get("matches", [])) or t("userscript_all_sites")
 
             msg = QMessageBox(self)
-            msg.setWindowTitle("Установка скрипта // Crux")
-            msg.setText(f"<b>Установить пользовательский скрипт?</b><br><br>"
-                        f"<b>Название:</b> {html.escape(name)}<br>"
-                        f"<b>Версия:</b> {html.escape(ver)}<br>"
-                        f"<b>Сайты:</b> <code>{html.escape(matches)}</code><br>"
-                        f"<b>Описание:</b> {html.escape(desc)}")
+            msg.setWindowTitle(t("userscript_install_title"))
+            msg.setText(f"<b>{t('userscript_install_prompt')}</b><br><br>"
+                        f"<b>{t('userscript_name_label')}</b> {html.escape(name)}<br>"
+                        f"<b>{t('userscript_ver_label')}</b> {html.escape(ver)}<br>"
+                        f"<b>{t('userscript_sites_label')}</b> <code>{html.escape(matches)}</code><br>"
+                        f"<b>{t('userscript_desc_label')}</b> {html.escape(desc)}")
             msg.setIcon(QMessageBox.Icon.Question)
-            btn_install = msg.addButton("Установить", QMessageBox.ButtonRole.AcceptRole)
-            btn_cancel = msg.addButton("Отмена", QMessageBox.ButtonRole.RejectRole)
+            btn_install = msg.addButton(t("btn_install"), QMessageBox.ButtonRole.AcceptRole)
+            btn_cancel = msg.addButton(t("cancel"), QMessageBox.ButtonRole.RejectRole)
             msg.exec()
 
             if msg.clickedButton() == btn_install:
                 clean_name = fn if fn.endswith(".user.js") else f"{name}.user.js"
                 self.profile_manager.userscript_manager.save_script(clean_name, code)
-                self._show_status_message(f"Скрипт '{name}' успешно установлен в Crux")
+                self._show_status_message(t("userscript_installed_success", name=name))
 
         def _on_failed(err):
-            self._show_status_message(f"Ошибка загрузки скрипта: {err}")
+            self._show_status_message(t("userscript_load_err", err=err))
 
         self._us_fetcher = UserscriptFetchThread(url_str, filename)
         self._us_fetcher.success.connect(_on_success)
@@ -1231,37 +1239,37 @@ class BrowserWindow(QMainWindow):
         configs = {
             "downloads": {
                 "text": "DL",
-                "tooltip": "Загрузки (Ctrl+Shift+D)",
+                "tooltip": t("downloads_menu"),
                 "callback": self._toggle_downloads,
                 "menu_anchor": "btn_downloads",
             },
             "history": {
                 "text": "HIST",
-                "tooltip": "История (Ctrl+H)",
+                "tooltip": t("history_menu"),
                 "callback": self._show_history_menu,
                 "menu_anchor": "btn_history",
             },
             "bookmarks": {
                 "text": "BM",
-                "tooltip": "Закладки (Ctrl+Shift+O)",
+                "tooltip": t("bookmarks_menu"),
                 "callback": self._show_bookmarks_menu,
                 "menu_anchor": "btn_bookmarks",
             },
             "reader": {
                 "text": "READER",
-                "tooltip": "Режим чтения (Ctrl+Alt+R)",
+                "tooltip": t("reader_mode_menu"),
                 "callback": self._on_reader_mode_clicked,
                 "menu_anchor": "btn_reader",
             },
             "split": {
                 "text": "SPLIT",
-                "tooltip": "Разделить экран (Ctrl+\\)",
+                "tooltip": f"{t('split_view')} (Ctrl+\\)",
                 "callback": lambda: self.tab_manager.split_active_tab(),
                 "menu_anchor": "btn_split",
             },
             "ai": {
                 "text": "AI",
-                "tooltip": "AI-ассистент (Ctrl+B)",
+                "tooltip": t("ai_assistant_menu"),
                 "callback": self._toggle_sidebar,
                 "menu_anchor": "btn_ai",
             },
@@ -1284,7 +1292,11 @@ class BrowserWindow(QMainWindow):
             if key not in configs:
                 continue
             cfg = configs[key]
-            if key not in self._pinned_btns:
+            if key in self._pinned_btns:
+                b = self._pinned_btns[key]
+                b.setText(cfg["text"])
+                b.setToolTip(cfg["tooltip"])
+            else:
                 b = QPushButton(cfg["text"])
                 b.setFixedHeight(28)
                 b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1303,10 +1315,10 @@ class BrowserWindow(QMainWindow):
         pinned = list(self.settings.get("pinned_toolbar", ["downloads", "history"]))
         if action_key in pinned:
             pinned.remove(action_key)
-            self._show_status_message(f"Удалено из верхнего меню: {action_key.upper()}")
+            self._show_status_message(t("pin_toolbar_removed", action=action_key.upper()))
         else:
             pinned.append(action_key)
-            self._show_status_message(f"Закреплено в верхнем меню: {action_key.upper()}")
+            self._show_status_message(t("pin_toolbar_added", action=action_key.upper()))
         self.settings["pinned_toolbar"] = pinned
         save_settings(self.settings)
         self._update_pinned_toolbar()
@@ -1671,7 +1683,7 @@ class BrowserWindow(QMainWindow):
             QApplication.clipboard().setText(param)
             self._show_status_message(f"Copied: {param}")
         elif action == "snooze_tab":
-            self._show_status_message("Активную вкладку нельзя усыпить (выберите фоновую вкладку)")
+            self._show_status_message(t("snooze_active_error"))
         elif action == "snooze_others":
             try:
                 count = 0
@@ -1679,16 +1691,16 @@ class BrowserWindow(QMainWindow):
                     if tid != self.tab_manager.active_tab_id:
                         if self.tab_manager.suspend_tab(tid):
                             count += 1
-                self._show_status_message(f"Усыплено фоновых вкладок: {count} (ОЗУ освобождено)")
+                self._show_status_message(t("snooze_others_success", count=count))
             except Exception as e:
-                self._show_status_message(f"Ошибка усыпления: {e}")
+                self._show_status_message(t("snooze_err", e=e))
         elif action == "wake_all":
             try:
                 for tid in list(self.tab_manager.tabs.keys()):
                     self.tab_manager.wake_tab(tid)
-                self._show_status_message("Woke all hibernated tabs")
+                self._show_status_message(t("wake_all_success"))
             except Exception as e:
-                self._show_status_message(f"Ошибка восстановления: {e}")
+                self._show_status_message(t("wake_err", e=e))
         elif action == "find":
             self._toggle_find_in_page()
         elif action == "pin":
@@ -1726,7 +1738,7 @@ class BrowserWindow(QMainWindow):
     def _show_shortcuts_dialog(self) -> None:
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextBrowser, QPushButton, QHBoxLayout
         dlg = QDialog(self)
-        dlg.setWindowTitle("Горячие клавиши // Crux")
+        dlg.setWindowTitle(t("keybinds_help_window_title"))
         dlg.setFixedSize(540, 520)
         dlg.setStyleSheet("""
             QDialog { background-color: #18181b; border: 1px solid #3f3f46; }
@@ -1738,41 +1750,41 @@ class BrowserWindow(QMainWindow):
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(16, 16, 16, 16)
         lay.setSpacing(10)
-        title = QLabel("СПРАВКА ПО ГОРЯЧИМ КЛАВИШАМ")
+        title = QLabel(t("keybinds_help_title"))
         lay.addWidget(title)
 
         tb = QTextBrowser(dlg)
-        html_keys = """
+        html_keys = f"""
         <table style='width:100%; border-collapse:collapse; color:#d4d4d8; font-family:monospace;'>
             <tr style='border-bottom:1px solid #3f3f46; color:#a855f7;'>
-                <th style='padding:6px; text-align:left;'>КОМБИНАЦИЯ</th>
-                <th style='padding:6px; text-align:left;'>ДЕЙСТВИЕ</th>
+                <th style='padding:6px; text-align:left;'>{t("keybinds_col_key")}</th>
+                <th style='padding:6px; text-align:left;'>{t("keybinds_col_action")}</th>
             </tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + T</b></td><td>Новая вкладка</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + W</b></td><td>Закрыть активную вкладку</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + N</b></td><td>Новое окно</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + N</b></td><td>Новое окно инкогнито</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + K / Ctrl + L</b></td><td>Палитра команд / Фокус адресной строки</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + F</b></td><td>Поиск на странице</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>F12 / Ctrl + Shift + I</b></td><td>Инструменты разработчика (DevTools)</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Shift + Esc</b></td><td>Диспетчер задач браузера (Tasks)</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + B</b></td><td>Панель AI-ассистента и заметок</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + D</b></td><td>Всплывающее окно загрузок</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + H</b></td><td>История посещений</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + O</b></td><td>Панель закладок</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Alt + R</b></td><td>Режим чтения (Reader Mode)</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Alt + P</b></td><td>Картинка в картинке (PiP видео)</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + [</b></td><td>Свернуть/развернуть боковую панель</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + \\</b></td><td>Разделить экран (Split View)</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>F11</b></td><td>Полноэкранный режим</td></tr>
-            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + ,</b></td><td>Настройки браузера</td></tr>
-            <tr style='border-top:1px solid #3f3f46;'><td colspan='2' style='padding-top:8px; color:#a855f7;'><b>КОМАНДЫ VIM MODE:</b></td></tr>
-            <tr><td style='padding:4px; color:#a855f7;'><b>j / k</b></td><td>Прокрутка вниз / вверх</td></tr>
-            <tr><td style='padding:4px; color:#a855f7;'><b>d / u</b></td><td>Прокрутка на полстраницы вниз / вверх</td></tr>
-            <tr><td style='padding:4px; color:#a855f7;'><b>gg / G</b></td><td>В самое начало / конец страницы</td></tr>
-            <tr><td style='padding:4px; color:#a855f7;'><b>t / x</b></td><td>Новая вкладка / Закрыть вкладку</td></tr>
-            <tr><td style='padding:4px; color:#a855f7;'><b>J / K</b></td><td>Следующая / Предыдущая вкладка</td></tr>
-            <tr><td style='padding:4px; color:#a855f7;'><b>o / :</b></td><td>Открыть адрес или команду</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + T</b></td><td>{t("keybind_new_tab")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + W</b></td><td>{t("keybind_close_tab")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + N</b></td><td>{t("keybind_new_win")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + N</b></td><td>{t("keybind_incognito_win")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + K / Ctrl + L</b></td><td>{t("keybind_cmd_palette")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + F</b></td><td>{t("keybind_find_in_page")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>F12 / Ctrl + Shift + I</b></td><td>{t("keybind_devtools")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Shift + Esc</b></td><td>{t("keybind_task_mgr")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + B</b></td><td>{t("keybind_ai_panel")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + D</b></td><td>{t("keybind_downloads_popup")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + H</b></td><td>{t("keybind_history")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Shift + O</b></td><td>{t("keybind_bookmarks")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Alt + R</b></td><td>{t("keybind_reader_mode")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + Alt + P</b></td><td>{t("keybind_pip")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + [</b></td><td>{t("keybind_toggle_sidebar")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + \\</b></td><td>{t("keybind_split_view")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>F11</b></td><td>{t("keybind_fullscreen")}</td></tr>
+            <tr><td style='padding:5px; color:#38bdf8;'><b>Ctrl + ,</b></td><td>{t("keybind_settings")}</td></tr>
+            <tr style='border-top:1px solid #3f3f46;'><td colspan='2' style='padding-top:8px; color:#a855f7;'><b>{t("keybinds_vim_section")}:</b></td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>j / k</b></td><td>{t("keybind_vim_scroll_lines")}</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>d / u</b></td><td>{t("keybind_vim_scroll_half")}</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>gg / G</b></td><td>{t("keybind_vim_top_bottom")}</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>t / x</b></td><td>{t("keybind_vim_tab_new_close")}</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>J / K</b></td><td>{t("keybind_vim_tab_next_prev")}</td></tr>
+            <tr><td style='padding:4px; color:#a855f7;'><b>o / :</b></td><td>{t("keybind_vim_open")}</td></tr>
         </table>
         """
         tb.setHtml(html_keys)
@@ -1780,7 +1792,7 @@ class BrowserWindow(QMainWindow):
 
         btn_box = QHBoxLayout()
         btn_box.addStretch()
-        btn_close = QPushButton("ЗАКРЫТЬ")
+        btn_close = QPushButton(t("btn_close"))
         btn_close.clicked.connect(dlg.accept)
         btn_box.addWidget(btn_close)
         lay.addLayout(btn_box)
@@ -1843,14 +1855,14 @@ class BrowserWindow(QMainWindow):
             zoom_layout.setContentsMargins(14, 6, 14, 6)
             zoom_layout.setSpacing(6)
 
-            lbl_zoom = QLabel("Масштаб:")
+            lbl_zoom = QLabel(t("zoom_label"))
             lbl_zoom.setFixedHeight(24)
             lbl_zoom.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             lbl_zoom.setStyleSheet("font-weight: bold; color: #a855f7; padding-top: 1px;")
             zoom_layout.addWidget(lbl_zoom)
 
             btn_z_minus = QPushButton("－")
-            btn_z_minus.setToolTip("Уменьшить масштаб (Ctrl+-)")
+            btn_z_minus.setToolTip(t("zoom_out"))
             btn_z_minus.setFixedSize(28, 24)
             btn_z_minus.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -1862,17 +1874,17 @@ class BrowserWindow(QMainWindow):
             lbl_z_val.setStyleSheet("font-weight: bold; color: #f4f4f5; padding-top: 1px;")
 
             btn_z_plus = QPushButton("＋")
-            btn_z_plus.setToolTip("Увеличить масштаб (Ctrl++)")
+            btn_z_plus.setToolTip(t("zoom_in"))
             btn_z_plus.setFixedSize(28, 24)
             btn_z_plus.setCursor(Qt.CursorShape.PointingHandCursor)
 
             btn_z_reset = QPushButton("100%")
-            btn_z_reset.setToolTip("Сбросить масштаб (Ctrl+0)")
+            btn_z_reset.setToolTip(t("zoom_reset"))
             btn_z_reset.setFixedHeight(24)
             btn_z_reset.setCursor(Qt.CursorShape.PointingHandCursor)
 
             btn_z_fs = QPushButton("[FS]")
-            btn_z_fs.setToolTip("Во весь экран (F11)")
+            btn_z_fs.setToolTip(t("fullscreen"))
             btn_z_fs.setFixedHeight(24)
             btn_z_fs.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -1912,99 +1924,99 @@ class BrowserWindow(QMainWindow):
 
             # 2. Instant Mobile Mode Action
             is_mob = getattr(self, "is_mobile_mode", False)
-            act_viewport = menu.addAction("Мобильный режим: [ВКЛ]" if is_mob else "Мобильный режим: [ВЫКЛ]")
+            act_viewport = menu.addAction(t("mobile_mode_on") if is_mob else t("mobile_mode_off"))
             act_viewport.triggered.connect(self.toggle_mobile_mode)
 
             menu.addSeparator()
 
             # 3. Quick Reading & Media Actions
-            act_reader = menu.addAction("Режим чтения / Reader (Ctrl+Alt+R)")
+            act_reader = menu.addAction(t("reader_mode_menu"))
             act_reader.triggered.connect(self._on_reader_mode_clicked)
 
-            act_pip = menu.addAction("Картинка в картинке / PiP (Ctrl+Alt+P)")
+            act_pip = menu.addAction(t("pip_mode_menu"))
             act_pip.triggered.connect(self._on_pip_clicked)
 
             # Tab Orientation Submenu
-            tab_menu = menu.addMenu("Расположение вкладок")
-            act_vert = tab_menu.addAction("[x] Вертикальные (слева)" if self.tab_orientation == "vertical" else "    Вертикальные (слева)")
+            tab_menu = menu.addMenu(t("tab_layout_menu"))
+            act_vert = tab_menu.addAction(("[x] " if self.tab_orientation == "vertical" else "    ") + t("tab_vertical_menu"))
             act_vert.triggered.connect(lambda: self.set_tab_orientation("vertical"))
-            act_horiz = tab_menu.addAction("[x] Горизонтальные (сверху)" if self.tab_orientation == "horizontal" else "    Горизонтальные (сверху)")
+            act_horiz = tab_menu.addAction(("[x] " if self.tab_orientation == "horizontal" else "    ") + t("tab_horizontal_menu"))
             act_horiz.triggered.connect(lambda: self.set_tab_orientation("horizontal"))
 
             # UI Mode Submenu
-            ui_menu = menu.addMenu("Режим интерфейса")
-            act_min = ui_menu.addAction("[x] Обычный (Minimal)" if self.ui_mode == "minimal" else "    Обычный (Minimal)")
+            ui_menu = menu.addMenu(t("ui_mode_menu"))
+            act_min = ui_menu.addAction(("[x] " if self.ui_mode == "minimal" else "    ") + t("ui_mode_minimal"))
             act_min.triggered.connect(lambda: self.switch_ui_mode("minimal"))
-            act_vim = ui_menu.addAction("[x] Vim Mode (без рамок)" if self.ui_mode == "vim" else "    Vim Mode (без рамок)")
+            act_vim = ui_menu.addAction(("[x] " if self.ui_mode == "vim" else "    ") + t("ui_mode_vim"))
             act_vim.triggered.connect(lambda: self.switch_ui_mode("vim"))
 
             # Windows & Tabs
             menu.addSeparator()
-            act_new_tab = menu.addAction("Новая вкладка (Ctrl+T)")
+            act_new_tab = menu.addAction(f"{t('new_tab')} (Ctrl+T)")
             act_new_tab.triggered.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "crux://startpage")))
 
             # Container Submenu
             from config import CONTAINERS
-            cont_menu = menu.addMenu("Вкладка в контейнере")
+            cont_menu = menu.addMenu(t("new_container_tab"))
             for ck, cinfo in CONTAINERS.items():
                 badge = cinfo.get("badge", ck.upper())
                 name = cinfo.get("name", ck.capitalize())
                 act_c = cont_menu.addAction(f"[{badge}] {name}")
                 act_c.triggered.connect(lambda checked, c_id=ck: self.tab_manager.create_tab("crux://startpage", container_id=c_id))
 
-            act_new_win = menu.addAction("Новое окно (Ctrl+N)")
+            act_new_win = menu.addAction(t("new_window"))
             act_new_win.triggered.connect(self._open_new_window)
 
-            act_incog = menu.addAction("Новое окно инкогнито (Ctrl+Shift+N)")
+            act_incog = menu.addAction(t("incognito_window"))
             act_incog.triggered.connect(self._open_incognito_window)
 
             # View & Tools
             menu.addSeparator()
-            act_find = menu.addAction("Поиск на странице (Ctrl+F)")
+            act_find = menu.addAction(t("find_in_page"))
             act_find.triggered.connect(self._toggle_find_in_page)
 
-            act_split = menu.addAction("Разделить экран (Ctrl+\\)")
+            act_split = menu.addAction(f"{t('split_view')} (Ctrl+\\)")
             act_split.triggered.connect(lambda: self.tab_manager.split_active_tab())
 
-            act_tasks = menu.addAction("Диспетчер задач (Shift+Esc)")
+            act_tasks = menu.addAction(t("task_manager"))
             act_tasks.triggered.connect(lambda: self.tab_manager.create_tab("crux://tasks"))
 
-            act_devtools = menu.addAction("Инструменты разработчика (F12)")
+            act_devtools = menu.addAction(t("devtools"))
             act_devtools.triggered.connect(self._toggle_devtools)
 
-            act_snooze_others = menu.addAction("Усыпить фоновые вкладки (RAM)")
+            act_snooze_others = menu.addAction(t("snooze_background_tabs"))
             act_snooze_others.triggered.connect(lambda: self._handle_command_action("snooze_others", ""))
 
-            act_wake_all = menu.addAction("Разбудить все вкладки")
+            act_wake_all = menu.addAction(t("wake_all_tabs"))
             act_wake_all.triggered.connect(lambda: self._handle_command_action("wake_all", ""))
 
             # Data & Panels
             menu.addSeparator()
-            act_dl = menu.addAction("Загрузки (Ctrl+Shift+D)")
+            act_dl = menu.addAction(t("downloads_menu"))
             act_dl.triggered.connect(self._toggle_downloads)
 
-            act_hist = menu.addAction("История (Ctrl+H)")
+            act_hist = menu.addAction(t("history_menu"))
             act_hist.triggered.connect(self._open_full_history)
 
-            act_bm = menu.addAction("Закладки (Ctrl+Shift+O)")
+            act_bm = menu.addAction(t("bookmarks_menu"))
             act_bm.triggered.connect(self._toggle_bookmarks_panel)
 
-            act_ai = menu.addAction("AI-ассистент (Ctrl+B)")
+            act_ai = menu.addAction(t("ai_assistant_menu"))
             act_ai.triggered.connect(self._toggle_sidebar)
 
-            act_adblock = menu.addAction(f"Блокировщик рекламы ({getattr(self.adblocker, 'blocked_count', 0)} заблок.)")
+            act_adblock = menu.addAction(t("adblock_menu_count", count=getattr(self.adblocker, "blocked_count", 0)))
             act_adblock.triggered.connect(self._show_adblock_menu)
 
             # Pin to Toolbar Submenu
-            pin_menu = menu.addMenu("Закрепить в верхнем меню")
+            pin_menu = menu.addMenu(t("pin_toolbar_menu"))
             pinned_list = self.settings.get("pinned_toolbar", ["downloads", "history"])
             pin_options = [
-                ("downloads", "Загрузки [DL]"),
-                ("history", "История [HIST]"),
-                ("bookmarks", "Закладки [BM]"),
-                ("reader", "Режим чтения [READER]"),
-                ("split", "Разделение экрана [SPLIT]"),
-                ("ai", "AI-ассистент [AI]"),
+                ("downloads", t("pin_opt_downloads")),
+                ("history", t("pin_opt_history")),
+                ("bookmarks", t("pin_opt_bookmarks")),
+                ("reader", t("pin_opt_reader")),
+                ("split", t("pin_opt_split")),
+                ("ai", t("pin_opt_ai")),
             ]
             for opt_key, opt_label in pin_options:
                 is_p = (opt_key in pinned_list)
@@ -2014,7 +2026,7 @@ class BrowserWindow(QMainWindow):
 
             # Settings
             menu.addSeparator()
-            act_settings = menu.addAction("Настройки браузера (Ctrl+,)")
+            act_settings = menu.addAction(t("browser_settings_menu"))
             act_settings.triggered.connect(self.open_settings)
 
             btn = getattr(self, "btn_menu", getattr(self, "btn_settings", None))
@@ -2067,7 +2079,7 @@ class BrowserWindow(QMainWindow):
                 }
             """)
 
-            act_add = bm_menu.addAction("Добавить страницу в закладки")
+            act_add = bm_menu.addAction(t("add_bookmark"))
             v = self.tab_manager.get_current_view()
             if v:
                 act_add.triggered.connect(self._add_current_page_to_bookmarks)
@@ -2085,7 +2097,7 @@ class BrowserWindow(QMainWindow):
                     act = bm_menu.addAction(f"[BM] {display}")
                     act.triggered.connect(lambda checked, u=url: self.tab_manager.create_tab("default", u))
             else:
-                act_empty = bm_menu.addAction("Нет сохраненных закладок")
+                act_empty = bm_menu.addAction(t("no_bookmarks"))
                 act_empty.setEnabled(False)
 
             btn = getattr(self, "btn_bookmarks", getattr(self, "btn_menu", None))
@@ -2104,7 +2116,7 @@ class BrowserWindow(QMainWindow):
                 if url and not url.startswith("crux://"):
                     DataStore.add_bookmark(title, url)
                     if hasattr(self, "status_label"):
-                        self.status_label.setText(f"Сохранено в закладки: {title[:32]}")
+                        self.status_label.setText(t("bookmark_saved", title=title[:32]))
         except Exception:
             import traceback
             traceback.print_exc()
@@ -2154,7 +2166,7 @@ class BrowserWindow(QMainWindow):
                 self._apply_mobile_mode_to_view(v)
                 v.reload()
             if hasattr(self, "status_label"):
-                self.status_label.setText("Мобильный режим: ВКЛ [iPhone 390x844]")
+                self.status_label.setText(t("mobile_mode_status_on"))
         else:
             if hasattr(self, "viewport_bar"):
                 self.viewport_bar.hide()
@@ -2170,7 +2182,7 @@ class BrowserWindow(QMainWindow):
                 self._restore_desktop_view(v)
                 v.reload()
             if hasattr(self, "status_label"):
-                self.status_label.setText("Мобильный режим: ВЫКЛ [Desktop]")
+                self.status_label.setText(t("mobile_mode_status_off"))
 
     def open_settings(self, tab: str = "") -> None:
         target_url = "crux://settings"

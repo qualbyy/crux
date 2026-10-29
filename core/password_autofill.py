@@ -176,6 +176,14 @@ class PasswordAutofillManager:
         if not matches:
             return ""
 
+        from core.i18n import get_current_language
+        is_ru = (get_current_language() == "ru")
+        txt_ok = "[OK] Заполнено: " if is_ru else "[OK] Filled: "
+        txt_header = "[ CRUX // ХРАНИЛИЩЕ ]" if is_ru else "[ CRUX // VAULT ]"
+        txt_insert = "ВСТАВИТЬ" if is_ru else "INSERT"
+        txt_login = "[CRUX] Вход:" if is_ru else "[CRUX] Login:"
+        txt_fill = "ЗАПОЛНИТЬ" if is_ru else "FILL"
+
         serialized = json.dumps(matches)
 
         js_code = f"""
@@ -314,7 +322,7 @@ class PasswordAutofillManager:
                 if (pill) {{
                     pill.style.backgroundColor = '#10b981';
                     pill.style.borderColor = '#10b981';
-                    pill.innerHTML = `<span style="color:#ffffff; font-weight:bold; font-family:monospace;">[OK] Заполнено: ${{cred.username}}</span>`;
+                    pill.innerHTML = `<span style="color:#ffffff; font-weight:bold; font-family:monospace;">{txt_ok}${{cred.username}}</span>`;
                     setTimeout(() => pill.remove(), 2000);
                 }}
                 const menu = document.getElementById('__crux_dropdown__');
@@ -354,7 +362,7 @@ class PasswordAutofillManager:
                 header.style.fontWeight = 'bold';
                 header.style.display = 'flex';
                 header.style.justifyContent = 'space-between';
-                header.innerHTML = '<span>[ ZEPHYRIUM // ХРАНИЛИЩЕ ]</span><span style="cursor:pointer; color:#71717a;" id="__z_close_dd__">×</span>';
+                header.innerHTML = '<span>{txt_header}</span><span style="cursor:pointer; color:#71717a;" id="__z_close_dd__">×</span>';
                 menu.appendChild(header);
 
                 header.querySelector('#__z_close_dd__').onclick = (e) => {{
@@ -370,7 +378,7 @@ class PasswordAutofillManager:
                     item.style.display = 'flex';
                     item.style.alignItems = 'center';
                     item.style.justifyContent = 'space-between';
-                    item.innerHTML = `<div><div style="font-weight:bold; color:#f5f5f0;">${{cred.username}}</div><div style="font-size:10px; color:#71717a;">${{cred.url || ''}}</div></div><button style="background:transparent; border:1px solid #38bdf8; color:#38bdf8; font-family:monospace; font-size:10px; padding:3px 7px; cursor:pointer;">ВСТАВИТЬ</button>`;
+                    item.innerHTML = `<div><div style="font-weight:bold; color:#f5f5f0;">${{cred.username}}</div><div style="font-size:10px; color:#71717a;">${{cred.url || ''}}</div></div><button style="background:transparent; border:1px solid #38bdf8; color:#38bdf8; font-family:monospace; font-size:10px; padding:3px 7px; cursor:pointer;">{txt_insert}</button>`;
                     item.onmouseover = () => {{ item.style.backgroundColor = '#27272a'; }};
                     item.onmouseout = () => {{ item.style.backgroundColor = 'transparent'; }};
                     item.onclick = (e) => {{
@@ -402,7 +410,7 @@ class PasswordAutofillManager:
                 pill.style.borderRadius = '0px';
 
                 const cred = credentials[0];
-                pill.innerHTML = `<span style="color:#38bdf8; font-weight:bold;">[ZEPHYRIUM]</span> Вход: <strong>${{cred.username}}</strong> <button id="__z_btn_fill__" style="background:#262624; border:1px solid #38bdf8; color:#38bdf8; font-family:monospace; font-size:10px; padding:2px 8px; cursor:pointer; font-weight:bold;">ЗАПОЛНИТЬ</button> <span id="__z_btn_close__" style="cursor:pointer; color:#71717a; font-size:12px; padding:0 2px;">×</span>`;
+                pill.innerHTML = `<span style="color:#38bdf8; font-weight:bold;">{txt_login}</span> <strong>${{cred.username}}</strong> <button id="__z_btn_fill__" style="background:#262624; border:1px solid #38bdf8; color:#38bdf8; font-family:monospace; font-size:10px; padding:2px 8px; cursor:pointer; font-weight:bold;">{txt_fill}</button> <span id="__z_btn_close__" style="cursor:pointer; color:#71717a; font-size:12px; padding:0 2px;">×</span>`;
 
                 pill.querySelector('#__z_btn_fill__').onclick = function(e) {{
                     e.stopPropagation();

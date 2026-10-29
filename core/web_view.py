@@ -62,7 +62,10 @@ class CruxSchemeHandler(QWebEngineUrlSchemeHandler):
         import html
         from config import load_settings, CONTAINERS
         from PyQt6.QtWidgets import QApplication
+        from core.i18n import t, set_language
         s = load_settings()
+        lang = s.get("language", "ru")
+        set_language(lang)
         th = s.get("theme", "dark")
         acc = s.get("accent_color", "#a855f7")
         bg = "#18181b" if th == "dark" else "#f8fafc"
@@ -100,20 +103,20 @@ class CruxSchemeHandler(QWebEngineUrlSchemeHandler):
                 is_active_tab = (tid == active_tab_id)
 
                 if is_active_tab:
-                    status_badge = f"<span style='color: #10b981; border: 1px solid #10b981; padding: 2px 6px; font-weight: bold; font-size: 10px; font-family: monospace;'>● АКТИВНА</span>"
+                    status_badge = f"<span style='color: #10b981; border: 1px solid #10b981; padding: 2px 6px; font-weight: bold; font-size: 10px; font-family: monospace;'>{t('task_mgr_badge_active')}</span>"
                 elif is_susp:
-                    status_badge = f"<span style='color: {acc}; border: 1px solid {acc}; padding: 2px 6px; font-weight: bold; font-size: 10px; font-family: monospace;'>[SLEEP] СПИТ</span>"
+                    status_badge = f"<span style='color: {acc}; border: 1px solid {acc}; padding: 2px 6px; font-weight: bold; font-size: 10px; font-family: monospace;'>{t('task_mgr_badge_sleeping')}</span>"
                 else:
-                    status_badge = f"<span style='color: {fg_muted}; border: 1px solid {border}; padding: 2px 6px; font-size: 10px; font-family: monospace;'>● ФОНОВАЯ</span>"
+                    status_badge = f"<span style='color: {fg_muted}; border: 1px solid {border}; padding: 2px 6px; font-size: 10px; font-family: monospace;'>{t('task_mgr_badge_background')}</span>"
 
                 audible = " [VOL]" if getattr(tab_data, "is_audible", False) else ""
 
                 if is_active_tab:
-                    suspend_action = f"<span style='color: {fg_muted}; border: 1px solid #27272a; padding: 3px 8px; font-size: 10px; cursor: not-allowed; opacity: 0.5;'>[АКТИВНА]</span>"
+                    suspend_action = f"<span style='color: {fg_muted}; border: 1px solid #27272a; padding: 3px 8px; font-size: 10px; cursor: not-allowed; opacity: 0.5;'>{t('task_mgr_act_active')}</span>"
                 elif is_susp:
-                    suspend_action = f"<a href='crux://action/wake-tab?id={tid}' style='color: #10b981; border: 1px solid #10b981; padding: 3px 8px; text-decoration: none; font-size: 10px; margin-right: 6px;'>[РАЗБУДИТЬ]</a>"
+                    suspend_action = f"<a href='crux://action/wake-tab?id={tid}' style='color: #10b981; border: 1px solid #10b981; padding: 3px 8px; text-decoration: none; font-size: 10px; margin-right: 6px;'>{t('task_mgr_act_wake')}</a>"
                 else:
-                    suspend_action = f"<a href='crux://action/suspend-tab?id={tid}' style='color: {acc}; border: 1px solid {acc}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[УСЫПИТЬ]</a>"
+                    suspend_action = f"<a href='crux://action/suspend-tab?id={tid}' style='color: {acc}; border: 1px solid {acc}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>{t('task_mgr_act_sleep')}</a>"
 
                 row_bg = "background: rgba(168, 85, 247, 0.08);" if is_active_tab else ""
 
@@ -126,8 +129,8 @@ class CruxSchemeHandler(QWebEngineUrlSchemeHandler):
                     <td style='padding: 10px 12px;'>{status_badge}</td>
                     <td style='padding: 10px 12px; text-align: right; white-space: nowrap; font-family: monospace;'>
                         {suspend_action}
-                        <a href='crux://action/reload-tab?id={tid}' style='color: {fg}; border: 1px solid {border}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>[ОБНОВИТЬ]</a>
-                        <a href='crux://action/close-tab?id={tid}' style='color: #ef4444; border: 1px solid #ef4444; padding: 3px 8px; text-decoration: none; font-size: 10px;'>[ЗАКРЫТЬ]</a>
+                        <a href='crux://action/reload-tab?id={tid}' style='color: {fg}; border: 1px solid {border}; padding: 3px 8px; text-decoration: none; margin-right: 6px; font-size: 10px;'>{t('task_mgr_act_reload')}</a>
+                        <a href='crux://action/close-tab?id={tid}' style='color: #ef4444; border: 1px solid #ef4444; padding: 3px 8px; text-decoration: none; font-size: 10px;'>{t('task_mgr_act_close')}</a>
                     </td>
                 </tr>
                 """
@@ -139,7 +142,7 @@ class CruxSchemeHandler(QWebEngineUrlSchemeHandler):
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Диспетчер задач — Crux</title>
+            <title>{t('task_mgr_title')}</title>
             <style>
                 * {{ box-sizing: border-box; }}
                 body {{
@@ -229,24 +232,24 @@ class CruxSchemeHandler(QWebEngineUrlSchemeHandler):
         </head>
         <body>
             <div class="header">
-                <div class="title">CRUX // ДИСПЕТЧЕР ЗАДАЧ</div>
-                <button class="btn-refresh" onclick="window.location.reload()">⟳ ОБНОВИТЬ СПИСОК</button>
+                <div class="title">{t('task_mgr_header')}</div>
+                <button class="btn-refresh" onclick="window.location.reload()">{t('task_mgr_refresh')}</button>
             </div>
             <div class="stats-row">
                 <div class="stat-card">
-                    <div class="stat-label">ВСЕГО ВКЛАДОК</div>
+                    <div class="stat-label">{t('task_mgr_total_tabs')}</div>
                     <div class="stat-val">{total_tabs}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">АКТИВНЫХ</div>
+                    <div class="stat-label">{t('task_mgr_active')}</div>
                     <div class="stat-val" style="color: #10b981;">{active_cnt}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">В РЕЖИМЕ СНА [SLEEP]</div>
+                    <div class="stat-label">{t('task_mgr_sleeping')}</div>
                     <div class="stat-val" style="color: {acc};">{sleeping_tabs}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">ЭКОНОМИЯ ОЗУ</div>
+                    <div class="stat-label">{t('task_mgr_ram_saved')}</div>
                     <div class="stat-val" style="color: {acc};">~{saved_ram_mb} MB</div>
                 </div>
             </div>
@@ -255,15 +258,15 @@ class CruxSchemeHandler(QWebEngineUrlSchemeHandler):
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>КОНТЕЙНЕР</th>
-                            <th>НАЗВАНИЕ</th>
+                            <th>{t('task_mgr_col_container')}</th>
+                            <th>{t('task_mgr_col_title')}</th>
                             <th>URL</th>
-                            <th>СТАТУС</th>
-                            <th style="text-align: right;">ДЕЙСТВИЯ</th>
+                            <th>{t('task_mgr_col_status')}</th>
+                            <th style="text-align: right;">{t('task_mgr_col_actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {tab_rows or "<tr><td colspan='6' style='padding: 24px; text-align: center; color: " + fg_muted + ";'>Нет открытых вкладок</td></tr>"}
+                        {tab_rows or "<tr><td colspan='6' style='padding: 24px; text-align: center; color: " + fg_muted + ";'>" + t('task_mgr_no_tabs') + "</td></tr>"}
                     </tbody>
                 </table>
             </div>
@@ -436,18 +439,18 @@ class ZincWebPage(QWebEnginePage):
             parent = self.view()
             from PyQt6.QtWidgets import QMessageBox
             feature_labels = {
-                QWebEnginePage.Feature.MediaAudioCapture: "доступ к микрофону",
-                QWebEnginePage.Feature.MediaVideoCapture: "доступ к веб-камере",
-                QWebEnginePage.Feature.MediaAudioVideoCapture: "доступ к камере и микрофону",
-                QWebEnginePage.Feature.Geolocation: "доступ к вашему местоположению",
-                QWebEnginePage.Feature.DesktopVideoCapture: "запись экрана",
-                QWebEnginePage.Feature.DesktopAudioVideoCapture: "запись экрана со звуком",
+                QWebEnginePage.Feature.MediaAudioCapture: t("perm_mic"),
+                QWebEnginePage.Feature.MediaVideoCapture: t("perm_camera"),
+                QWebEnginePage.Feature.MediaAudioVideoCapture: t("perm_camera_mic"),
+                QWebEnginePage.Feature.Geolocation: t("perm_geo"),
+                QWebEnginePage.Feature.DesktopVideoCapture: t("perm_screen"),
+                QWebEnginePage.Feature.DesktopAudioVideoCapture: t("perm_screen_audio"),
             }
-            lbl = feature_labels.get(feature, f"разрешение ({f_name})")
+            lbl = feature_labels.get(feature, t("perm_generic", f_name=f_name))
             res = QMessageBox.question(
                 parent,
-                "Запрос разрешений",
-                f"Сайт {host} запрашивает {lbl}.\n\nРазрешить доступ?",
+                t("perm_dialog_title"),
+                t("perm_prompt", host=host, lbl=lbl),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -898,10 +901,10 @@ class ZincWebView(QWebEngineView):
         <body style="background:{bg};color:{fg_muted};font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:95vh;margin:0;">
         <div style="border:1px solid {card_border};border-radius:8px;padding:32px;background:{card_bg};text-align:center;max-width:440px;box-shadow:0 8px 24px rgba(0,0,0,0.2);">
             <div style="font-size:22px;margin-bottom:12px;color:#ef4444;font-family:monospace;font-weight:bold;">[CRASH]</div>
-            <div style="color:#ef4444;font-weight:bold;font-size:14px;letter-spacing:0.5px;margin-bottom:8px;">СБОЙ ПРОЦЕССА ВКЛАДКИ // RENDERER CRASH</div>
-            <div style="color:{fg_title};font-size:15px;font-weight:600;margin-bottom:8px;">Процесс страницы неожиданно завершил работу (код {exitCode})</div>
-            <div style="font-size:12px;color:{fg_muted};margin-bottom:20px;">Это могло произойти из-за нехватки оперативной памяти или сбоя графического ускорителя.</div>
-            <button onclick="window.location.reload()" style="background:{acc};color:#fff;border:none;padding:10px 20px;font-weight:bold;border-radius:4px;cursor:pointer;font-size:13px;">Перезагрузить страницу</button>
+            <div style="color:#ef4444;font-weight:bold;font-size:14px;letter-spacing:0.5px;margin-bottom:8px;">{t("crash_title")}</div>
+            <div style="color:{fg_title};font-size:15px;font-weight:600;margin-bottom:8px;">{t("crash_msg", exitCode=exitCode)}</div>
+            <div style="font-size:12px;color:{fg_muted};margin-bottom:20px;">{t("crash_hint")}</div>
+            <button onclick="window.location.reload()" style="background:{acc};color:#fff;border:none;padding:10px 20px;font-weight:bold;border-radius:4px;cursor:pointer;font-size:13px;">{t("crash_reload_btn")}</button>
         </div>
         </body>
         </html>
@@ -1692,7 +1695,7 @@ class ZincWebView(QWebEngineView):
                 <div class="reader-container">
                     <div class="reader-header">
                         <div class="reader-title">{data.get('title', '')}</div>
-                        <button class="btn-exit" onclick="window.location.href='crux://action/exit-reader'">[ВЫЙТИ ИЗ ЧТЕНИЯ]</button>
+                        <button class="btn-exit" onclick="window.location.href='crux://action/exit-reader'">{t("reader_exit_btn")}</button>
                     </div>
                     <div class="reader-body">
                         {data.get('html', '')}
@@ -1702,7 +1705,7 @@ class ZincWebView(QWebEngineView):
             </html>"""
             self.is_reader_mode = True
             self.setHtml(reader_html, self.original_url_before_reader)
-            self.status_message.emit("Reader Mode: Active (Press button or [ВЫЙТИ ИЗ ЧТЕНИЯ] to exit)")
+            self.status_message.emit(t("reader_active_status"))
 
         self.page().runJavaScript(js, _cb)
 
