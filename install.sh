@@ -5,7 +5,7 @@
 # ==============================================================================
 set -e
 
-REPO="qualbyy/zephyrium"
+REPO="qualbyy/crux"
 INSTALL_DIR="$HOME/.local/share/crux"
 BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="$HOME/.local/share/applications"
