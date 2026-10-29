@@ -473,7 +473,7 @@ class PasswordAutofillManager:
                     credentials.forEach(cred => {{
                         const opt = document.createElement('option');
                         opt.value = cred.username;
-                        opt.label = 'Zephyrium Vault';
+                        opt.label = 'Crux Vault';
                         dl.appendChild(opt);
                     }});
                     userInput.setAttribute('list', '__crux_datalist__');

@@ -1456,7 +1456,7 @@ class ZincWebView(QWebEngineView):
         # Selection & AI Quick Actions
         selected_text = self.selectedText().strip()
         if selected_text:
-            ai_menu = menu.addMenu("✦ Zephyrium AI")
+            ai_menu = menu.addMenu("✦ Crux AI")
             act_explain = ai_menu.addAction("Explain Selection")
             act_explain.triggered.connect(lambda: self.ask_ai_action.emit("explain", selected_text))
             act_trans = ai_menu.addAction("Translate to Russian")
@@ -1682,7 +1682,7 @@ class ZincWebView(QWebEngineView):
 
     def _copy_as_curl(self) -> None:
         u = self.url().toString()
-        curl_cmd = f"curl -sL '{u}' -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Zephyrium/1.2.0'"
+        curl_cmd = f"curl -sL '{u}' -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Crux/1.3.6'"
         from_pyqt_clipboard(curl_cmd)
 
     def _inspect_element(self) -> None:

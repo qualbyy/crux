@@ -563,7 +563,8 @@ class VerticalTabSidebar(QWidget):
 
         # Reopen in Container Submenu
         from config import CONTAINERS
-        reopen_menu = menu.addMenu("Переоткрыть в контейнере" if t("app_title") == "Zephyrium" else "Reopen in Container")
+        reopen_title = "Переоткрыть в контейнере" if t("app_title") in ["Crux", "Zephyrium"] and t("new_tab").startswith("Новая") else "Reopen in Container"
+        reopen_menu = menu.addMenu(reopen_title)
         for c_key, c_info in CONTAINERS.items():
             badge = c_info.get("badge", c_key.upper())
             name = c_info.get("name", c_key.capitalize())
