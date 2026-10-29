@@ -47,6 +47,7 @@ class BrowserWindow(QMainWindow):
         self.tor_enabled = False
         self.is_fullscreen_active = False
         self._was_maximized_before_fullscreen = False
+        self.is_mobile_mode = False
 
         # Core subsystems
         self.adblocker = AdBlockerInterceptor(self)
@@ -1518,6 +1519,11 @@ class BrowserWindow(QMainWindow):
 
         self.zoom_label.setText(f"{int(view.get_zoom() * 100)}%")
 
+        if getattr(self, "is_mobile_mode", False):
+            self._apply_mobile_mode_to_view(view)
+        else:
+            self._restore_desktop_view(view)
+
         if self.tab_orientation == "horizontal":
             self._sync_horizontal_tabs()
 
@@ -1706,128 +1712,374 @@ class BrowserWindow(QMainWindow):
         dlg.exec()
 
     def _show_main_browser_menu(self) -> None:
-        from PyQt6.QtWidgets import QMenu
-        from PyQt6.QtCore import QPoint
-        menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #18181b;
-                border: 1px solid #3f3f46;
-                color: #d4d4d8;
-                font-family: monospace;
-                font-size: 11px;
-                padding: 6px;
-            }
-            QMenu::item {
-                padding: 6px 20px 6px 14px;
-            }
-            QMenu::item:selected {
-                background-color: #262624;
-                color: #a855f7;
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #27272a;
-                margin: 4px 6px;
-            }
-        """)
-
-        # Quick Actions
-        act_reader = menu.addAction("📖 Режим чтения / Reader (Ctrl+Alt+R)")
-        act_reader.triggered.connect(self._on_reader_mode_clicked)
-
-        act_pip = menu.addAction("⧉ Картинка в картинке / PiP (Ctrl+Alt+P)")
-        act_pip.triggered.connect(self._on_pip_clicked)
-
-        # Tab Orientation Submenu
-        tab_menu = menu.addMenu("📑 Расположение вкладок")
-        act_vert = tab_menu.addAction("✓ Вертикальные (слева)" if self.tab_orientation == "vertical" else "  Вертикальные (слева)")
-        act_vert.triggered.connect(lambda: self.set_tab_orientation("vertical"))
-        act_horiz = tab_menu.addAction("✓ Горизонтальные (сверху)" if self.tab_orientation == "horizontal" else "  Горизонтальные (сверху)")
-        act_horiz.triggered.connect(lambda: self.set_tab_orientation("horizontal"))
-
-        # UI Mode Submenu
-        ui_menu = menu.addMenu("🌓 Режим интерфейса")
-        act_min = ui_menu.addAction("✓ Обычный (Minimal)" if self.ui_mode == "minimal" else "  Обычный (Minimal)")
-        act_min.triggered.connect(lambda: self.switch_ui_mode("minimal"))
-        act_vim = ui_menu.addAction("✓ Vim Mode (без рамок)" if self.ui_mode == "vim" else "  Vim Mode (без рамок)")
-        act_vim.triggered.connect(lambda: self.switch_ui_mode("vim"))
-
-        # Windows & Tabs
-        menu.addSeparator()
-        act_new_tab = menu.addAction("➕ Новая вкладка (Ctrl+T)")
-        act_new_tab.triggered.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "crux://startpage")))
-
-        # Container Submenu
-        from config import CONTAINERS
-        cont_menu = menu.addMenu("📦 Вкладка в контейнере")
-        for ck, cinfo in CONTAINERS.items():
-            badge = cinfo.get("badge", ck.upper())
-            name = cinfo.get("name", ck.capitalize())
-            act_c = cont_menu.addAction(f"[{badge}] {name}")
-            act_c.triggered.connect(lambda checked, c_id=ck: self.tab_manager.create_tab("crux://startpage", container_id=c_id))
-
-        act_new_win = menu.addAction("🗔 Новое окно (Ctrl+N)")
-        act_new_win.triggered.connect(self._open_new_window)
-
-        act_incog = menu.addAction("🕵️ Новое окно инкогнито (Ctrl+Shift+N)")
-        act_incog.triggered.connect(self._open_incognito_window)
-
-        # View & Tools
-        menu.addSeparator()
-        act_find = menu.addAction("🔍 Поиск на странице (Ctrl+F)")
-        act_find.triggered.connect(self._toggle_find_in_page)
-
-        act_tasks = menu.addAction("⚡ Диспетчер задач (Shift+Esc)")
-        act_tasks.triggered.connect(lambda: self.tab_manager.create_tab("crux://tasks"))
-
-        act_devtools = menu.addAction("🛠 Инструменты разработчика (F12)")
-        act_devtools.triggered.connect(self._toggle_devtools)
-
-        act_viewport = menu.addAction("📱 Мобильный эмулятор / Viewport")
-        act_viewport.triggered.connect(self._toggle_viewport_bar)
-
-        act_snooze_others = menu.addAction("💤 Усыпить фоновые вкладки (RAM)")
-        act_snooze_others.triggered.connect(lambda: self._handle_command_action("snooze_others", ""))
-
-        act_wake_all = menu.addAction("⏰ Разбудить все вкладки")
-        act_wake_all.triggered.connect(lambda: self._handle_command_action("wake_all", ""))
-
-        # Data & Panels
-        menu.addSeparator()
-        act_dl = menu.addAction("⬇️ Загрузки (Ctrl+Shift+D)")
-        act_dl.triggered.connect(self._toggle_downloads)
-
-        act_hist = menu.addAction("📜 История (Ctrl+H)")
-        act_hist.triggered.connect(self._open_full_history)
-
-        act_bm = menu.addAction("⭐ Закладки (Ctrl+Shift+O)")
-        act_bm.triggered.connect(self._toggle_bookmarks_panel)
-
-        act_ai = menu.addAction("🤖 AI-ассистент (Ctrl+B)")
-        act_ai.triggered.connect(self._toggle_sidebar)
-
-        act_adblock = menu.addAction(f"🛡️ Блокировщик рекламы ({getattr(self.adblocker, 'blocked_count', 0)} заблок.)")
-        act_adblock.triggered.connect(self._show_adblock_menu)
-
-        # System & Settings
-        menu.addSeparator()
-        act_keys = menu.addAction("⌨️ Горячие клавиши (Справка)")
-        act_keys.triggered.connect(self._show_shortcuts_dialog)
-
-        act_palette = menu.addAction("⌘ Палитра команд (Ctrl+K)")
-        act_palette.triggered.connect(self._open_command_palette)
-
-        menu.addSeparator()
-        act_settings = menu.addAction("⚙️ Настройки браузера (Ctrl+,)")
-        act_settings.triggered.connect(self.open_settings)
-
-        btn = getattr(self, "btn_menu", getattr(self, "btn_settings", None))
-        if btn:
-            menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 2)))
-        else:
+        try:
+            from PyQt6.QtWidgets import QMenu, QWidgetAction, QWidget, QHBoxLayout, QPushButton, QLabel
+            from PyQt6.QtCore import Qt, QPoint
             from PyQt6.QtGui import QCursor
-            menu.exec(QCursor.pos())
+
+            menu = QMenu(self)
+            menu.setStyleSheet("""
+                QMenu {
+                    background-color: #18181b;
+                    border: 1px solid #3f3f46;
+                    color: #d4d4d8;
+                    font-family: monospace;
+                    font-size: 11px;
+                    padding: 6px;
+                }
+                QMenu::item {
+                    padding: 6px 20px 6px 14px;
+                    border-radius: 3px;
+                }
+                QMenu::item:selected {
+                    background-color: #27272a;
+                    color: #a855f7;
+                }
+                QMenu::separator {
+                    height: 1px;
+                    background: #27272a;
+                    margin: 4px 6px;
+                }
+            """)
+
+            # 1. Graphical Zoom & Scale Controller
+            zoom_action = QWidgetAction(menu)
+            zoom_w = QWidget()
+            zoom_w.setStyleSheet("""
+                QWidget { background-color: #18181b; }
+                QLabel { color: #d4d4d8; font-family: monospace; font-size: 11px; }
+                QPushButton {
+                    background-color: #27272a;
+                    border: 1px solid #3f3f46;
+                    color: #d4d4d8;
+                    border-radius: 3px;
+                    padding: 2px 6px;
+                    font-family: monospace;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                QPushButton:hover {
+                    background-color: #a855f7;
+                    color: #ffffff;
+                    border-color: #c084fc;
+                }
+            """)
+            zoom_layout = QHBoxLayout(zoom_w)
+            zoom_layout.setContentsMargins(14, 6, 14, 6)
+            zoom_layout.setSpacing(6)
+
+            lbl_zoom = QLabel("🔍 Масштаб:")
+            lbl_zoom.setStyleSheet("font-weight: bold; color: #a855f7;")
+            zoom_layout.addWidget(lbl_zoom)
+
+            btn_z_minus = QPushButton("－")
+            btn_z_minus.setToolTip("Уменьшить масштаб (Ctrl+-)")
+            btn_z_minus.setFixedSize(28, 24)
+            btn_z_minus.setCursor(Qt.CursorShape.PointingHandCursor)
+
+            cur_v = self.tab_manager.get_current_view()
+            cur_pct = int(cur_v.get_zoom() * 100) if cur_v else 100
+            lbl_z_val = QLabel(f"{cur_pct}%")
+            lbl_z_val.setFixedWidth(46)
+            lbl_z_val.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_z_val.setStyleSheet("font-weight: bold; color: #f4f4f5;")
+
+            btn_z_plus = QPushButton("＋")
+            btn_z_plus.setToolTip("Увеличить масштаб (Ctrl++)")
+            btn_z_plus.setFixedSize(28, 24)
+            btn_z_plus.setCursor(Qt.CursorShape.PointingHandCursor)
+
+            btn_z_reset = QPushButton("100%")
+            btn_z_reset.setToolTip("Сбросить масштаб (Ctrl+0)")
+            btn_z_reset.setFixedHeight(24)
+            btn_z_reset.setCursor(Qt.CursorShape.PointingHandCursor)
+
+            btn_z_fs = QPushButton("⛶")
+            btn_z_fs.setToolTip("Во весь экран (F11)")
+            btn_z_fs.setFixedSize(28, 24)
+            btn_z_fs.setCursor(Qt.CursorShape.PointingHandCursor)
+
+            def _do_zoom_out():
+                self._zoom_out()
+                v = self.tab_manager.get_current_view()
+                if v:
+                    lbl_z_val.setText(f"{int(v.get_zoom() * 100)}%")
+
+            def _do_zoom_in():
+                self._zoom_in()
+                v = self.tab_manager.get_current_view()
+                if v:
+                    lbl_z_val.setText(f"{int(v.get_zoom() * 100)}%")
+
+            def _do_zoom_reset():
+                self._zoom_reset()
+                lbl_z_val.setText("100%")
+
+            def _do_fs():
+                menu.close()
+                self._toggle_fullscreen()
+
+            btn_z_minus.clicked.connect(_do_zoom_out)
+            btn_z_plus.clicked.connect(_do_zoom_in)
+            btn_z_reset.clicked.connect(_do_zoom_reset)
+            btn_z_fs.clicked.connect(_do_fs)
+
+            zoom_layout.addWidget(btn_z_minus)
+            zoom_layout.addWidget(lbl_z_val)
+            zoom_layout.addWidget(btn_z_plus)
+            zoom_layout.addWidget(btn_z_reset)
+            zoom_layout.addWidget(btn_z_fs)
+
+            zoom_action.setDefaultWidget(zoom_w)
+            menu.addAction(zoom_action)
+
+            # 2. Instant Mobile Mode Action
+            is_mob = getattr(self, "is_mobile_mode", False)
+            act_viewport = menu.addAction("📱 Мобильный режим [ВКЛЮЧЕН]" if is_mob else "📱 Мобильный режим [ВЫКЛЮЧЕН]")
+            act_viewport.triggered.connect(self.toggle_mobile_mode)
+
+            menu.addSeparator()
+
+            # 3. Quick Reading & Media Actions
+            act_reader = menu.addAction("📖 Режим чтения / Reader (Ctrl+Alt+R)")
+            act_reader.triggered.connect(self._on_reader_mode_clicked)
+
+            act_pip = menu.addAction("⧉ Картинка в картинке / PiP (Ctrl+Alt+P)")
+            act_pip.triggered.connect(self._on_pip_clicked)
+
+            # Tab Orientation Submenu
+            tab_menu = menu.addMenu("📑 Расположение вкладок")
+            act_vert = tab_menu.addAction("✓ Вертикальные (слева)" if self.tab_orientation == "vertical" else "  Вертикальные (слева)")
+            act_vert.triggered.connect(lambda: self.set_tab_orientation("vertical"))
+            act_horiz = tab_menu.addAction("✓ Горизонтальные (сверху)" if self.tab_orientation == "horizontal" else "  Горизонтальные (сверху)")
+            act_horiz.triggered.connect(lambda: self.set_tab_orientation("horizontal"))
+
+            # UI Mode Submenu
+            ui_menu = menu.addMenu("🌓 Режим интерфейса")
+            act_min = ui_menu.addAction("✓ Обычный (Minimal)" if self.ui_mode == "minimal" else "  Обычный (Minimal)")
+            act_min.triggered.connect(lambda: self.switch_ui_mode("minimal"))
+            act_vim = ui_menu.addAction("✓ Vim Mode (без рамок)" if self.ui_mode == "vim" else "  Vim Mode (без рамок)")
+            act_vim.triggered.connect(lambda: self.switch_ui_mode("vim"))
+
+            # Windows & Tabs
+            menu.addSeparator()
+            act_new_tab = menu.addAction("➕ Новая вкладка (Ctrl+T)")
+            act_new_tab.triggered.connect(lambda: self.tab_manager.create_tab(self.settings.get("new_tab_url", "crux://startpage")))
+
+            # Container Submenu
+            from config import CONTAINERS
+            cont_menu = menu.addMenu("📦 Вкладка в контейнере")
+            for ck, cinfo in CONTAINERS.items():
+                badge = cinfo.get("badge", ck.upper())
+                name = cinfo.get("name", ck.capitalize())
+                act_c = cont_menu.addAction(f"[{badge}] {name}")
+                act_c.triggered.connect(lambda checked, c_id=ck: self.tab_manager.create_tab("crux://startpage", container_id=c_id))
+
+            act_new_win = menu.addAction("🗔 Новое окно (Ctrl+N)")
+            act_new_win.triggered.connect(self._open_new_window)
+
+            act_incog = menu.addAction("🕵️ Новое окно инкогнито (Ctrl+Shift+N)")
+            act_incog.triggered.connect(self._open_incognito_window)
+
+            # View & Tools
+            menu.addSeparator()
+            act_find = menu.addAction("🔍 Поиск на странице (Ctrl+F)")
+            act_find.triggered.connect(self._toggle_find_in_page)
+
+            act_tasks = menu.addAction("⚡ Диспетчер задач (Shift+Esc)")
+            act_tasks.triggered.connect(lambda: self.tab_manager.create_tab("crux://tasks"))
+
+            act_devtools = menu.addAction("🛠 Инструменты разработчика (F12)")
+            act_devtools.triggered.connect(self._toggle_devtools)
+
+            act_snooze_others = menu.addAction("💤 Усыпить фоновые вкладки (RAM)")
+            act_snooze_others.triggered.connect(lambda: self._handle_command_action("snooze_others", ""))
+
+            act_wake_all = menu.addAction("⏰ Разбудить все вкладки")
+            act_wake_all.triggered.connect(lambda: self._handle_command_action("wake_all", ""))
+
+            # Data & Panels
+            menu.addSeparator()
+            act_dl = menu.addAction("⬇️ Загрузки (Ctrl+Shift+D)")
+            act_dl.triggered.connect(self._toggle_downloads)
+
+            act_hist = menu.addAction("📜 История (Ctrl+H)")
+            act_hist.triggered.connect(self._open_full_history)
+
+            act_bm = menu.addAction("⭐ Закладки (Ctrl+Shift+O)")
+            act_bm.triggered.connect(self._toggle_bookmarks_panel)
+
+            act_ai = menu.addAction("🤖 AI-ассистент (Ctrl+B)")
+            act_ai.triggered.connect(self._toggle_sidebar)
+
+            act_adblock = menu.addAction(f"🛡️ Блокировщик рекламы ({getattr(self.adblocker, 'blocked_count', 0)} заблок.)")
+            act_adblock.triggered.connect(self._show_adblock_menu)
+
+            # Settings
+            menu.addSeparator()
+            act_settings = menu.addAction("⚙️ Настройки браузера (Ctrl+,)")
+            act_settings.triggered.connect(self.open_settings)
+
+            btn = getattr(self, "btn_menu", getattr(self, "btn_settings", None))
+            if btn and btn.isVisible():
+                menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 2)))
+            else:
+                menu.exec(QCursor.pos())
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _open_full_history(self) -> None:
+        self.tab_manager.create_tab("default", "crux://history")
+
+    def _toggle_bookmarks_panel(self) -> None:
+        self._show_bookmarks_menu()
+
+    def _open_command_palette(self) -> None:
+        if hasattr(self, "command_palette"):
+            self.command_palette.show_palette()
+
+    def switch_ui_mode(self, mode: str) -> None:
+        self.apply_mode(mode)
+
+    def _show_bookmarks_menu(self) -> None:
+        try:
+            from PyQt6.QtWidgets import QMenu
+            from PyQt6.QtCore import QPoint
+            from PyQt6.QtGui import QCursor
+            from utils.bookmarks import DataStore
+
+            bm_menu = QMenu(self)
+            bm_menu.setStyleSheet("""
+                QMenu {
+                    background-color: #18181b;
+                    border: 1px solid #3f3f46;
+                    color: #d4d4d8;
+                    font-family: monospace;
+                    font-size: 11px;
+                    padding: 6px;
+                }
+                QMenu::item {
+                    padding: 6px 20px 6px 14px;
+                }
+                QMenu::item:selected {
+                    background-color: #27272a;
+                    color: #a855f7;
+                }
+                QMenu::separator {
+                    height: 1px;
+                    background: #27272a;
+                    margin: 4px 6px;
+                }
+            """)
+
+            act_add = bm_menu.addAction("⭐ Добавить страницу в закладки")
+            v = self.tab_manager.get_current_view()
+            if v:
+                act_add.triggered.connect(self._add_current_page_to_bookmarks)
+            else:
+                act_add.setEnabled(False)
+
+            bm_menu.addSeparator()
+
+            bms = DataStore.load_bookmarks()
+            if bms:
+                for bm in bms[:20]:
+                    title = bm.get("title", "") or bm.get("url", "")
+                    url = bm.get("url", "")
+                    display = (title[:36] + "...") if len(title) > 36 else title
+                    act = bm_menu.addAction(f"🔖 {display}")
+                    act.triggered.connect(lambda checked, u=url: self.tab_manager.create_tab("default", u))
+            else:
+                act_empty = bm_menu.addAction("Нет сохраненных закладок")
+                act_empty.setEnabled(False)
+
+            btn = getattr(self, "btn_menu", None)
+            if btn and btn.isVisible():
+                bm_menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 2)))
+            else:
+                bm_menu.exec(QCursor.pos())
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _add_current_page_to_bookmarks(self) -> None:
+        try:
+            from utils.bookmarks import DataStore
+            v = self.tab_manager.get_current_view()
+            if v:
+                url = v.url().toString()
+                title = v.title() or url
+                if url and not url.startswith("crux://"):
+                    DataStore.add_bookmark(title, url)
+                    if hasattr(self, "status_label"):
+                        self.status_label.setText(f"⭐ Сохранено в закладки: {title[:32]}")
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _apply_mobile_mode_to_view(self, view) -> None:
+        if not view:
+            return
+        w = self.vp_width_spin.value() if hasattr(self, "vp_width_spin") else 390
+        h = self.vp_height_spin.value() if hasattr(self, "vp_height_spin") else 844
+        view.setFixedSize(w, h)
+        if view.page() and view.page().profile():
+            mobile_ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"
+            view.page().profile().setHttpUserAgent(mobile_ua)
+
+    def _restore_desktop_view(self, view) -> None:
+        if not view:
+            return
+        view.setMinimumSize(0, 0)
+        view.setMaximumSize(16777215, 16777215)
+        if view.page() and view.page().profile():
+            desktop_ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Crux/1.3.6"
+            view.page().profile().setHttpUserAgent(desktop_ua)
+
+    def toggle_mobile_mode(self) -> None:
+        self.is_mobile_mode = not getattr(self, "is_mobile_mode", False)
+        v = self.tab_manager.get_current_view()
+        if self.is_mobile_mode:
+            if hasattr(self, "viewport_bar"):
+                self.viewport_bar.show()
+                if hasattr(self, "vp_preset_combo"):
+                    self.vp_preset_combo.blockSignals(True)
+                    self.vp_preset_combo.setCurrentIndex(1)  # iPhone 15/16 (390 x 844)
+                    self.vp_preset_combo.blockSignals(False)
+                if hasattr(self, "vp_width_spin"):
+                    self.vp_width_spin.blockSignals(True)
+                    self.vp_width_spin.setValue(390)
+                    self.vp_width_spin.blockSignals(False)
+                if hasattr(self, "vp_height_spin"):
+                    self.vp_height_spin.blockSignals(True)
+                    self.vp_height_spin.setValue(844)
+                    self.vp_height_spin.blockSignals(False)
+                if hasattr(self, "vp_ua_combo"):
+                    self.vp_ua_combo.blockSignals(True)
+                    self.vp_ua_combo.setCurrentIndex(1)  # Mobile iPhone Safari UA
+                    self.vp_ua_combo.blockSignals(False)
+            if v:
+                self._apply_mobile_mode_to_view(v)
+                v.reload()
+            if hasattr(self, "status_label"):
+                self.status_label.setText("📱 Мобильный режим: ВКЛ (iPhone 390×844)")
+        else:
+            if hasattr(self, "viewport_bar"):
+                self.viewport_bar.hide()
+                if hasattr(self, "vp_preset_combo"):
+                    self.vp_preset_combo.blockSignals(True)
+                    self.vp_preset_combo.setCurrentIndex(0)
+                    self.vp_preset_combo.blockSignals(False)
+                if hasattr(self, "vp_ua_combo"):
+                    self.vp_ua_combo.blockSignals(True)
+                    self.vp_ua_combo.setCurrentIndex(0)
+                    self.vp_ua_combo.blockSignals(False)
+            if v:
+                self._restore_desktop_view(v)
+                v.reload()
+            if hasattr(self, "status_label"):
+                self.status_label.setText("🖥️ Мобильный режим: ВЫКЛ (Desktop)")
 
     def open_settings(self, tab: str = "") -> None:
         target_url = "crux://settings"
@@ -1879,38 +2131,42 @@ class BrowserWindow(QMainWindow):
         self.viewport_bar = QWidget()
         self.viewport_bar.setFixedHeight(34)
         th = self.settings.get("theme", "dark")
-        acc = self.settings.get("accent_color", "#fe8019")
-        bar_bg = "#222220" if th == "dark" else "#e2e8f0"
-        bar_fg = "#ebdbb2" if th == "dark" else "#1e293b"
+        acc = self.settings.get("accent_color", "#a855f7")
+        bar_bg = "#18181b" if th == "dark" else "#e2e8f0"
+        bar_fg = "#d4d4d8" if th == "dark" else "#1e293b"
         self.viewport_bar.setStyleSheet(f"""
             QWidget {{
                 background-color: {bar_bg};
-                border-bottom: 1px solid #3c3836;
+                border-bottom: 1px solid #27272a;
             }}
             QLabel {{
                 color: {bar_fg};
                 font-size: 11px;
                 font-weight: bold;
+                font-family: monospace;
             }}
             QComboBox, QSpinBox {{
-                background-color: #1d2021;
-                border: 1px solid #504945;
-                color: #ebdbb2;
+                background-color: #27272a;
+                border: 1px solid #3f3f46;
+                color: #f4f4f5;
                 font-size: 11px;
+                font-family: monospace;
                 padding: 1px 4px;
-                border-radius: 2px;
+                border-radius: 3px;
             }}
             QPushButton {{
-                background-color: #3c3836;
-                border: 1px solid #504945;
-                color: #ebdbb2;
+                background-color: #27272a;
+                border: 1px solid #3f3f46;
+                color: #d4d4d8;
                 font-size: 11px;
+                font-family: monospace;
                 padding: 2px 6px;
-                border-radius: 2px;
+                border-radius: 3px;
             }}
             QPushButton:hover {{
-                background-color: {acc};
-                color: #1d2021;
+                background-color: #a855f7;
+                color: #ffffff;
+                border-color: #c084fc;
             }}
         """)
         vb_layout = QHBoxLayout(self.viewport_bar)
@@ -1974,12 +2230,7 @@ class BrowserWindow(QMainWindow):
         self.viewport_bar.hide()
 
     def _toggle_viewport_bar(self) -> None:
-        if self.viewport_bar.isVisible():
-            self.viewport_bar.hide()
-            self._reset_viewport_size()
-        else:
-            self.viewport_bar.show()
-            self._on_viewport_preset_changed(self.vp_preset_combo.currentIndex())
+        self.toggle_mobile_mode()
 
     def _rotate_viewport(self) -> None:
         w = self.vp_width_spin.value()
@@ -2004,8 +2255,17 @@ class BrowserWindow(QMainWindow):
         if 0 <= index < len(presets):
             w, h = presets[index]
             if w == 0 and h == 0:
-                self._reset_viewport_size()
+                self.is_mobile_mode = False
+                v = self.tab_manager.get_current_view()
+                self._restore_desktop_view(v)
+                if hasattr(self, "vp_ua_combo"):
+                    self.vp_ua_combo.blockSignals(True)
+                    self.vp_ua_combo.setCurrentIndex(0)
+                    self.vp_ua_combo.blockSignals(False)
+                if v:
+                    v.reload()
             else:
+                self.is_mobile_mode = True
                 self.vp_width_spin.blockSignals(True)
                 self.vp_height_spin.blockSignals(True)
                 self.vp_width_spin.setValue(w)
@@ -2013,6 +2273,11 @@ class BrowserWindow(QMainWindow):
                 self.vp_width_spin.blockSignals(False)
                 self.vp_height_spin.blockSignals(False)
                 self._set_viewport_size(w, h)
+                if index in (1, 2) and hasattr(self, "vp_ua_combo"):
+                    self.vp_ua_combo.blockSignals(True)
+                    self.vp_ua_combo.setCurrentIndex(index)
+                    self.vp_ua_combo.blockSignals(False)
+                    self._on_viewport_ua_changed(index)
 
     def _on_viewport_custom_size(self) -> None:
         w = self.vp_width_spin.value()

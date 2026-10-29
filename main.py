@@ -138,6 +138,8 @@ for venv_candidate in candidates:
         locales_path = res_path.parent / "translations" / "qtwebengine_locales"
         if not locales_path.is_dir():
             locales_path = res_path / "translations" / "qtwebengine_locales"
+        if not locales_path.is_dir() and (res_path / "locales").is_dir():
+            locales_path = res_path / "locales"
         if locales_path.is_dir():
             os.environ.setdefault("QTWEBENGINE_LOCALES_PATH", str(locales_path))
         break

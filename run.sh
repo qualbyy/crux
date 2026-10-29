@@ -10,6 +10,9 @@ RESOURCES_DIR=$(find "$VENV_DIR/lib" -type d -path "*/PyQt6/Qt6/resources" 2>/de
 if [ -n "$RESOURCES_DIR" ] && [ -d "$RESOURCES_DIR" ]; then
     export QTWEBENGINE_RESOURCES_PATH="$RESOURCES_DIR"
     LOCALES_DIR="$(dirname "$RESOURCES_DIR")/translations/qtwebengine_locales"
+    if [ ! -d "$LOCALES_DIR" ] && [ -d "$RESOURCES_DIR/locales" ]; then
+        LOCALES_DIR="$RESOURCES_DIR/locales"
+    fi
     if [ -d "$LOCALES_DIR" ]; then
         export QTWEBENGINE_LOCALES_PATH="$LOCALES_DIR"
     fi
