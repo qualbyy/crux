@@ -309,8 +309,11 @@ class BrowserWindow(QMainWindow):
         layout.addWidget(self.btn_menu)
         self.btn_settings = self.btn_menu  # Backward-compatibility alias
 
+        # Pinned Toolbar Buttons Management
+        self._pinned_btns = {}
+        self._update_pinned_toolbar()
+
         self.root_layout.addWidget(self.top_bar)
-        self._update_topbar_overflow()
 
     def _init_status_bar(self) -> None:
         self.status_bar = QStatusBar(self)
@@ -576,6 +579,8 @@ class BrowserWindow(QMainWindow):
             """)
         if hasattr(self, "password_save_banner"):
             self.password_save_banner.update_theme(th, acc)
+        if hasattr(self, "download_manager"):
+            self.download_manager.update_style(th, acc)
         self._reload_startpages()
 
     def _reload_startpages(self) -> None:
@@ -871,7 +876,25 @@ class BrowserWindow(QMainWindow):
         act_settings = menu.addAction(t("adblock_settings_tab"))
         act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://settings?tab=adblock"))
 
-        menu.exec(self.btn_adblock.mapToGlobal(self.btn_adblock.rect().bottomLeft()))
+        self._exec_menu_anchored(menu, getattr(self, "btn_adblock", None))
+
+    def _exec_menu_anchored(self, menu: QMenu, anchor_btn: QWidget = None) -> None:
+        """Executes a popup menu aligned neatly under the target anchor button or top-right MENU button with boundary safety."""
+        target = anchor_btn
+        if not target or not target.isVisible():
+            target = getattr(self, "btn_menu", getattr(self, "btn_settings", None))
+        menu.adjustSize()
+        menu_w = menu.sizeHint().width()
+        if target and target.isVisible():
+            g_pos = target.mapToGlobal(target.rect().bottomLeft())
+            # Align right edge of menu with right edge of button
+            x = g_pos.x() + target.width() - menu_w
+            y = g_pos.y() + 2
+            if x < 10:
+                x = 10
+            menu.exec(QPoint(x, y))
+        else:
+            menu.exec(QCursor.pos())
 
     def _show_history_menu(self) -> None:
         menu = QMenu(self)
@@ -901,7 +924,7 @@ class BrowserWindow(QMainWindow):
         act_settings = menu.addAction(t("history_settings"))
         act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://settings?tab=general"))
 
-        menu.exec(self.btn_history.mapToGlobal(self.btn_history.rect().bottomLeft()))
+        self._exec_menu_anchored(menu, getattr(self, "btn_history", None))
 
     def _show_downloads_menu(self) -> None:
         menu = QMenu(self)
@@ -934,7 +957,7 @@ class BrowserWindow(QMainWindow):
         act_settings = menu.addAction(t("downloads_settings"))
         act_settings.triggered.connect(lambda: self.tab_manager.create_tab("default", "crux://settings?tab=downloads"))
 
-        menu.exec(self.btn_downloads.mapToGlobal(self.btn_downloads.rect().bottomLeft()))
+        self._exec_menu_anchored(menu, getattr(self, "btn_downloads", None))
 
     def _navigate_active_tab(self, url: str) -> None:
         v = self.tab_manager.get_current_view()
@@ -1114,10 +1137,12 @@ class BrowserWindow(QMainWindow):
         else:
             if hasattr(self, "btn_downloads") and self.btn_downloads.isVisible():
                 self.download_manager.show_at_widget(self.btn_downloads)
+            elif hasattr(self, "btn_menu") and self.btn_menu.isVisible():
+                self.download_manager.show_at_widget(self.btn_menu)
             elif hasattr(self, "btn_more") and self.btn_more.isVisible():
                 self.download_manager.show_at_widget(self.btn_more)
             else:
-                self.download_manager.show()
+                self.download_manager.show_at_widget(None)
 
     def _on_download_requested(self, item) -> None:
         url_str = item.url().toString()
@@ -1187,27 +1212,100 @@ class BrowserWindow(QMainWindow):
         self._us_fetcher.failed.connect(_on_failed)
         self._us_fetcher.start()
 
+    def _update_pinned_toolbar(self) -> None:
+        """Dynamically manages user-pinned shortcut buttons in top toolbar next to MENU."""
+        if not hasattr(self, "top_bar") or not self.top_bar.layout():
+            return
+        layout = self.top_bar.layout()
+        pinned = self.settings.get("pinned_toolbar", ["downloads", "history"])
+        if not isinstance(pinned, list):
+            pinned = ["downloads", "history"]
+
+        configs = {
+            "downloads": {
+                "text": "DL",
+                "tooltip": "Загрузки (Ctrl+Shift+D)",
+                "callback": self._toggle_downloads,
+                "menu_anchor": "btn_downloads",
+            },
+            "history": {
+                "text": "HIST",
+                "tooltip": "История (Ctrl+H)",
+                "callback": self._show_history_menu,
+                "menu_anchor": "btn_history",
+            },
+            "bookmarks": {
+                "text": "BM",
+                "tooltip": "Закладки (Ctrl+Shift+O)",
+                "callback": self._show_bookmarks_menu,
+                "menu_anchor": "btn_bookmarks",
+            },
+            "reader": {
+                "text": "READER",
+                "tooltip": "Режим чтения (Ctrl+Alt+R)",
+                "callback": self._on_reader_mode_clicked,
+                "menu_anchor": "btn_reader",
+            },
+            "split": {
+                "text": "SPLIT",
+                "tooltip": "Разделить экран (Ctrl+\\)",
+                "callback": lambda: self.tab_manager.split_active_tab(),
+                "menu_anchor": "btn_split",
+            },
+            "ai": {
+                "text": "AI",
+                "tooltip": "AI-ассистент (Ctrl+B)",
+                "callback": self._toggle_sidebar,
+                "menu_anchor": "btn_ai",
+            },
+        }
+
+        # Remove buttons no longer pinned
+        for key in list(self._pinned_btns.keys()):
+            if key not in pinned:
+                btn = self._pinned_btns.pop(key)
+                layout.removeWidget(btn)
+                btn.setParent(None)
+                btn.deleteLater()
+
+        menu_idx = layout.indexOf(self.btn_menu)
+        if menu_idx < 0:
+            menu_idx = layout.count()
+
+        # Add or update pinned buttons
+        for key in pinned:
+            if key not in configs:
+                continue
+            cfg = configs[key]
+            if key not in self._pinned_btns:
+                b = QPushButton(cfg["text"])
+                b.setFixedHeight(28)
+                b.setCursor(Qt.CursorShape.PointingHandCursor)
+                b.setStyleSheet("font-family: \"Iosevka Nerd Font\", \"JetBrains Mono\", monospace; font-size: 11px; font-weight: bold; padding: 3px 8px;")
+                b.setToolTip(cfg["tooltip"])
+                b.clicked.connect(cfg["callback"])
+                layout.insertWidget(menu_idx, b)
+                self._pinned_btns[key] = b
+                # Also expose on self for anchor lookup
+                setattr(self, f"btn_{key}", b)
+                menu_idx += 1
+
+    def toggle_pin_action(self, action_key: str) -> None:
+        """Toggles pinning an action button in top toolbar and saves settings."""
+        from config import save_settings
+        pinned = list(self.settings.get("pinned_toolbar", ["downloads", "history"]))
+        if action_key in pinned:
+            pinned.remove(action_key)
+            self._show_status_message(f"Удалено из верхнего меню: {action_key.upper()}")
+        else:
+            pinned.append(action_key)
+            self._show_status_message(f"Закреплено в верхнем меню: {action_key.upper()}")
+        self.settings["pinned_toolbar"] = pinned
+        save_settings(self.settings)
+        self._update_pinned_toolbar()
+
     def _update_topbar_overflow(self) -> None:
-        if not hasattr(self, "btn_more") or not hasattr(self, "url_bar"):
-            return
-        if self.ui_mode == "vim" or self.top_bar.isHidden():
-            return
-        should_collapse = (self.width() < 1260)
-        collapsible_buttons = [
-            getattr(self, "btn_reader", None),
-            getattr(self, "btn_pip", None),
-            getattr(self, "btn_adblock", None),
-            getattr(self, "btn_split", None),
-            getattr(self, "btn_history", None),
-            getattr(self, "btn_downloads", None),
-            getattr(self, "btn_tab_orient", None),
-            getattr(self, "btn_mode", None),
-            getattr(self, "btn_palette", None),
-        ]
-        for btn in collapsible_buttons:
-            if btn:
-                btn.setVisible(not should_collapse)
-        self.btn_more.setVisible(should_collapse)
+        pass
 
     def _show_overflow_menu(self) -> None:
         menu = QMenu(self)
@@ -1739,7 +1837,9 @@ class BrowserWindow(QMainWindow):
             zoom_layout.setSpacing(6)
 
             lbl_zoom = QLabel("Масштаб:")
-            lbl_zoom.setStyleSheet("font-weight: bold; color: #a855f7;")
+            lbl_zoom.setFixedHeight(24)
+            lbl_zoom.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            lbl_zoom.setStyleSheet("font-weight: bold; color: #a855f7; padding-top: 1px;")
             zoom_layout.addWidget(lbl_zoom)
 
             btn_z_minus = QPushButton("－")
@@ -1750,9 +1850,9 @@ class BrowserWindow(QMainWindow):
             cur_v = self.tab_manager.get_current_view()
             cur_pct = int(cur_v.get_zoom() * 100) if cur_v else 100
             lbl_z_val = QLabel(f"{cur_pct}%")
-            lbl_z_val.setFixedWidth(46)
+            lbl_z_val.setFixedSize(46, 24)
             lbl_z_val.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_z_val.setStyleSheet("font-weight: bold; color: #f4f4f5;")
+            lbl_z_val.setStyleSheet("font-weight: bold; color: #f4f4f5; padding-top: 1px;")
 
             btn_z_plus = QPushButton("＋")
             btn_z_plus.setToolTip("Увеличить масштаб (Ctrl++)")
@@ -1888,16 +1988,30 @@ class BrowserWindow(QMainWindow):
             act_adblock = menu.addAction(f"Блокировщик рекламы ({getattr(self.adblocker, 'blocked_count', 0)} заблок.)")
             act_adblock.triggered.connect(self._show_adblock_menu)
 
+            # Pin to Toolbar Submenu
+            pin_menu = menu.addMenu("Закрепить в верхнем меню")
+            pinned_list = self.settings.get("pinned_toolbar", ["downloads", "history"])
+            pin_options = [
+                ("downloads", "Загрузки [DL]"),
+                ("history", "История [HIST]"),
+                ("bookmarks", "Закладки [BM]"),
+                ("reader", "Режим чтения [READER]"),
+                ("split", "Разделение экрана [SPLIT]"),
+                ("ai", "AI-ассистент [AI]"),
+            ]
+            for opt_key, opt_label in pin_options:
+                is_p = (opt_key in pinned_list)
+                pref = "[x] " if is_p else "    "
+                act_p = pin_menu.addAction(pref + opt_label)
+                act_p.triggered.connect(lambda checked, k=opt_key: self.toggle_pin_action(k))
+
             # Settings
             menu.addSeparator()
             act_settings = menu.addAction("Настройки браузера (Ctrl+,)")
             act_settings.triggered.connect(self.open_settings)
 
             btn = getattr(self, "btn_menu", getattr(self, "btn_settings", None))
-            if btn and btn.isVisible():
-                menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 2)))
-            else:
-                menu.exec(QCursor.pos())
+            self._exec_menu_anchored(menu, btn)
         except Exception:
             import traceback
             traceback.print_exc()
@@ -1967,11 +2081,8 @@ class BrowserWindow(QMainWindow):
                 act_empty = bm_menu.addAction("Нет сохраненных закладок")
                 act_empty.setEnabled(False)
 
-            btn = getattr(self, "btn_menu", None)
-            if btn and btn.isVisible():
-                bm_menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 2)))
-            else:
-                bm_menu.exec(QCursor.pos())
+            btn = getattr(self, "btn_bookmarks", getattr(self, "btn_menu", None))
+            self._exec_menu_anchored(bm_menu, btn)
         except Exception:
             import traceback
             traceback.print_exc()

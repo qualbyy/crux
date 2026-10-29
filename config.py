@@ -54,6 +54,7 @@ DEFAULT_SETTINGS = {
     "download_dir": str(Path.home() / "Downloads"),
     "restore_session": False,
     "tab_hibernation": "30",    # Inactive tab hibernation timeout in minutes ("never", "15", "30", "60")
+    "pinned_toolbar": ["downloads", "history"],  # List of functions pinned to top toolbar
     "adblock_enabled": True,
     "clean_urls": True,
     "send_dnt": True,

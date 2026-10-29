@@ -256,11 +256,25 @@ class DownloadManager(QWidget):
         else:
             self.empty_label.hide()
 
-    def show_at_widget(self, target_widget: QWidget) -> None:
+    def show_at_widget(self, target_widget: QWidget = None) -> None:
+        parent = self.parent()
+        # Fallback to menu button in top right if target is missing, not visible, or parented to hidden container
+        if not target_widget or not target_widget.isVisible():
+            if parent and hasattr(parent, "btn_downloads") and parent.btn_downloads.isVisible():
+                target_widget = parent.btn_downloads
+            elif parent and hasattr(parent, "btn_menu") and parent.btn_menu.isVisible():
+                target_widget = parent.btn_menu
+
         if not target_widget:
+            if parent:
+                p_geo = parent.geometry()
+                self.move(p_geo.x() + p_geo.width() - self.width() - 20, p_geo.y() + 70)
             self.show()
+            self.raise_()
             return
+
         g_pos = target_widget.mapToGlobal(target_widget.rect().bottomLeft())
+        # Align right edge of popup with right edge of target widget
         x = g_pos.x() - (self.width() - target_widget.width())
         y = g_pos.y() + 4
         if x < 10:
@@ -294,7 +308,9 @@ class DownloadManager(QWidget):
         parent = self.parent()
         if parent and hasattr(parent, "btn_downloads") and parent.btn_downloads.isVisible():
             self.show_at_widget(parent.btn_downloads)
+        elif parent and hasattr(parent, "btn_menu") and parent.btn_menu.isVisible():
+            self.show_at_widget(parent.btn_menu)
         elif parent and hasattr(parent, "btn_more") and parent.btn_more.isVisible():
             self.show_at_widget(parent.btn_more)
         else:
-            self.show()
+            self.show_at_widget(None)
