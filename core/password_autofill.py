@@ -314,7 +314,7 @@ class PasswordAutofillManager:
                 if (pill) {{
                     pill.style.backgroundColor = '#10b981';
                     pill.style.borderColor = '#10b981';
-                    pill.innerHTML = `<span style="color:#ffffff; font-weight:bold;">✓ Заполнено: ${{cred.username}}</span>`;
+                    pill.innerHTML = `<span style="color:#ffffff; font-weight:bold; font-family:monospace;">[OK] Заполнено: ${{cred.username}}</span>`;
                     setTimeout(() => pill.remove(), 2000);
                 }}
                 const menu = document.getElementById('__crux_dropdown__');

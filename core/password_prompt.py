@@ -153,7 +153,7 @@ class PasswordSaveBanner(QFrame):
             return
 
         PasswordAutofillManager.save_credential(self.current_url or self.current_domain, user, pwd)
-        self.status_feedback.setText(f"✓ {t('pwd_saved_status')}")
+        self.status_feedback.setText(f"[OK] {t('pwd_saved_status')}")
         self.status_feedback.setStyleSheet("font-size: 11px; font-weight: bold; color: #10b981;")
         self.status_feedback.show()
         self.btn_save.setEnabled(False)
@@ -162,7 +162,7 @@ class PasswordSaveBanner(QFrame):
 
     def _on_never_clicked(self) -> None:
         PasswordAutofillManager.add_never_save(self.current_url or self.current_domain)
-        self.status_feedback.setText(f"✓ {t('never_saved_status')}")
+        self.status_feedback.setText(f"[OK] {t('never_saved_status')}")
         self.status_feedback.setStyleSheet("font-size: 11px; font-weight: bold; color: #f59e0b;")
         self.status_feedback.show()
         self.btn_never.setEnabled(False)

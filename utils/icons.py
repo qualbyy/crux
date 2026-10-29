@@ -1,6 +1,6 @@
 """
-Minimalist Clean Icons & Badges for Zephyrium
-Clean ASCII / Geometric UI indicators (No emojis or oversized symbols)
+Minimalist Clean Icons & Badges for Crux
+Clean ASCII / Geometric UI indicators (Strictly NO emojis or oversized symbols)
 """
 
 class Icons:
@@ -25,5 +25,5 @@ class Icons:
     READER = "READER"
     PIP = "PIP"
     MORE = "»"
-    AUDIO = "🔊"
-    MUTED = "🔇"
+    AUDIO = "[VOL]"
+    MUTED = "[MUTE]"

@@ -83,15 +83,17 @@ class TabItemWidget(QWidget):
         self._layout.addWidget(self.title_label, stretch=1)
 
         # Audio / Mute indicator button
-        self.audio_btn = QPushButton("🔊")
-        self.audio_btn.setFixedSize(18, 18)
+        self.audio_btn = QPushButton("VOL")
+        self.audio_btn.setFixedSize(28, 18)
         self.audio_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.audio_btn.setStyleSheet("""
             QPushButton {
                 background: transparent;
-                border: none;
+                border: 1px solid #3f3f46;
                 color: #a855f7;
-                font-size: 11px;
+                font-family: "Iosevka Nerd Font", "JetBrains Mono", monospace;
+                font-size: 9px;
+                font-weight: bold;
                 padding: 0;
             }
         """)
@@ -138,9 +140,9 @@ class TabItemWidget(QWidget):
             self.indicator.setFixedWidth(24)
             self.close_btn.hide()
         elif self.tab_data.is_suspended:
-            self.indicator.setText("💤")
-            self.indicator.setStyleSheet("font-size: 11px; background: transparent; border: none;")
-            self.indicator.setFixedWidth(18)
+            self.indicator.setText("ZZZ")
+            self.indicator.setStyleSheet(f"color: {self.accent}; font-size: 8px; font-weight: bold; border: 1px solid {self.accent}; padding: 1px;")
+            self.indicator.setFixedWidth(24)
             self.close_btn.show()
         else:
             self.indicator.setText("▪")
@@ -149,8 +151,8 @@ class TabItemWidget(QWidget):
             self.close_btn.show()
 
         if getattr(self.tab_data, "is_audible", False) or getattr(self.tab_data, "is_muted", False):
-            self.audio_btn.setText("🔇" if self.tab_data.is_muted else "🔊")
-            self.audio_btn.setStyleSheet(f"background: transparent; border: none; color: {self.accent}; font-size: 11px; padding: 0;")
+            self.audio_btn.setText("MUTE" if self.tab_data.is_muted else "VOL")
+            self.audio_btn.setStyleSheet(f"background: transparent; border: 1px solid {self.accent}; color: {self.accent}; font-family: monospace; font-size: 9px; font-weight: bold; padding: 0;")
             self.audio_btn.setToolTip(t("unmute_tab") if self.tab_data.is_muted else t("mute_tab"))
             self.audio_btn.show()
         else:
@@ -1031,11 +1033,11 @@ class TabManager(QWidget):
             <!DOCTYPE html><html><head><meta charset="utf-8"><title>{clean_title}</title></head>
             <body onclick="window.location.reload()" style="background:{bg};color:{fg_muted};font-family:system-ui, -apple-system, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:95vh;user-select:none;cursor:pointer;margin:0;">
             <div style="border:1px solid {card_border};border-radius:0px;padding:32px;background:{card_bg};text-align:center;max-width:420px;box-shadow:0 6px 20px rgba(0,0,0,0.4);font-family:monospace;">
-                <div style="font-size:32px;margin-bottom:12px;">💤</div>
+                <div style="font-size:22px;margin-bottom:12px;color:{acc};font-weight:bold;">[SLEEP]</div>
                 <div style="color:{acc};font-weight:bold;font-size:13px;letter-spacing:1px;margin-bottom:8px;">[ВКЛАДКА В РЕЖИМЕ СНА // RAM SAVED]</div>
                 <div style="color:{fg_title};font-size:14px;font-weight:bold;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{clean_title}</div>
                 <div style="font-size:11px;color:{fg_muted};margin-bottom:16px;">Вкладка выгружена из памяти. Кликните для восстановления.</div>
-                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border:1px solid {card_border};display:inline-block;">⚡ НАЖМИТЕ ДЛЯ ПРОБУЖДЕНИЯ</div>
+                <div style="font-size:11px;color:{acc};background:{bg};padding:6px 12px;border:1px solid {card_border};display:inline-block;">НАЖМИТЕ ДЛЯ ПРОБУЖДЕНИЯ</div>
             </div>
             </body></html>
         """)

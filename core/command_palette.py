@@ -136,7 +136,7 @@ class CommandPalette(QDialog):
             ("tasks", ":tasks — Open Task Manager (Shift+Esc)", "tasks"),
             ("tabnew", ":tabnew [url] — Open a new tab", "tabnew"),
             ("close", ":close — Close current tab", "close"),
-            ("snooze_tab", ":snooze — Snooze current tab to free RAM (💤)", "snooze"),
+            ("snooze_tab", ":snooze — Snooze current tab to free RAM [SLEEP]", "snooze"),
             ("snooze_others", ":snooze others — Snooze all background tabs", "snooze:others"),
             ("wake_all", ":wake all — Wake all snoozed tabs", "wake:all"),
             ("devtools", ":devtools / F12 — Toggle Chromium DevTools Dock", "devtools"),
@@ -236,7 +236,7 @@ class CommandPalette(QDialog):
                 safe_expr = q.replace("^", "**")
                 if all(ch in "0123456789. +-/*%()e" for ch in safe_expr):
                     val = eval(safe_expr, {"__builtins__": None}, {})
-                    calc_item = QListWidgetItem(f"🔢 {q} = {val}  (Enter to copy)")
+                    calc_item = QListWidgetItem(f"[CALC] {q} = {val}  (Enter to copy)")
                     calc_item.setData(Qt.ItemDataRole.UserRole, ("copy_clipboard", str(val)))
                     self.list_widget.addItem(calc_item)
             except Exception:
@@ -260,7 +260,7 @@ class CommandPalette(QDialog):
                 url = tdata.url or ""
                 cont = getattr(tdata, "container_id", "default")
                 if not q or q in title.lower() or q in url.lower() or q in cont.lower():
-                    status_prefix = "💤 " if getattr(tdata, "is_suspended", False) else "📑 "
+                    status_prefix = "[SLEEP] " if getattr(tdata, "is_suspended", False) else "[TAB] "
                     badge = f"[{cont.upper()}] " if cont != "default" else ""
                     item = QListWidgetItem(f"{status_prefix}{badge}{title} — {url}")
                     item.setData(Qt.ItemDataRole.UserRole, ("switch_tab", str(tid)))
@@ -287,7 +287,7 @@ class CommandPalette(QDialog):
             matched_history = 0
             for h in history:
                 if q and (q in h.get("title", "").lower() or q in h.get("url", "").lower()):
-                    item = QListWidgetItem(f"🕒 {h.get('title', '')} — {h.get('url', '')}")
+                    item = QListWidgetItem(f"[HIST] {h.get('title', '')} — {h.get('url', '')}")
                     item.setData(Qt.ItemDataRole.UserRole, ("navigate", h.get("url", "")))
                     self.list_widget.addItem(item)
                     matched_history += 1
@@ -315,7 +315,7 @@ class CommandPalette(QDialog):
         existing_texts = {self.list_widget.item(i).text() for i in range(self.list_widget.count())}
         insert_idx = 1 if self.list_widget.count() > 0 else 0
         for s in reversed(suggestions):
-            label = f"🔍 {s}"
+            label = f"[SEARCH] {s}"
             if label not in existing_texts:
                 item = QListWidgetItem(label)
                 item.setData(Qt.ItemDataRole.UserRole, ("navigate", s))
