@@ -135,8 +135,8 @@ crux --container dev https://github.com
 ### Running from Source
 
 ```bash
-git clone https://github.com/qualbyy/zephyrium.git
-cd zephyrium
+git clone https://github.com/qualbyy/crux.git
+cd crux
 ./run.sh
 ```
 
@@ -178,8 +178,7 @@ Crux 1.3.6 brings full project rebranding, critical stability hardening, expande
 ## Author & Contacts
 
 - **Author:** qualbyy
-- **Email:** qualbybox@gmail.com
-- **GitHub:** [https://github.com/qualbyy](https://github.com/qualbyy)
+- **Email:** qualbyy@gmail.com 
 
 ---
 
