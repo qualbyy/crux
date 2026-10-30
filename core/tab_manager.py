@@ -453,7 +453,7 @@ class VerticalTabSidebar(QWidget):
         self._main_layout.addWidget(self.list_widget)
 
         self.current_theme = "dark"
-        self.current_accent = "#fe8019"
+        self.current_accent = "#a855f7"
         self.update_theme(self.current_theme, self.current_accent)
 
     def set_expanded_width(self, width: int) -> None:

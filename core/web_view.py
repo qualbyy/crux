@@ -888,7 +888,7 @@ class ZincWebView(QWebEngineView):
         from config import load_settings
         s = load_settings()
         th = s.get("theme", "dark")
-        acc = s.get("accent_color", "#fe8019")
+        acc = s.get("accent_color", "#a855f7")
         bg = "#18181b" if th == "dark" else "#f8fafc"
         card_bg = "#262624" if th == "dark" else "#ffffff"
         card_border = "#3f3f46" if th == "dark" else "#cbd5e1"
@@ -1123,7 +1123,7 @@ class ZincWebView(QWebEngineView):
 
             # Apply theme dynamically
             from core.theme_manager import apply_app_theme
-            apply_app_theme(QApplication.instance(), s.get("theme", "dark"), s.get("accent_color", "#fe8019"))
+            apply_app_theme(QApplication.instance(), s.get("theme", "dark"), s.get("accent_color", "#a855f7"))
 
             win = self._get_main_window()
             if win:
@@ -1168,7 +1168,7 @@ class ZincWebView(QWebEngineView):
                 win.settings = s
                 if key in ["theme", "accent_color"]:
                     th = s.get("theme", "dark")
-                    acc = s.get("accent_color", "#fe8019")
+                    acc = s.get("accent_color", "#a855f7")
                     from core.theme_manager import apply_app_theme
                     apply_app_theme(QApplication.instance(), th, acc)
                     if hasattr(win, "_apply_theme_style"):
@@ -1623,7 +1623,7 @@ class ZincWebView(QWebEngineView):
             from config import load_settings
             s = load_settings()
             th = s.get("theme", "dark")
-            acc = s.get("accent_color", "#fe8019")
+            acc = s.get("accent_color", "#a855f7")
             bg = "#18181b" if th == "dark" else "#f8fafc"
             fg = "#d4d4d8" if th == "dark" else "#1e293b"
             card_bg = "#262624" if th == "dark" else "#ffffff"

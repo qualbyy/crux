@@ -320,7 +320,7 @@ class BrowserWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
 
         # Vim command input in status bar
-        acc = self.settings.get("accent_color", "#fe8019")
+        acc = self.settings.get("accent_color", "#a855f7")
         th = self.settings.get("theme", "dark")
         vim_bg = "#18181b" if th == "dark" else "#ffffff"
         vim_fg = "#f5f5f0" if th == "dark" else "#0f172a"
@@ -501,7 +501,7 @@ class BrowserWindow(QMainWindow):
         self.password_save_banner.move(bx, by)
         self.password_save_banner.set_credentials(url, username, password)
         th = self.settings.get("theme", "dark")
-        acc = self.settings.get("accent_color", "#fe8019")
+        acc = self.settings.get("accent_color", "#a855f7")
         self.password_save_banner.update_theme(th, acc)
         self.password_save_banner.retranslate_ui()
         self.password_save_banner.show()
@@ -509,7 +509,7 @@ class BrowserWindow(QMainWindow):
 
     def _apply_theme_style(self, mode: str = "minimal") -> None:
         th = self.settings.get("theme", "dark")
-        acc = self.settings.get("accent_color", "#fe8019")
+        acc = self.settings.get("accent_color", "#a855f7")
         from core.theme_manager import apply_app_theme, generate_stylesheet
         qss = generate_stylesheet(th, acc)
         apply_app_theme(QApplication.instance(), th, acc)
@@ -518,7 +518,10 @@ class BrowserWindow(QMainWindow):
         self.horizontal_tab_bar.setStyleSheet("")
         self.top_bar.setStyleSheet("")
         self.url_bar.setStyleSheet("")
-        self.status_bar.setStyleSheet("")
+        if hasattr(self, "status_bar"):
+            self.status_bar.setStyleSheet("")
+        if hasattr(self, "_apply_completer_style"):
+            self._apply_completer_style()
         if hasattr(self, "tab_manager"):
             self.tab_manager.update_theme(th, acc)
         if hasattr(self, "side_panel"):
@@ -585,7 +588,7 @@ class BrowserWindow(QMainWindow):
 
     def _reload_startpages(self) -> None:
         th = self.settings.get("theme", "dark")
-        acc = self.settings.get("accent_color", "#fe8019")
+        acc = self.settings.get("accent_color", "#a855f7")
         lang = self.settings.get("language", "ru")
         from PyQt6.QtGui import QColor
         if hasattr(self, "tab_manager") and hasattr(self.tab_manager, "tabs"):
@@ -1054,22 +1057,33 @@ class BrowserWindow(QMainWindow):
         self._url_completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self._url_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.url_bar.setCompleter(self._url_completer)
-        
+        self._apply_completer_style()
+        self._update_url_completer()
+
+    def _apply_completer_style(self) -> None:
+        if not hasattr(self, "_url_completer"):
+            return
         popup = self._url_completer.popup()
         if popup:
-            popup.setStyleSheet("""
-                QAbstractItemView {
-                    background-color: #18181b;
-                    color: #d4d4d8;
-                    border: 1px solid #3f3f46;
-                    selection-background-color: #fe8019;
+            th = self.settings.get("theme", "dark")
+            acc = self.settings.get("accent_color", "#a855f7")
+            bg = "#18181b" if th == "dark" else "#ffffff"
+            text_color = "#d4d4d8" if th == "dark" else "#1e293b"
+            border_col = "#3f3f46" if th == "dark" else "#cbd5e1"
+            popup.setStyleSheet(f"""
+                QAbstractItemView {{
+                    background-color: {bg};
+                    color: {text_color};
+                    border: 1px solid {border_col};
+                    border-radius: 0px;
+                    selection-background-color: {acc};
                     selection-color: #ffffff;
                     font-family: monospace;
                     font-size: 12px;
                     padding: 4px;
-                }
+                    outline: none;
+                }}
             """)
-        self._update_url_completer()
 
     def _update_url_completer(self) -> None:
         suggestions = [
@@ -2214,7 +2228,7 @@ class BrowserWindow(QMainWindow):
             set_language(settings["language"])
         self.retranslate_ui()
         from core.theme_manager import apply_app_theme
-        apply_app_theme(QApplication.instance(), settings.get("theme", "dark"), settings.get("accent_color", "#fe8019"))
+        apply_app_theme(QApplication.instance(), settings.get("theme", "dark"), settings.get("accent_color", "#a855f7"))
         self._apply_theme_style(self.ui_mode)
         self._reload_startpages()
         if "tab_orientation" in settings and settings["tab_orientation"] != self.tab_orientation:
