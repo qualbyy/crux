@@ -99,7 +99,7 @@ class OnboardingDialog(QDialog):
         header_layout.setSpacing(6)
 
         badge_row = QHBoxLayout()
-        lbl_badge = QLabel("ZEPHYRIUM ONBOARDING // INITIAL SETUP")
+        lbl_badge = QLabel("CRUX ONBOARDING // INITIAL SETUP")
         lbl_badge.setStyleSheet("color: #71717a; font-size: 11px; font-weight: bold; letter-spacing: 1px;")
         lbl_os = QLabel("WINDOWS" if sys.platform == "win32" else "LINUX")
         lbl_os.setStyleSheet("color: #71717a; font-size: 11px; font-weight: bold; letter-spacing: 1px;")
@@ -108,7 +108,7 @@ class OnboardingDialog(QDialog):
         badge_row.addWidget(lbl_os)
         header_layout.addLayout(badge_row)
 
-        lbl_title = QLabel("WELCOME TO ZEPHYRIUM")
+        lbl_title = QLabel("WELCOME TO CRUX")
         lbl_title.setStyleSheet("color: #f5f5f0; font-size: 20px; font-weight: bold; letter-spacing: -0.5px;")
         header_layout.addWidget(lbl_title)
 

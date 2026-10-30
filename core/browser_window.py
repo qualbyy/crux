@@ -299,7 +299,7 @@ class BrowserWindow(QMainWindow):
         self.btn_more.clicked.connect(self._show_overflow_menu)
 
         # Primary Browser Dropdown Menu (Consistent monospace font, no emoji)
-        self.btn_menu = QPushButton("MENU")
+        self.btn_menu = QPushButton(t("menu_btn"))
         self.btn_menu.setObjectName("accentBtn")
         self.btn_menu.setFixedHeight(28)
         self.btn_menu.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -631,8 +631,16 @@ class BrowserWindow(QMainWindow):
         self.btn_mode.setToolTip(t("ui_mode_label"))
         self.btn_palette.setText(t("keybinds"))
         self.btn_palette.setToolTip(t("keybinds_tooltip"))
+        if hasattr(self, "btn_back"):
+            self.btn_back.setToolTip(t("nav_back"))
+        if hasattr(self, "btn_fwd"):
+            self.btn_fwd.setToolTip(t("nav_forward"))
+        if hasattr(self, "btn_reload"):
+            self.btn_reload.setToolTip(t("nav_reload"))
+        if hasattr(self, "ssl_badge"):
+            self.ssl_badge.setToolTip(t("nav_ssl"))
         if hasattr(self, "btn_menu"):
-            self.btn_menu.setText("MENU")
+            self.btn_menu.setText(t("menu_btn"))
             self.btn_menu.setToolTip(t("main_menu_tooltip"))
         elif hasattr(self, "btn_settings"):
             self.btn_settings.setText(t("settings_btn"))
@@ -650,7 +658,7 @@ class BrowserWindow(QMainWindow):
         v = self.tab_manager.get_current_view()
         if v:
             url_str = v.url().toString()
-            if "startpage" in url_str or "welcome" in url_str:
+            if any(k in url_str for k in ["startpage", "welcome", "settings", "history", "downloads", "tasks", "crux://", "zephyrium://", "zinc://"]):
                 self.ssl_badge.setText(t("internal_page"))
         if hasattr(self, "tab_manager"):
             self.tab_manager.retranslate_ui()
@@ -1238,37 +1246,37 @@ class BrowserWindow(QMainWindow):
 
         configs = {
             "downloads": {
-                "text": "DL",
+                "text": t("pin_btn_downloads"),
                 "tooltip": t("downloads_menu"),
                 "callback": self._toggle_downloads,
                 "menu_anchor": "btn_downloads",
             },
             "history": {
-                "text": "HIST",
+                "text": t("pin_btn_history"),
                 "tooltip": t("history_menu"),
                 "callback": self._show_history_menu,
                 "menu_anchor": "btn_history",
             },
             "bookmarks": {
-                "text": "BM",
+                "text": t("pin_btn_bookmarks"),
                 "tooltip": t("bookmarks_menu"),
                 "callback": self._show_bookmarks_menu,
                 "menu_anchor": "btn_bookmarks",
             },
             "reader": {
-                "text": "READER",
+                "text": t("pin_btn_reader"),
                 "tooltip": t("reader_mode_menu"),
                 "callback": self._on_reader_mode_clicked,
                 "menu_anchor": "btn_reader",
             },
             "split": {
-                "text": "SPLIT",
+                "text": t("pin_btn_split"),
                 "tooltip": f"{t('split_view')} (Ctrl+\\)",
                 "callback": lambda: self.tab_manager.split_active_tab(),
                 "menu_anchor": "btn_split",
             },
             "ai": {
-                "text": "AI",
+                "text": t("pin_btn_ai"),
                 "tooltip": t("ai_assistant_menu"),
                 "callback": self._toggle_sidebar,
                 "menu_anchor": "btn_ai",
@@ -1476,31 +1484,31 @@ class BrowserWindow(QMainWindow):
         url_str = url.toString()
         if "welcome" in url_str:
             self.url_bar.setText("crux://welcome")
-            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setText(t("internal_page"))
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "startpage" in url_str:
             self.url_bar.setText("crux://startpage")
-            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setText(t("internal_page"))
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "settings" in url_str:
             self.url_bar.setText(url_str if (url_str.startswith("crux://") or url_str.startswith("zephyrium://")) else "crux://settings")
-            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setText(t("internal_page"))
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "history" in url_str:
             self.url_bar.setText("crux://history")
-            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setText(t("internal_page"))
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "downloads" in url_str:
             self.url_bar.setText("crux://downloads")
-            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setText(t("internal_page"))
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif "tasks" in url_str or "taskmanager" in url_str:
             self.url_bar.setText("crux://tasks")
-            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setText(t("internal_page"))
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         elif url_str.startswith("crux://") or url_str.startswith("zephyrium://") or url_str.startswith("zinc://"):
             self.url_bar.setText(url_str)
-            self.ssl_badge.setText("INTERNAL")
+            self.ssl_badge.setText(t("internal_page"))
             self.ssl_badge.setStyleSheet("color: #94a3b8;")
         else:
             self.url_bar.setText(url_str)

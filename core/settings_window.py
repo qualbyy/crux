@@ -1117,7 +1117,7 @@ class SettingsWindow(QDialog):
         self._add_category(f"07 // {t('network')}", page)
 
     # =========================================================================
-    # 8. ABOUT ZEPHYRIUM PAGE
+    # 8. ABOUT CRUX PAGE
     # =========================================================================
     def _init_about_page(self):
         page = QWidget()
@@ -1142,7 +1142,7 @@ class SettingsWindow(QDialog):
         ac_layout = QVBoxLayout(self.about_card)
         ac_layout.setSpacing(8)
 
-        title_lbl = QLabel("ZEPHYRIUM BROWSER")
+        title_lbl = QLabel("CRUX BROWSER")
         title_lbl.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {title_color};")
         ac_layout.addWidget(title_lbl)
 

@@ -731,6 +731,8 @@ class TabManager(QWidget):
         url = getattr(tab_data, "url", "") or (v.url().toString() if v else "crux://startpage")
         if url.startswith("data:text/html") or url.startswith("data:"):
             url = "crux://startpage"
+        if "startpage" in url.lower():
+            url = "crux://startpage"
         self.create_tab(url=url, container_id=container_id)
         self.close_tab(tab_id)
 

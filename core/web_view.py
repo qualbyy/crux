@@ -981,7 +981,10 @@ class ZincWebView(QWebEngineView):
             else:
                 self.page().setBackgroundColor(QColor("#ffffff"))
 
-        if url_clean in ["crux://startpage", "zephyrium://startpage", "zinc://startpage", "about:blank"]:
+        if (url_clean.startswith("crux://startpage") or
+            url_clean.startswith("zephyrium://startpage") or
+            url_clean.startswith("zinc://startpage") or
+            url_clean in ["about:blank", "about:home", "about:newtab"]):
             self.load(QUrl("crux://startpage"))
             return
 
@@ -1076,6 +1079,11 @@ class ZincWebView(QWebEngineView):
             # Clean tracking tags automatically
             cleaned = clean_tracking_parameters(url_clean)
             self.load(QUrl(cleaned))
+        elif (url_clean.startswith("crux://") or
+              url_clean.startswith("zephyrium://") or
+              url_clean.startswith("zinc://") or
+              url_clean.startswith("about:")):
+            self.load(QUrl(url_clean))
         elif "." in url_clean and " " not in url_clean:
             cleaned = clean_tracking_parameters("https://" + url_clean)
             self.load(QUrl(cleaned))
