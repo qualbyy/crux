@@ -308,6 +308,19 @@
                 }
             });
         });
+
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'set_accent' && e.data.accent) {
+                document.documentElement.style.setProperty('--accent', e.data.accent);
+                document.documentElement.style.setProperty('--accent-warm', e.data.accent);
+            }
+        });
+        const urlParams = new URLSearchParams(window.location.search);
+        const accParam = urlParams.get('accent');
+        if (accParam) {
+            document.documentElement.style.setProperty('--accent', accParam);
+            document.documentElement.style.setProperty('--accent-warm', accParam);
+        }
     </script>
 </body>
 </html>

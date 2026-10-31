@@ -26,16 +26,64 @@ enum UserEvent {
     HistoryLoaded(String),
     DownloadsLoaded(String),
     SettingsLoaded(String),
+    ReaderContentLoaded(String),
+    OpenDevTools,
     CloseWindow,
     MinimizeWindow,
     MaximizeWindow,
     DragWindow,
 }
 
+fn parse_reader_mode(url: &str, html: &str) -> serde_json::Value {
+    let mut title = "Article".to_string();
+    if let Some(t_start) = html.find("<title>") {
+        if let Some(t_end) = html[t_start..].find("</title>") {
+            title = html[t_start + 7..t_start + t_end].trim().to_string();
+        }
+    }
+
+    let mut paragraphs = Vec::new();
+    let mut current_pos = 0;
+    while let Some(p_start) = html[current_pos..].find("<p") {
+        let abs_start = current_pos + p_start;
+        if let Some(tag_close) = html[abs_start..].find('>') {
+            let content_start = abs_start + tag_close + 1;
+            if let Some(p_end) = html[content_start..].find("</p>") {
+                let p_raw = &html[content_start..content_start + p_end];
+                let mut clean = String::new();
+                let mut in_tag = false;
+                for ch in p_raw.chars() {
+                    if ch == '<' {
+                        in_tag = true;
+                    } else if ch == '>' {
+                        in_tag = false;
+                    } else if !in_tag {
+                        clean.push(ch);
+                    }
+                }
+                let clean_trimmed = clean.trim();
+                if clean_trimmed.len() > 30 {
+                    paragraphs.push(clean_trimmed.to_string());
+                }
+                current_pos = content_start + p_end + 4;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    serde_json::json!({
+        "url": url,
+        "title": title,
+        "paragraphs": paragraphs,
+    })
+}
+
 fn main() -> wry::Result<()> {
-    // WebKitGTK Wayland rendering and compositing fixes to prevent blank/gray screen on Linux Wayland/Hyprland
+    // WebKitGTK Wayland rendering fix to prevent blank/gray screen on Linux Wayland/Hyprland
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-    std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
 
     // 1. Initialize SQLite Database in user config dir
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -254,6 +302,31 @@ fn main() -> wry::Result<()> {
                             let _ = p_clone.send_event(UserEvent::AiResponse(text));
                         });
                     }
+                    "open_devtools" => {
+                        let _ = proxy_clone.send_event(UserEvent::OpenDevTools);
+                    }
+                    "fetch_reader_content" => {
+                        if let Some(url) = v["url"].as_str() {
+                            let u_str = url.to_string();
+                            let p_clone = proxy_clone.clone();
+                            std::thread::spawn(move || {
+                                let client = reqwest::blocking::Client::builder()
+                                    .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+                                    .timeout(std::time::Duration::from_secs(8))
+                                    .build();
+                                if let Ok(c) = client {
+                                    if let Ok(resp) = c.get(&u_str).send() {
+                                        if let Ok(html) = resp.text() {
+                                            let parsed = parse_reader_mode(&u_str, &html);
+                                            if let Ok(json) = serde_json::to_string(&parsed) {
+                                                let _ = p_clone.send_event(UserEvent::ReaderContentLoaded(json));
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
                     "window_close" => {
                         let _ = proxy_clone.send_event(UserEvent::CloseWindow);
                     }
@@ -300,6 +373,12 @@ fn main() -> wry::Result<()> {
             settings.set_allow_universal_access_from_file_urls(true);
             settings.set_allow_file_access_from_file_urls(true);
             settings.set_enable_developer_extras(true);
+            settings.set_enable_webgl(true);
+            settings.set_enable_webaudio(true);
+            settings.set_enable_media_stream(true);
+            settings.set_enable_mediasource(true);
+            settings.set_enable_javascript(true);
+            settings.set_user_agent(Some("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Crux/2.0"));
         }
 
         window.gtk_window().show_all();
@@ -348,6 +427,26 @@ fn main() -> wry::Result<()> {
             }
             Event::UserEvent(UserEvent::DownloadsLoaded(json_str)) => {
                 let script = format!("if (window.onDownloadsLoaded) window.onDownloadsLoaded({});", json_str);
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::OpenDevTools) => {
+                #[cfg(not(any(
+                    target_os = "windows",
+                    target_os = "macos",
+                    target_os = "ios",
+                    target_os = "android"
+                )))]
+                {
+                    use webkit2gtk::WebInspectorExt;
+                    use wry::WebViewExtUnix;
+                    if let Some(inspector) = webkit2gtk::WebViewExt::inspector(&webview.webview()) {
+                        inspector.show();
+                        println!("[Rust Core] WebKitGTK Developer Tools Inspector shown");
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::ReaderContentLoaded(json_str)) => {
+                let script = format!("if (window.onReaderContentLoaded) window.onReaderContentLoaded({});", json_str);
                 let _ = webview.evaluate_script(&script);
             }
             Event::WindowEvent {

@@ -334,16 +334,14 @@
             displayItems(filtered);
         }
 
+        window.prompt = function() { return ""; };
         function sendToHost(url) {
             try {
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'crux_cmd', url: url }, '*');
                 }
-            } catch (e) {}
-            try {
-                try { window.prompt("CRUX_CMD:" + url); } catch(e) { window.prompt("ZEPHYRIUM_CMD:" + url); }
             } catch (e) {
-                console.log("CRUX_IPC:" + url);
+                console.log("CRUX_IPC:", e);
             }
         }
         window.sendToHost = sendToHost;
