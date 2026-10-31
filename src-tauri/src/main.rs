@@ -64,7 +64,11 @@ fn main() -> wry::Result<()> {
     let js_content = include_str!("../../ui/main.js");
     let startpage_content = include_str!("../../ui/startpage.html");
 
-    let startpage_escaped = serde_json::to_string(&startpage_content).unwrap_or_default();
+    // Escape '<' as '\\u003c' to prevent premature </script> closing by HTML tokenizer
+    let startpage_escaped = serde_json::to_string(&startpage_content)
+        .unwrap_or_default()
+        .replace('<', "\\u003c");
+
     let embedded_page = html_content
         .replace(r#"<link rel="stylesheet" href="style.css">"#, &format!("<style>{}</style>", css_content))
         .replace(r#"<script src="main.js"></script>"#, &format!("<script>window.CRUX_STARTPAGE_HTML = {};\n{}</script>", startpage_escaped, js_content));
