@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Crux Browser</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- Vertical Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <button id="btnNewTab" class="btn-new-tab">+ NEW TAB</button>
+        <button id="btnToggleSidebar" class="btn-icon" title="Toggle Compact Mode">&lt;</button>
+      </div>
+
+      <div id="tabsList" class="tabs-list">
+        <!-- Rendered dynamically with animations -->
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="btnAiSidebar" class="btn-footer">AI CHAT</button>
+        <button id="btnSettings" class="btn-footer">SETTINGS</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-viewport">
+      <!-- Top Navigation Bar -->
+      <header class="top-nav">
+        <div class="nav-buttons">
+          <button id="btnBack" class="btn-nav" title="Back">&larr;</button>
+          <button id="btnForward" class="btn-nav" title="Forward">&rarr;</button>
+          <button id="btnReload" class="btn-nav" title="Reload">&#8635;</button>
+        </div>
+
+        <div class="url-bar-container">
+          <input type="text" id="urlInput" class="url-input" placeholder="Search or enter address..." spellcheck="false">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <div class="action-buttons">
+          <button id="btnCommandPalette" class="btn-nav" title="Command Palette (Ctrl+Shift+P)">CMD</button>
+          <button id="btnSplitView" class="btn-nav" title="Split Screen">SPLIT</button>
+        </div>
+      </header>
+
+      <!-- Web Content Viewport -->
+      <section id="webViewContainer" class="webview-container">
+        <iframe id="webFrame" src="about:blank" class="web-frame"></iframe>
+      </section>
+    </main>
+
+    <!-- Command Palette Modal (Ctrl+Shift+P) -->
+    <div id="commandPalette" class="modal-overlay hidden">
+      <div class="palette-box">
+        <input type="text" id="paletteInput" placeholder="Type a command or action..." autofocus>
+        <ul id="paletteResults" class="palette-results">
+          <!-- Commands dynamically rendered -->
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
