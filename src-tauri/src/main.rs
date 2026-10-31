@@ -53,6 +53,10 @@ enum UserEvent {
     SetTabOrientation(String),
     SetAiPanel(bool),
     SetZoom(f64),
+    ToggleSplit,
+    ToggleReader,
+    NavigateSplit(String),
+    ReaderHtmlExtracted { url: String, html: String },
     PageUrlChanged { id: u32, url: String },
     PageTitleChanged { id: u32, title: String },
     PageLoadingState { id: u32, is_loading: bool, progress: f64 },
@@ -68,16 +72,83 @@ struct InternalPages {
     downloads: String,
 }
 
-fn load_tab_content(wv: &webkit2gtk::WebView, url: &str, pages: &InternalPages) {
+fn html_escape(input: &str) -> String {
+    input.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
+}
+
+struct TabEntry {
+    container: gtk::Box,
+    left_wv: webkit2gtk::WebView,
+    right_wv: Option<webkit2gtk::WebView>,
+    is_split: bool,
+    split_url: String,
+    original_reader_url: Option<String>,
+}
+
+fn load_tab_content(wv: &webkit2gtk::WebView, url: &str, pages: &InternalPages, db: &Database) {
     use webkit2gtk::WebViewExt;
     if url == "sonde://startpage" || url == "crux://startpage" || url == "about:blank" || url.is_empty() {
         wv.load_html(&pages.startpage, Some("sonde://startpage"));
     } else if url.starts_with("sonde://settings") || url.starts_with("crux://settings") {
-        wv.load_html(&pages.settings, Some("sonde://settings"));
+        let all_settings = db.get_all_settings();
+        let settings_json = serde_json::to_string(&all_settings).unwrap_or_else(|_| "{}".to_string());
+        let passwords = db.get_passwords().unwrap_or_default();
+        let pwd_json = serde_json::to_string(&passwords).unwrap_or_else(|_| "[]".to_string());
+        let cookies: Vec<serde_json::Value> = Vec::new();
+        let cookies_json = serde_json::to_string(&cookies).unwrap_or_else(|_| "[]".to_string());
+        let whitelist = db.get_setting("whitelist").unwrap_or_default();
+        let whitelist_json = serde_json::to_string(&whitelist).unwrap_or_else(|_| "\"\"".to_string());
+
+        let init_script = format!(
+            r#"<script>
+            window.__SONDE_INITIAL_SETTINGS_DATA__ = {{
+                settings: {},
+                passwords: {},
+                cookies: {},
+                whitelist: {}
+            }};
+            document.addEventListener("DOMContentLoaded", function() {{
+                if (window.initSettings) {{
+                    window.initSettings(window.__SONDE_INITIAL_SETTINGS_DATA__);
+                }}
+            }});
+            </script>"#,
+            settings_json, pwd_json, cookies_json, whitelist_json
+        );
+        let injected_html = pages.settings.replace("</head>", &format!("{}\n</head>", init_script));
+        wv.load_html(&injected_html, Some("sonde://settings"));
     } else if url.starts_with("sonde://history") || url.starts_with("crux://history") {
-        wv.load_html(&pages.history, Some("sonde://history"));
+        let history = db.get_history(200).unwrap_or_default();
+        let history_json = serde_json::to_string(&history).unwrap_or_else(|_| "[]".to_string());
+        let init_script = format!(
+            r#"<script>
+            window.__SONDE_HISTORY_DATA__ = {};
+            document.addEventListener("DOMContentLoaded", function() {{
+                if (window.renderHistory) {{
+                    window.renderHistory(window.__SONDE_HISTORY_DATA__);
+                }}
+            }});
+            </script>"#,
+            history_json
+        );
+        let injected_html = pages.history.replace("</head>", &format!("{}\n</head>", init_script));
+        wv.load_html(&injected_html, Some("sonde://history"));
     } else if url.starts_with("sonde://downloads") || url.starts_with("crux://downloads") {
-        wv.load_html(&pages.downloads, Some("sonde://downloads"));
+        let downloads = db.get_downloads(200).unwrap_or_default();
+        let downloads_json = serde_json::to_string(&downloads).unwrap_or_else(|_| "[]".to_string());
+        let init_script = format!(
+            r#"<script>
+            window.__SONDE_DOWNLOADS_DATA__ = {};
+            document.addEventListener("DOMContentLoaded", function() {{
+                if (window.renderDownloads) {{
+                    window.renderDownloads(window.__SONDE_DOWNLOADS_DATA__);
+                }}
+            }});
+            </script>"#,
+            downloads_json
+        );
+        let injected_html = pages.downloads.replace("</head>", &format!("{}\n</head>", init_script));
+        wv.load_html(&injected_html, Some("sonde://downloads"));
     } else {
         let full = if url.starts_with("http://") || url.starts_with("https://") {
             url.to_string()
@@ -364,6 +435,17 @@ fn main() -> wry::Result<()> {
                     "set_zoom" => {
                         if let Some(z) = v["zoom"].as_f64() {
                             let _ = proxy_clone.send_event(UserEvent::SetZoom(z));
+                        }
+                    }
+                    "toggle_split" => {
+                        let _ = proxy_clone.send_event(UserEvent::ToggleSplit);
+                    }
+                    "toggle_reader" => {
+                        let _ = proxy_clone.send_event(UserEvent::ToggleReader);
+                    }
+                    "navigate_split" => {
+                        if let Some(u) = v["url"].as_str() {
+                            let _ = proxy_clone.send_event(UserEvent::NavigateSplit(u.to_string()));
                         }
                     }
                     "toggle_pin" => {
@@ -751,7 +833,7 @@ fn main() -> wry::Result<()> {
         target_os = "ios",
         target_os = "android"
     )))]
-    let (webview, content_stack, ui_box, overlay, initial_wv) = {
+    let (webview, content_stack, ui_box, overlay, init_tab_box, initial_wv) = {
         use gtk::prelude::*;
         use tao::platform::unix::WindowExtUnix;
         use wry::WebViewBuilderExtUnix;
@@ -790,7 +872,9 @@ fn main() -> wry::Result<()> {
             stack.set_margin_start(0);
             stack.set_margin_top(74);
         } else {
-            let sb_width: i32 = db.get_setting("sidebar_width").and_then(|w| w.parse().ok()).unwrap_or(240);
+            let sb_width: i32 = db.get_setting("sidebar_width")
+                .and_then(|w| w.trim_matches('\'').trim_matches('"').trim_end_matches("px").parse().ok())
+                .unwrap_or(240);
             stack.set_margin_start(sb_width);
             stack.set_margin_top(38);
         }
@@ -850,7 +934,11 @@ fn main() -> wry::Result<()> {
                     if let Some(req) = nav_decision.request() {
                         if let Some(uri) = req.uri() {
                             let u_str = uri.to_string();
-                            if u_str.starts_with("sonde://action/") || u_str.starts_with("crux://action/")
+                            if u_str == "sonde://action/exit-reader" {
+                                decision.ignore();
+                                let _ = p4.send_event(UserEvent::ToggleReader);
+                                return true;
+                            } else if u_str.starts_with("sonde://action/") || u_str.starts_with("crux://action/")
                                 || u_str.starts_with("sonde://live-setting") || u_str.starts_with("crux://live-setting")
                                 || u_str.starts_with("sonde://apply-settings") || u_str.starts_with("crux://apply-settings")
                                 || u_str.starts_with("sonde://new-tab") || u_str.starts_with("crux://new-tab") {
@@ -885,10 +973,15 @@ fn main() -> wry::Result<()> {
             false
         });
 
-        load_tab_content(&init_wv, &initial_url, &internal_pages);
+        load_tab_content(&init_wv, &initial_url, &internal_pages, &db);
         webkit2gtk::WebViewExt::set_background_color(&init_wv, &gdk::RGBA::new(0.094, 0.094, 0.106, 1.0));
-        stack.add_named(&init_wv, "tab_1");
+        let init_tab_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        init_tab_box.set_hexpand(true);
+        init_tab_box.set_vexpand(true);
+        init_tab_box.pack_start(&init_wv, true, true, 0);
         init_wv.show();
+        init_tab_box.show();
+        stack.add_named(&init_tab_box, "tab_1");
         stack.set_visible_child_name("tab_1");
 
         let p_keys = proxy.clone();
@@ -934,15 +1027,22 @@ fn main() -> wry::Result<()> {
         });
 
         window.gtk_window().show_all();
-        (wv, stack, ui_box, overlay, init_wv)
+        (wv, stack, ui_box, overlay, init_tab_box, init_wv)
     };
 
     let db_for_events = Arc::clone(&db);
     let tab_stack = content_stack;
     let _ui_box_ref = ui_box;
     let _overlay_ref = overlay;
-    let mut tab_views: std::collections::HashMap<u32, webkit2gtk::WebView> = std::collections::HashMap::new();
-    tab_views.insert(1, initial_wv);
+    let mut tab_views: std::collections::HashMap<u32, TabEntry> = std::collections::HashMap::new();
+    tab_views.insert(1, TabEntry {
+        container: init_tab_box,
+        left_wv: initial_wv,
+        right_wv: None,
+        is_split: false,
+        split_url: "sonde://startpage".to_string(),
+        original_reader_url: None,
+    });
     let mut active_tab_id: u32 = 1;
     let mut next_tab_id: u32 = 2;
     let event_proxy_loop = proxy.clone();
@@ -1051,8 +1151,8 @@ fn main() -> wry::Result<()> {
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::NavigateUrl(url)) => {
-                if let Some(wv) = tab_views.get(&active_tab_id) {
-                    load_tab_content(wv, &url, &internal_pages);
+                if let Some(entry) = tab_views.get(&active_tab_id) {
+                    load_tab_content(&entry.left_wv, &url, &internal_pages, &db_for_events);
                 }
             }
             Event::UserEvent(UserEvent::CreateTab { mut id, url }) => {
@@ -1110,7 +1210,11 @@ fn main() -> wry::Result<()> {
                             if let Some(req) = nav_decision.request() {
                                 if let Some(uri) = req.uri() {
                                     let u_str = uri.to_string();
-                                    if u_str.starts_with("sonde://action/") || u_str.starts_with("crux://action/")
+                                    if u_str == "sonde://action/exit-reader" {
+                                        decision.ignore();
+                                        let _ = p4.send_event(UserEvent::ToggleReader);
+                                        return true;
+                                    } else if u_str.starts_with("sonde://action/") || u_str.starts_with("crux://action/")
                                         || u_str.starts_with("sonde://live-setting") || u_str.starts_with("crux://live-setting")
                                         || u_str.starts_with("sonde://apply-settings") || u_str.starts_with("crux://apply-settings")
                                         || u_str.starts_with("sonde://new-tab") || u_str.starts_with("crux://new-tab") {
@@ -1145,67 +1249,263 @@ fn main() -> wry::Result<()> {
                     false
                 });
 
-                load_tab_content(&wv, &url, &internal_pages);
-                let name = format!("tab_{}", id);
-                tab_stack.add_named(&wv, &name);
+                load_tab_content(&wv, &url, &internal_pages, &db_for_events);
+                let tab_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+                tab_box.set_hexpand(true);
+                tab_box.set_vexpand(true);
+                tab_box.pack_start(&wv, true, true, 0);
                 wv.show();
+                tab_box.show();
+                let name = format!("tab_{}", id);
+                tab_stack.add_named(&tab_box, &name);
                 tab_stack.set_visible_child_name(&name);
                 active_tab_id = id;
-                tab_views.insert(id, wv);
+                if let Some(w) = wv.window() {
+                    w.raise();
+                }
+                tab_views.insert(id, TabEntry {
+                    container: tab_box,
+                    left_wv: wv,
+                    right_wv: None,
+                    is_split: false,
+                    split_url: "sonde://startpage".to_string(),
+                    original_reader_url: None,
+                });
 
                 let script = format!("if (window.onNativeTabCreated) window.onNativeTabCreated({}, {});", id, serde_json::to_string(&url).unwrap());
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::CloseTab { id, new_active }) => {
                 use gtk::prelude::*;
-                if let Some(wv) = tab_views.remove(&id) {
-                    tab_stack.remove(&wv);
+                if let Some(entry) = tab_views.remove(&id) {
+                    tab_stack.remove(&entry.container);
                 }
-                if let Some(next_id) = new_active {
-                    tab_stack.set_visible_child_name(&format!("tab_{}", next_id));
-                    active_tab_id = next_id;
-                } else if let Some(&first_id) = tab_views.keys().next() {
-                    tab_stack.set_visible_child_name(&format!("tab_{}", first_id));
-                    active_tab_id = first_id;
+                let target_id = if let Some(next_id) = new_active {
+                    Some(next_id)
+                } else {
+                    tab_views.keys().next().copied()
+                };
+                if let Some(act_id) = target_id {
+                    tab_stack.set_visible_child_name(&format!("tab_{}", act_id));
+                    active_tab_id = act_id;
+                    if let Some(entry) = tab_views.get(&act_id) {
+                        if let Some(w) = entry.left_wv.window() {
+                            w.raise();
+                        }
+                    }
                 }
             }
             Event::UserEvent(UserEvent::ActivateTab(id)) => {
                 use gtk::prelude::*;
                 tab_stack.set_visible_child_name(&format!("tab_{}", id));
                 active_tab_id = id;
+                if let Some(entry) = tab_views.get(&id) {
+                    if let Some(w) = entry.left_wv.window() {
+                        w.raise();
+                    }
+                    if let Some(ref r) = entry.right_wv {
+                        if let Some(w) = r.window() {
+                            w.raise();
+                        }
+                    }
+                    let script = format!("if (window.onNativeSplitState) window.onNativeSplitState({}, {}, {});", id, entry.is_split, serde_json::to_string(&entry.split_url).unwrap());
+                    let _ = webview.evaluate_script(&script);
+                    let r_script = format!("if (window.onNativeReaderState) window.onNativeReaderState({});", entry.original_reader_url.is_some());
+                    let _ = webview.evaluate_script(&r_script);
+                }
             }
             Event::UserEvent(UserEvent::GoBack) => {
-                if let Some(wv) = tab_views.get(&active_tab_id) {
+                if let Some(entry) = tab_views.get(&active_tab_id) {
                     use webkit2gtk::WebViewExt;
-                    wv.go_back();
+                    entry.left_wv.go_back();
                 }
             }
             Event::UserEvent(UserEvent::GoForward) => {
-                if let Some(wv) = tab_views.get(&active_tab_id) {
+                if let Some(entry) = tab_views.get(&active_tab_id) {
                     use webkit2gtk::WebViewExt;
-                    wv.go_forward();
+                    entry.left_wv.go_forward();
                 }
             }
             Event::UserEvent(UserEvent::Reload) => {
-                if let Some(wv) = tab_views.get(&active_tab_id) {
+                if let Some(entry) = tab_views.get(&active_tab_id) {
                     use webkit2gtk::WebViewExt;
-                    wv.reload();
+                    entry.left_wv.reload();
                 }
             }
             Event::UserEvent(UserEvent::SetUiHeight(h)) => {
                 use gtk::prelude::*;
+                use wry::WebViewExtUnix;
                 if h > 74 {
-                    tab_stack.hide();
+                    _overlay_ref.reorder_overlay(&_ui_box_ref, 1);
+                    if let Some(w) = webview.webview().window() {
+                        w.raise();
+                    }
                 } else {
-                    tab_stack.show();
+                    _overlay_ref.reorder_overlay(&tab_stack, 1);
+                    if let Some(entry) = tab_views.get(&active_tab_id) {
+                        if let Some(w) = entry.left_wv.window() {
+                            w.raise();
+                        }
+                        if let Some(ref r) = entry.right_wv {
+                            if let Some(w) = r.window() {
+                                w.raise();
+                            }
+                        }
+                    }
                 }
             }
             Event::UserEvent(UserEvent::SetOverlayOrder(ui_on_top)) => {
                 use gtk::prelude::*;
+                use wry::WebViewExtUnix;
                 if ui_on_top {
-                    tab_stack.hide();
+                    _overlay_ref.reorder_overlay(&_ui_box_ref, 1);
+                    if let Some(w) = webview.webview().window() {
+                        w.raise();
+                    }
                 } else {
-                    tab_stack.show();
+                    _overlay_ref.reorder_overlay(&tab_stack, 1);
+                    if let Some(entry) = tab_views.get(&active_tab_id) {
+                        if let Some(w) = entry.left_wv.window() {
+                            w.raise();
+                        }
+                        if let Some(ref r) = entry.right_wv {
+                            if let Some(w) = r.window() {
+                                w.raise();
+                            }
+                        }
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::ToggleSplit) => {
+                use gtk::prelude::*;
+                use webkit2gtk::SettingsExt;
+                if let Some(entry) = tab_views.get_mut(&active_tab_id) {
+                    entry.is_split = !entry.is_split;
+                    if entry.is_split {
+                        if entry.right_wv.is_none() {
+                            let right = webkit2gtk::WebView::new();
+                            let active_ua = proxy::get_current_user_agent();
+                            if let Some(settings) = webkit2gtk::WebViewExt::settings(&right) {
+                                settings.set_enable_developer_extras(true);
+                                settings.set_enable_webgl(true);
+                                settings.set_enable_webaudio(true);
+                                settings.set_enable_media_stream(true);
+                                settings.set_enable_mediasource(true);
+                                settings.set_enable_javascript(true);
+                                settings.set_user_agent(Some(&active_ua));
+                                settings.set_allow_universal_access_from_file_urls(true);
+                                settings.set_allow_file_access_from_file_urls(true);
+                            }
+                            webkit2gtk::WebViewExt::set_background_color(&right, &gtk::gdk::RGBA::new(0.094, 0.094, 0.106, 1.0));
+                            load_tab_content(&right, &entry.split_url, &internal_pages, &db_for_events);
+                            entry.container.pack_start(&right, true, true, 0);
+                            entry.right_wv = Some(right);
+                        }
+                        if let Some(ref right) = entry.right_wv {
+                            right.show();
+                        }
+                        entry.container.set_homogeneous(true);
+                    } else {
+                        if let Some(ref right) = entry.right_wv {
+                            right.hide();
+                        }
+                        entry.container.set_homogeneous(false);
+                    }
+                    entry.container.queue_resize();
+                    let script = format!("if (window.onNativeSplitState) window.onNativeSplitState({}, {}, {});", active_tab_id, entry.is_split, serde_json::to_string(&entry.split_url).unwrap());
+                    let _ = webview.evaluate_script(&script);
+                }
+            }
+            Event::UserEvent(UserEvent::NavigateSplit(url)) => {
+                if let Some(entry) = tab_views.get_mut(&active_tab_id) {
+                    entry.split_url = url.clone();
+                    if let Some(ref right) = entry.right_wv {
+                        load_tab_content(right, &url, &internal_pages, &db_for_events);
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::ToggleReader) => {
+                use webkit2gtk::WebViewExt;
+                if let Some(entry) = tab_views.get_mut(&active_tab_id) {
+                    if let Some(orig_url) = entry.original_reader_url.take() {
+                        load_tab_content(&entry.left_wv, &orig_url, &internal_pages, &db_for_events);
+                        let _ = webview.evaluate_script("if (window.onNativeReaderState) window.onNativeReaderState(false);");
+                    } else {
+                        let cur_url = entry.left_wv.uri().map(|s| s.to_string()).unwrap_or_default();
+                        if cur_url.starts_with("sonde://") || cur_url.starts_with("crux://") || cur_url.is_empty() {
+                            let _ = webview.evaluate_script("showToast(currentLanguage === 'ru' ? 'Режим чтения недоступен для системных страниц' : 'Reader mode unavailable for internal pages');");
+                        } else {
+                            let p_r = event_proxy_loop.clone();
+                            let u_saved = cur_url.clone();
+                            std::thread::spawn(move || {
+                                let client = reqwest::blocking::Client::builder()
+                                    .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                                    .timeout(std::time::Duration::from_secs(8))
+                                    .build();
+                                if let Ok(c) = client {
+                                    if let Ok(resp) = c.get(&u_saved).send() {
+                                        if let Ok(html) = resp.text() {
+                                            let _ = p_r.send_event(UserEvent::ReaderHtmlExtracted { url: u_saved, html });
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::ReaderHtmlExtracted { url, html }) => {
+                use webkit2gtk::WebViewExt;
+                if let Some(entry) = tab_views.get_mut(&active_tab_id) {
+                    let parsed = parse_reader_mode(&url, &html);
+                    let title = parsed["title"].as_str().unwrap_or("Article");
+                    let paragraphs = parsed["paragraphs"].as_array();
+                    if let Some(paras) = paragraphs {
+                        if !paras.is_empty() {
+                            let mut paras_html = String::new();
+                            for p in paras {
+                                if let Some(text) = p.as_str() {
+                                    paras_html.push_str(&format!("<p style=\"margin-bottom: 20px;\">{}</p>\n", html_escape(text)));
+                                }
+                            }
+                            let reader_page = format!(
+                                r#"<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{}</title>
+<style>
+:root {{ color-scheme: dark; }}
+body {{
+    background: #18181b;
+    color: #e4e4e7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.85;
+    max-width: 740px;
+    margin: 40px auto;
+    padding: 0 24px;
+    font-size: 18px;
+}}
+h1 {{ font-size: 30px; font-weight: 700; line-height: 1.3; margin-bottom: 12px; color: #fafafa; }}
+.meta {{ font-size: 13px; color: #a1a1aa; margin-bottom: 30px; padding-bottom: 16px; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; }}
+.meta a {{ color: #d4a373; text-decoration: none; }}
+</style>
+</head>
+<body>
+<h1>{}</h1>
+<div class="meta"><span>{}</span><a href="sonde://action/exit-reader">✕ Выйти из режима чтения</a></div>
+{}
+</body>
+</html>"#,
+                                html_escape(title), html_escape(title), html_escape(&url), paras_html
+                            );
+                            entry.original_reader_url = Some(url);
+                            entry.left_wv.load_html(&reader_page, Some("sonde://reader"));
+                            let _ = webview.evaluate_script("if (window.onNativeReaderState) window.onNativeReaderState(true);");
+                        } else {
+                            let _ = webview.evaluate_script("showToast(currentLanguage === 'ru' ? 'Не удалось извлечь текст статьи' : 'Could not extract article text');");
+                        }
+                    }
                 }
             }
             Event::UserEvent(UserEvent::SetAiPanel(open)) => {
@@ -1228,16 +1528,21 @@ fn main() -> wry::Result<()> {
                     tab_stack.set_margin_start(0);
                     tab_stack.set_margin_top(74);
                 } else {
-                    let sb_w: i32 = db_for_events.get_setting("sidebar_width").and_then(|w| w.parse().ok()).unwrap_or(240);
+                    let sb_w: i32 = db_for_events.get_setting("sidebar_width")
+                        .and_then(|w| w.trim_matches('\'').trim_matches('"').trim_end_matches("px").parse().ok())
+                        .unwrap_or(240);
                     tab_stack.set_margin_start(sb_w);
                     tab_stack.set_margin_top(38);
                 }
                 tab_stack.queue_resize();
             }
             Event::UserEvent(UserEvent::SetZoom(level)) => {
-                if let Some(wv) = tab_views.get(&active_tab_id) {
+                if let Some(entry) = tab_views.get(&active_tab_id) {
                     use webkit2gtk::WebViewExt;
-                    wv.set_zoom_level(level);
+                    entry.left_wv.set_zoom_level(level);
+                    if let Some(ref right) = entry.right_wv {
+                        right.set_zoom_level(level);
+                    }
                 }
             }
             Event::UserEvent(UserEvent::PageUrlChanged { id, url }) => {

@@ -90,7 +90,7 @@ body, html {
   right: 0;
   bottom: 0;
   z-index: 1500;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .popup-backdrop.hidden {
@@ -713,17 +713,9 @@ body, html {
   }
 }
 
-/* Split View */
+/* Split View is handled natively via WebKitGTK */
 .webview-container.split-mode {
-  display: flex !important;
-  flex-direction: row;
-}
-
-.webview-container.split-mode > #webFrame {
-  width: 50% !important;
-  flex: 1 1 50% !important;
-  display: block !important;
-  border-right: 1px solid var(--border);
+  display: none !important;
 }
 
 /* Horizontal Tab Bar */
@@ -1408,7 +1400,8 @@ html, body {
   flex: 1;
   display: flex !important;
   position: relative;
-  background: var(--bg-app) !important;
+  background: transparent !important;
+  pointer-events: none;
 }
 
 .workspace-wrapper > * {

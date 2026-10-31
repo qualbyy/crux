@@ -2902,6 +2902,9 @@
 
         // On Load Check URL params & hash
         window.addEventListener('DOMContentLoaded', () => {
+            if (window.__SONDE_INITIAL_SETTINGS_DATA__ && window.initSettings) {
+                window.initSettings(window.__SONDE_INITIAL_SETTINGS_DATA__);
+            }
             const urlParams = new URLSearchParams(window.location.search);
             const tabParam = urlParams.get('tab') || window.location.hash.replace('#', '');
             if (tabParam) {

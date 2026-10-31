@@ -376,6 +376,9 @@
         }
 
         window.addEventListener('DOMContentLoaded', () => {
+            if (window.__SONDE_DOWNLOADS_DATA__ && window.renderDownloads) {
+                window.renderDownloads(window.__SONDE_DOWNLOADS_DATA__);
+            }
             const urlParams = new URLSearchParams(window.location.search);
             const themeParam = urlParams.get('theme');
             if (themeParam) document.documentElement.setAttribute('data-theme', themeParam);

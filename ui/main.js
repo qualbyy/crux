@@ -428,64 +428,16 @@ function updateNavButtons() {
 // Per-Tab Split View Synchronizer
 function syncTabSplitView(tab) {
   if (!tab) return;
-  if (tab.is_split) {
-    elements.webViewContainer.classList.add('split-mode');
-    if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
-      elements.readerOverlay.classList.add('split-left');
-    }
-    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.remove('hidden');
-    if (elements.btnSplitView) elements.btnSplitView.classList.add('active');
-
-    if (elements.splitToolbar) {
-      if (tab.hide_split_url) {
-        elements.splitToolbar.classList.add('hidden');
-        if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.remove('hidden');
-      } else {
-        elements.splitToolbar.classList.remove('hidden');
-        if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.add('hidden');
-      }
-    }
-
-    if (elements.webFrameSplit) {
-      const splitUrl = tab.split_url || 'sonde://startpage';
-      if (elements.urlInputSplit) elements.urlInputSplit.value = (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage') ? '' : unwrapProxyUrl(splitUrl);
-      if (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage' || splitUrl === 'about:blank') {
-        elements.webFrameSplit.removeAttribute('src');
-        elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
-      } else if (splitUrl.startsWith('http://') || splitUrl.startsWith('https://')) {
-        elements.webFrameSplit.removeAttribute('srcdoc');
-        elements.webFrameSplit.src = getWebFrameSrc(splitUrl);
-      } else {
-        elements.webFrameSplit.removeAttribute('srcdoc');
-        elements.webFrameSplit.src = splitUrl;
-      }
-    }
-  } else {
-    elements.webViewContainer.classList.remove('split-mode');
-    if (elements.readerOverlay) {
-      elements.readerOverlay.classList.remove('split-left', 'split-right');
-    }
-    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.add('hidden');
-    if (elements.btnSplitView) elements.btnSplitView.classList.remove('active');
-    if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.add('hidden');
+  if (elements.btnSplitView) {
+    elements.btnSplitView.classList.toggle('active', !!tab.is_split);
   }
 }
 
 function toggleSplitView() {
-  const active = tabs.find(t => t.is_active);
-  if (!active) return;
-  active.is_split = !active.is_split;
-  if (active.is_split && !active.split_url) {
-    active.split_url = 'sonde://startpage';
-  }
-  syncTabSplitView(active);
-  showToast(active.is_split ? (currentLanguage === 'ru' ? "Разделение экрана: ВКЛ" : "Split View: ON") : (currentLanguage === 'ru' ? "Разделение экрана: ВЫКЛ" : "Split View: OFF"));
+  sendIpc('toggle_split');
 }
 
 function navigateSplitTab(input) {
-  const active = tabs.find(t => t.is_active);
-  if (!active || !elements.webFrameSplit) return;
-
   let url = (input || "").trim();
   if (!url) {
     url = 'sonde://startpage';
@@ -496,21 +448,26 @@ function navigateSplitTab(input) {
       url = getSearchUrl(url);
     }
   }
-
-  active.split_url = url;
-  if (elements.urlInputSplit) elements.urlInputSplit.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : unwrapProxyUrl(url);
-
-  if (url === 'sonde://startpage' || url === 'crux://startpage') {
-    elements.webFrameSplit.removeAttribute('src');
-    elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
-  } else if (url.startsWith('http://') || url.startsWith('https://')) {
-    elements.webFrameSplit.removeAttribute('srcdoc');
-    elements.webFrameSplit.src = getWebFrameSrc(url);
-  } else {
-    elements.webFrameSplit.removeAttribute('srcdoc');
-    elements.webFrameSplit.src = url;
-  }
+  sendIpc('navigate_split', { url });
 }
+
+window.onNativeSplitState = function(tabId, isSplit, splitUrl) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (tab) {
+    tab.is_split = isSplit;
+    tab.split_url = splitUrl || 'sonde://startpage';
+  }
+  if (elements.btnSplitView) {
+    elements.btnSplitView.classList.toggle('active', isSplit);
+  }
+  showToast(isSplit ? (currentLanguage === 'ru' ? "Разделение экрана: ВКЛ" : "Split View: ON") : (currentLanguage === 'ru' ? "Разделение экрана: ВЫКЛ" : "Split View: OFF"));
+};
+
+window.onNativeReaderState = function(inReader) {
+  if (elements.btnReaderMode) {
+    elements.btnReaderMode.classList.toggle('active', inReader);
+  }
+};
 
 function updateSecurityDetails(url) {
   const secBadge = document.getElementById('statusBarSecurity');
@@ -840,7 +797,10 @@ function activateTab(id) {
   const current = tabs.find(t => t.id === id);
   if (current) {
     syncTabSplitView(current);
-    loadTabContent(current);
+    if (elements.urlInput) {
+      elements.urlInput.value = (current.url === 'sonde://startpage' || current.url === 'crux://startpage') ? '' : current.url;
+    }
+    updateSecurityDetails(current.url);
     updateNavButtons();
     sendIpc('activate_tab', { id });
   }
@@ -922,7 +882,12 @@ function createTab(url = 'sonde://startpage', container = 'default') {
   tabs.push(tab);
   renderTabs();
   renderHorizontalTabs();
-  activateTab(newId);
+  if (elements.urlInput) elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
+  updateSecurityDetails(url);
+  updateNavButtons();
+  syncTabSplitView(tab);
+  if (elements.btnSplitView) elements.btnSplitView.classList.remove('active');
+  if (elements.btnReaderMode) elements.btnReaderMode.classList.remove('active');
   sendIpc('create_tab', { id: newId, url, container });
 }
 
@@ -1590,43 +1555,12 @@ function openDevTools() {
 }
 
 // Distraction-Free Reader Mode
-function toggleReaderMode(targetPane = 'left') {
-  if (!elements.readerOverlay) return;
-  const isHidden = elements.readerOverlay.classList.contains('hidden');
-
-  if (isHidden) {
-    const active = tabs.find(t => t.is_active);
-    if (!active) return;
-    const url = (targetPane === 'right' && active.split_url) ? active.split_url : active.url;
-
-    if (url.startsWith('sonde://') || url.startsWith('crux://') || url === 'about:blank') {
-      showToast(currentLanguage === 'ru' ? "Режим чтения недоступен для системных страниц" : "Reader mode unavailable for internal pages");
-      return;
-    }
-
-    elements.readerOverlay.classList.remove('split-left', 'split-right');
-    if (active.is_split) {
-      elements.readerOverlay.classList.add(targetPane === 'right' ? 'split-right' : 'split-left');
-    }
-
-    elements.readerTitle.textContent = active.title || 'Reader View';
-    elements.readerContent.innerHTML = `
-      <h2 style="font-size: 22px; margin-bottom: 8px;">${escapeHtml(active.title || 'Loading Article...')}</h2>
-      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Source: ${escapeHtml(url)}</p>
-      <div style="font-size: 14px; line-height: 1.8; color: var(--text-muted);">
-        ${currentLanguage === 'ru' ? 'Извлечение чистого текста статьи...' : 'Extracting clean article text...'}
-      </div>
-    `;
-    elements.readerOverlay.classList.remove('hidden');
-    sendIpc('fetch_reader_content', { url });
-  } else {
-    elements.readerOverlay.classList.add('hidden');
-    elements.readerOverlay.classList.remove('split-left', 'split-right');
-  }
+function toggleReaderMode() {
+  sendIpc('toggle_reader');
 }
 
 if (elements.btnReaderMode) elements.btnReaderMode.addEventListener('click', toggleReaderMode);
-if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => elements.readerOverlay.classList.add('hidden'));
+if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => sendIpc('toggle_reader'));
 
 // Tab Context Menu Controller
 let contextTargetTabId = null;
@@ -2669,6 +2603,12 @@ function handleSondeInternalCommand(cmdUrl) {
     const params = new URLSearchParams(qs);
     const targetUrl = params.get('url') || 'sonde://startpage';
     createTab(targetUrl);
+    return;
+  }
+
+  if (cmdUrl.startsWith('sonde://action/') || cmdUrl.startsWith('crux://action/') ||
+      cmdUrl.startsWith('sonde://live-setting') || cmdUrl.startsWith('crux://live-setting') ||
+      cmdUrl.startsWith('sonde://apply-settings') || cmdUrl.startsWith('crux://apply-settings')) {
     return;
   }
 
