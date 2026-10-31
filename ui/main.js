@@ -30,21 +30,33 @@ let currentHistory = [];
 
 function unwrapProxyUrl(url) {
   if (!url) return '';
-  if (url.startsWith('http://127.0.0.1:39281/proxy?url=')) {
-    const raw = url.replace('http://127.0.0.1:39281/proxy?url=', '');
+  if (url.startsWith('http://127.0.0.1:39281/proxy?') || url.startsWith('http://127.0.0.1:39281/proxy')) {
     try {
-      return decodeURIComponent(raw);
+      const parsed = new URL(url);
+      const target = parsed.searchParams.get('url');
+      if (target) {
+        return target;
+      }
     } catch {
-      return raw;
+      // fallback
+    }
+    const match = url.match(/[?&]url=([^&]+)/);
+    if (match) {
+      try {
+        return decodeURIComponent(match[1]);
+      } catch {
+        return match[1];
+      }
     }
   }
   return url;
 }
 
-function getWebFrameSrc(url) {
+function getWebFrameSrc(url, container = 'default') {
   if (!url) return 'about:blank';
   if (useProxy && (url.startsWith('http://') || url.startsWith('https://'))) {
-    return `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
+    const c = container || 'default';
+    return `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}&container=${encodeURIComponent(c)}`;
   }
   return url;
 }
@@ -459,7 +471,7 @@ function syncTabSplitView(tab) {
         elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
       } else if (splitUrl.startsWith('http://') || splitUrl.startsWith('https://')) {
         elements.webFrameSplit.removeAttribute('srcdoc');
-        elements.webFrameSplit.src = getWebFrameSrc(splitUrl);
+        elements.webFrameSplit.src = getWebFrameSrc(splitUrl, tab.container || 'default');
       } else {
         elements.webFrameSplit.removeAttribute('srcdoc');
         elements.webFrameSplit.src = splitUrl;
@@ -510,7 +522,7 @@ function navigateSplitTab(input) {
     elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
   } else if (url.startsWith('http://') || url.startsWith('https://')) {
     elements.webFrameSplit.removeAttribute('srcdoc');
-    elements.webFrameSplit.src = getWebFrameSrc(url);
+    elements.webFrameSplit.src = getWebFrameSrc(url, active.container || 'default');
   } else {
     elements.webFrameSplit.removeAttribute('srcdoc');
     elements.webFrameSplit.src = url;
@@ -654,7 +666,7 @@ function loadTabContent(tab) {
     }, 60);
   } else if (url.startsWith('http://') || url.startsWith('https://')) {
     elements.webFrame.removeAttribute('srcdoc');
-    elements.webFrame.src = getWebFrameSrc(url);
+    elements.webFrame.src = getWebFrameSrc(url, tab.container || 'default');
     if (elements.urlInput) elements.urlInput.value = unwrapProxyUrl(url);
     sendIpc('get_autofill', { url: unwrapProxyUrl(url) });
   } else {

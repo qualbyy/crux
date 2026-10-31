@@ -76,21 +76,38 @@ fn percent_decode(input: &str) -> String {
     String::from_utf8_lossy(&bytes).to_string()
 }
 
+pub fn parse_query_param(path: &str, param_name: &str) -> Option<String> {
+    let key = format!("{}=", param_name);
+    let mut search_from = 0;
+    while let Some(pos) = path[search_from..].find(&key) {
+        let abs_pos = search_from + pos;
+        if abs_pos == 0 || path.as_bytes()[abs_pos - 1] == b'?' || path.as_bytes()[abs_pos - 1] == b'&' {
+            let val_start = abs_pos + key.len();
+            let val_end = path[val_start..].find('&').map(|p| val_start + p).unwrap_or(path.len());
+            let raw = &path[val_start..val_end];
+            let decoded = percent_decode(raw);
+            let trimmed = decoded.trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
+        }
+        search_from = abs_pos + key.len();
+    }
+    None
+}
+
 fn parse_query_url(path: &str) -> Option<String> {
-    if let Some(pos) = path.find("url=") {
-        let raw = &path[pos + 4..];
-        let mut decoded = percent_decode(raw);
-        // Recursively unwrap any nested /proxy?url=
-        while let Some(inner_pos) = decoded.find("url=") {
-            let inner_raw = &decoded[inner_pos + 4..];
+    if let Some(mut raw_url) = parse_query_param(path, "url") {
+        while let Some(inner_pos) = raw_url.find("url=") {
+            let inner_raw = &raw_url[inner_pos + 4..];
             let inner_dec = percent_decode(inner_raw);
             if inner_dec.starts_with("http://") || inner_dec.starts_with("https://") {
-                decoded = inner_dec;
+                raw_url = inner_dec;
             } else {
                 break;
             }
         }
-        let trimmed = decoded.trim().to_string();
+        let trimmed = raw_url.trim().to_string();
         if !trimmed.is_empty() {
             return Some(trimmed);
         }
@@ -98,7 +115,12 @@ fn parse_query_url(path: &str) -> Option<String> {
     None
 }
 
-static PROXY_CLIENT: std::sync::RwLock<Option<Arc<reqwest::blocking::Client>>> = std::sync::RwLock::new(None);
+pub fn parse_container_param(path: &str) -> String {
+    parse_query_param(path, "container").unwrap_or_else(|| "default".to_string())
+}
+
+static CONTAINER_CLIENTS: OnceLock<Mutex<std::collections::HashMap<String, Arc<reqwest::blocking::Client>>>> = OnceLock::new();
+static UPSTREAM_PROXY: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 fn create_http_client(proxy_url: Option<&str>) -> Arc<reqwest::blocking::Client> {
     let active_ua = get_current_user_agent();
@@ -137,26 +159,32 @@ fn create_http_client(proxy_url: Option<&str>) -> Arc<reqwest::blocking::Client>
 }
 
 pub fn set_network_proxy(proxy_url: &str) {
-    let client = create_http_client(Some(proxy_url));
-    if let Ok(mut lock) = PROXY_CLIENT.write() {
-        *lock = Some(client);
+    let p_lock = UPSTREAM_PROXY.get_or_init(|| Mutex::new(None));
+    if let Ok(mut g) = p_lock.lock() {
+        *g = Some(proxy_url.to_string());
+    }
+    if let Some(map_lock) = CONTAINER_CLIENTS.get() {
+        if let Ok(mut map) = map_lock.lock() {
+            map.clear();
+        }
     }
 }
 
-pub fn get_client() -> Arc<reqwest::blocking::Client> {
-    if let Ok(lock) = PROXY_CLIENT.read() {
-        if let Some(ref c) = *lock {
-            return Arc::clone(c);
-        }
+pub fn get_client_for_container(container: &str) -> Arc<reqwest::blocking::Client> {
+    let map_lock = CONTAINER_CLIENTS.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
+    let mut map = map_lock.lock().unwrap();
+    if let Some(client) = map.get(container) {
+        return Arc::clone(client);
     }
-    create_http_client(None)
+    let upstream = UPSTREAM_PROXY.get().and_then(|l| l.lock().ok()).and_then(|g| g.clone());
+    let client = create_http_client(upstream.as_deref());
+    map.insert(container.to_string(), Arc::clone(&client));
+    client
 }
 
 pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
-    let initial_proxy = db.get_setting("network_proxy");
-    let client = create_http_client(initial_proxy.as_deref());
-    if let Ok(mut lock) = PROXY_CLIENT.write() {
-        *lock = Some(Arc::clone(&client));
+    if let Some(initial_proxy) = db.get_setting("network_proxy") {
+        set_network_proxy(&initial_proxy);
     }
 
     std::thread::spawn(move || {
@@ -175,15 +203,14 @@ pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
                 let adb = Arc::clone(&adblocker);
                 let d = Arc::clone(&db);
                 std::thread::spawn(move || {
-                    let cli = get_client();
-                    handle_client(stream, adb, cli, d);
+                    handle_client(stream, adb, d);
                 });
             }
         }
     });
 }
 
-fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<reqwest::blocking::Client>, _db: Arc<Database>) {
+fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, _db: Arc<Database>) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(12)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(20)));
 
@@ -367,6 +394,8 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
         _ => reqwest::Method::GET,
     };
 
+    let container = parse_container_param(path);
+    let client = get_client_for_container(&container);
     let mut req_builder = client.request(req_method, &target);
 
     if (method == "POST" || method == "PUT" || method == "PATCH") && content_length > 0 {
@@ -475,14 +504,6 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
     if is_download {
         let final_url = resp.url().to_string();
-        let bytes = match resp.bytes() {
-            Ok(b) => b,
-            Err(e) => {
-                send_error_page(&mut stream, &target, &format!("Failed to download file: {}", e));
-                return;
-            }
-        };
-
         let filename = extract_filename(&final_url, &content_disp);
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         let downloads_dir = PathBuf::from(&home).join("Downloads");
@@ -490,21 +511,36 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
         let target_file_path = downloads_dir.join(&filename);
 
         let mut saved = false;
+        let mut total_bytes = 0usize;
         if let Ok(mut f) = std::fs::File::create(&target_file_path) {
-            if f.write_all(&bytes).is_ok() {
-                saved = true;
+            let mut reader = resp;
+            let mut buffer = [0u8; 65536]; // 64 KB streaming buffer
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => {
+                        saved = true;
+                        break;
+                    }
+                    Ok(n) => {
+                        if f.write_all(&buffer[..n]).is_err() {
+                            break;
+                        }
+                        total_bytes += n;
+                    }
+                    Err(_) => break,
+                }
             }
         }
 
-        // If it's a userscript, also save to ~/.config/sonde/scripts/
-        if filename.ends_with(".user.js") {
+        // If it's a userscript, also copy to ~/.config/sonde/scripts/
+        if filename.ends_with(".user.js") && saved {
             let scripts_dir = PathBuf::from(&home).join(".config").join("sonde").join("scripts");
             std::fs::create_dir_all(&scripts_dir).ok();
             let script_target = scripts_dir.join(&filename);
-            let _ = std::fs::write(script_target, &bytes);
+            let _ = std::fs::copy(&target_file_path, &script_target);
         }
 
-        send_download_complete_page(&mut stream, &filename, target_file_path.to_str().unwrap_or(""), saved, bytes.len());
+        send_download_complete_page(&mut stream, &filename, target_file_path.to_str().unwrap_or(""), saved, total_bytes);
         return;
     }
 
@@ -885,10 +921,30 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
                         }
                     } else if ext_name.ends_with(".user.js") {
                         if let Ok(js) = std::fs::read_to_string(&p) {
-                            extensions_injection.push_str(&format!(
-                                "\n<script data-sonde-extension=\"{}\">\ntry {{\n{}\n}} catch(err) {{ console.error('[Sonde Extension {}]', err); }}\n</script>\n",
-                                ext_name, js, ext_name
-                            ));
+                            let mut matches = false;
+                            let mut has_rules = false;
+                            for line in js.lines() {
+                                let trimmed = line.trim();
+                                if trimmed.starts_with("// @match") || trimmed.starts_with("// @include") {
+                                    has_rules = true;
+                                    let pattern = trimmed.split_whitespace().nth(2).unwrap_or("");
+                                    if pattern == "*" || pattern == "*://*/*" || pattern == "<all_urls>" {
+                                        matches = true;
+                                        break;
+                                    }
+                                    let clean = pattern.replace("*", "");
+                                    if !clean.is_empty() && final_url.contains(&clean) {
+                                        matches = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !has_rules || matches {
+                                extensions_injection.push_str(&format!(
+                                    "\n<script data-sonde-extension=\"{}\">\ntry {{\n(function() {{\n{}\n}})();\n}} catch(err) {{ console.error('[Sonde Extension {}]', err); }}\n</script>\n",
+                                    ext_name, js, ext_name
+                                ));
+                            }
                         }
                     }
                 }
