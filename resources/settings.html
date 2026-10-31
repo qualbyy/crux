@@ -1407,6 +1407,8 @@
             try {
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'sonde_cmd', url: url }, '*');
+                } else {
+                    window.location.href = url;
                 }
             } catch (e) {
                 console.log("SONDE_IPC:", e);
@@ -2156,6 +2158,8 @@
                 showToast(currentLang === 'ru' ? "Миграция браузерных данных..." : "Migrating browser data...");
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'sonde_ipc', payload: { action: 'auto_migrate_browsers' } }, '*');
+                } else {
+                    sendToHost('sonde://action/auto-migrate-browsers');
                 }
             }
         }
@@ -2171,6 +2175,8 @@
             showToast(msg);
             if (window.parent && window.parent !== window) {
                 window.parent.postMessage({ type: 'sonde_ipc', payload: { action: 'unlock_vault', master_key: 'sonde' } }, '*');
+            } else {
+                sendToHost('sonde://action/unlock-vault?password=sonde');
             }
         };
 
@@ -2206,6 +2212,10 @@
                     try {
                         if (window.parent && window.parent !== window) {
                             window.parent.postMessage({ type: 'sonde_import_passwords', passwords: imported }, '*');
+                        } else {
+                            imported.forEach(pwd => {
+                                sendToHost(`sonde://action/add-password?url=${encodeURIComponent(pwd.url || '')}&username=${encodeURIComponent(pwd.username || '')}&password=${encodeURIComponent(pwd.password || '')}`);
+                            });
                         }
                     } catch(err) {
                         console.error("Import postMessage failed:", err);

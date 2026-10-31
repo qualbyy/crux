@@ -1375,6 +1375,20 @@ body, html {
   box-sizing: border-box !important;
 }
 
+/* Native Multi-WebView Architecture */
+.workspace-wrapper {
+  display: none !important;
+}
+.bottom-status-bar {
+  display: none !important;
+}
+html, body {
+  height: auto !important;
+  min-height: 0 !important;
+  background: var(--bg-app) !important;
+  overflow: visible !important;
+}
+
 .action-buttons.collapsed #btnBookmark,
 .action-buttons.collapsed #btnDownloads,
 .action-buttons.collapsed #btnSplitView,

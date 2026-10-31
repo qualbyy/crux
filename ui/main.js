@@ -49,12 +49,14 @@ function getWebFrameSrc(url) {
   return url;
 }
 
+const defaultInitUrl = window.SONDE_INITIAL_URL || 'sonde://startpage';
+
 let tabs = [
   {
     id: 1,
-    title: 'Sonde Startpage',
-    url: 'sonde://startpage',
-    history: ['sonde://startpage'],
+    title: (defaultInitUrl === 'sonde://startpage' || defaultInitUrl === 'crux://startpage') ? 'Sonde Startpage' : defaultInitUrl,
+    url: defaultInitUrl,
+    history: [defaultInitUrl],
     historyIndex: 0,
     container: 'default',
     is_pinned: false,
@@ -593,71 +595,15 @@ function updateSecurityDetails(url) {
 }
 
 function loadTabContent(tab) {
-  if (!tab || !elements.webFrame) return;
-
+  if (!tab) return;
   const url = tab.url || 'sonde://startpage';
 
-  const prog = document.getElementById('statusBarProgress');
-  const progFill = document.getElementById('statusBarProgressFill');
-  const sbUrl = document.getElementById('statusBarUrl');
-  if (sbUrl) sbUrl.textContent = url.startsWith('http') ? url : (currentLanguage === 'ru' ? 'Готово' : 'Ready');
-
+  if (elements.urlInput) {
+    elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
+  }
   updateSecurityDetails(url);
-
-  if (prog && progFill) {
-    prog.classList.remove('hidden');
-    progFill.style.width = '35%';
-    setTimeout(() => { if (progFill) progFill.style.width = '75%'; }, 150);
-  }
-
-  if (url === 'sonde://startpage' || url === 'crux://startpage' || url === 'about:blank') {
-    elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
-    if (elements.urlInput) elements.urlInput.value = '';
-    setTimeout(() => {
-      applyAccentColor(currentAccent);
-      applyTheme(currentTheme);
-    }, 60);
-  } else if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) {
-    elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_SETTINGS_HTML || window.CRUX_SETTINGS_HTML || '<h1>Sonde Settings</h1>');
-    if (elements.urlInput) elements.urlInput.value = url;
-    setTimeout(() => {
-      sendIpc('get_settings');
-      applyAccentColor(currentAccent);
-      applyTheme(currentTheme);
-    }, 60);
-  } else if (url.startsWith('sonde://history') || url.startsWith('crux://history')) {
-    elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_HISTORY_HTML || window.CRUX_HISTORY_HTML || '<h1>Sonde History</h1>');
-    if (elements.urlInput) elements.urlInput.value = url;
-    setTimeout(() => {
-      sendIpc('get_history');
-      applyAccentColor(currentAccent);
-      applyTheme(currentTheme);
-    }, 60);
-  } else if (url.startsWith('sonde://downloads') || url.startsWith('crux://downloads')) {
-    elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_DOWNLOADS_HTML || window.CRUX_DOWNLOADS_HTML || '<h1>Sonde Downloads</h1>');
-    if (elements.urlInput) elements.urlInput.value = url;
-    setTimeout(() => {
-      sendIpc('get_downloads');
-      applyAccentColor(currentAccent);
-      applyTheme(currentTheme);
-    }, 60);
-  } else if (url.startsWith('http://') || url.startsWith('https://')) {
-    elements.webFrame.removeAttribute('srcdoc');
-    elements.webFrame.src = getWebFrameSrc(url);
-    if (elements.urlInput) elements.urlInput.value = unwrapProxyUrl(url);
-    sendIpc('get_autofill', { url: unwrapProxyUrl(url) });
-  } else {
-    elements.webFrame.removeAttribute('srcdoc');
-    elements.webFrame.src = url;
-    if (elements.urlInput) elements.urlInput.value = unwrapProxyUrl(url);
-  }
-
-  syncTabSplitView(tab);
-  applyZoom(currentZoom);
+  updateNavButtons();
+  sendIpc('navigate', { url });
 }
 
 if (elements.webFrame) {
@@ -974,7 +920,7 @@ function createTab(url = 'sonde://startpage', container = 'default') {
   renderTabs();
   renderHorizontalTabs();
   activateTab(newId);
-  sendIpc('create_tab', { url, container });
+  sendIpc('create_tab', { id: newId, url, container });
 }
 
 function closeTab(id) {
@@ -1134,36 +1080,78 @@ if (elements.btnToggleSidebar) {
 
 if (elements.btnBack) {
   elements.btnBack.addEventListener('click', () => {
-    const active = tabs.find(t => t.is_active);
-    if (!active || active.historyIndex <= 0) return;
-    active.historyIndex--;
-    const prevUrl = active.history[active.historyIndex];
-    active.url = prevUrl;
-    loadTabContent(active);
-    updateNavButtons();
+    sendIpc('go_back');
   });
 }
 
 if (elements.btnForward) {
   elements.btnForward.addEventListener('click', () => {
-    const active = tabs.find(t => t.is_active);
-    if (!active || active.historyIndex >= active.history.length - 1) return;
-    active.historyIndex++;
-    const nextUrl = active.history[active.historyIndex];
-    active.url = nextUrl;
-    loadTabContent(active);
-    updateNavButtons();
+    sendIpc('go_forward');
   });
 }
 
 if (elements.btnReload) {
   elements.btnReload.addEventListener('click', () => {
-    const active = tabs.find(t => t.is_active);
-    if (!active) return;
-    loadTabContent(active);
+    sendIpc('reload');
     showToast(currentLanguage === 'ru' ? "Страница обновлена" : "Page reloaded");
   });
 }
+
+window.onNativeUrlChanged = function(id, url) {
+  const tab = tabs.find(t => t.id === id);
+  if (tab) {
+    tab.url = url;
+    if (tab.is_active) {
+      if (elements.urlInput) {
+        elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
+      }
+      updateSecurityDetails(url);
+      updateNavButtons();
+    }
+  }
+};
+
+window.onNativeTitleChanged = function(id, title) {
+  const tab = tabs.find(t => t.id === id);
+  if (tab) {
+    tab.title = title;
+    renderTabs();
+    renderHorizontalTabs();
+  }
+};
+
+window.onNativeLoadingState = function(id, isLoading, progress) {
+  const tab = tabs.find(t => t.id === id);
+  if (tab && tab.is_active) {
+    const prog = document.getElementById('progressBar');
+    if (prog) {
+      prog.style.width = isLoading ? `${Math.max(15, progress * 100)}%` : '0%';
+      prog.style.opacity = isLoading ? '1' : '0';
+    }
+  }
+};
+
+window.onNativeTabCreated = function(id, url) {
+  let tab = tabs.find(t => t.id === id);
+  if (!tab) {
+    tab = {
+      id,
+      title: 'New Tab',
+      url,
+      history: [url],
+      historyIndex: 0,
+      container: 'default',
+      is_pinned: false,
+      is_muted: false,
+      is_active: true
+    };
+    tabs.forEach(t => t.is_active = false);
+    tabs.push(tab);
+    renderTabs();
+    renderHorizontalTabs();
+    if (elements.urlInput) elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
+  }
+};
 
 if (elements.urlInput) {
   elements.urlInput.addEventListener('keydown', (e) => {
@@ -1308,6 +1296,8 @@ function closeAllPopups() {
   if (elements.popupBackdrop) elements.popupBackdrop.classList.add('hidden');
   const secPopup = document.getElementById('securityPopup');
   if (secPopup) secPopup.classList.add('hidden');
+  if (elements.commandPalette) elements.commandPalette.classList.add('hidden');
+  sendIpc('set_ui_height', { height: 74 });
 }
 
 if (elements.popupBackdrop) {
@@ -1327,6 +1317,7 @@ if (btnSecBadge && secPopup) {
     const isHidden = secPopup.classList.contains('hidden');
     closeAllPopups();
     if (isHidden) {
+      sendIpc('set_ui_height', { height: 350 });
       const active = tabs.find(t => t.is_active);
       updateSecurityDetails(active ? active.url : 'sonde://startpage');
       secPopup.classList.remove('hidden');
@@ -1428,6 +1419,7 @@ function toggleBookmarksPopup(e) {
   const isHidden = elements.bookmarksPopup ? elements.bookmarksPopup.classList.contains('hidden') : true;
   closeAllPopups();
   if (isHidden && elements.bookmarksPopup) {
+    sendIpc('set_ui_height', { height: 420 });
     sendIpc('get_bookmarks');
     elements.bookmarksPopup.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
@@ -1504,6 +1496,7 @@ function toggleDownloadsPopup(e) {
   const isHidden = elements.downloadsPopup ? elements.downloadsPopup.classList.contains('hidden') : true;
   closeAllPopups();
   if (isHidden && elements.downloadsPopup) {
+    sendIpc('set_ui_height', { height: 420 });
     sendIpc('get_downloads');
     elements.downloadsPopup.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
@@ -1566,6 +1559,7 @@ function toggleAppMenu(e) {
   const isHidden = elements.appMenu ? elements.appMenu.classList.contains('hidden') : true;
   closeAllPopups();
   if (isHidden && elements.appMenu) {
+    sendIpc('set_ui_height', { height: 420 });
     elements.appMenu.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
   }
@@ -1629,6 +1623,8 @@ function openTabContextMenu(e, tab) {
   contextTargetTabId = tab.id;
   closeAllPopups();
   if (!elements.tabContextMenu) return;
+
+  sendIpc('set_ui_height', { height: 260 });
 
   if (elements.ctxPinLabel) {
     elements.ctxPinLabel.textContent = tab.is_pinned
@@ -1899,6 +1895,7 @@ function toggleNavOverflow(e) {
   const isHidden = elements.navOverflowPopup.classList.contains('hidden');
   closeAllPopups();
   if (isHidden) {
+    sendIpc('set_ui_height', { height: 350 });
     elements.navOverflowPopup.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
   }
@@ -2136,11 +2133,17 @@ if (elements.btnAiExplain) {
 // Command Palette (Ctrl+Shift+P)
 function toggleCommandPalette() {
   if (!elements.commandPalette) return;
-  elements.commandPalette.classList.toggle('hidden');
-  if (!elements.commandPalette.classList.contains('hidden')) {
+  const isOpening = elements.commandPalette.classList.contains('hidden');
+  closeAllPopups();
+  if (isOpening) {
+    elements.commandPalette.classList.remove('hidden');
+    sendIpc('set_ui_height', { height: 420 });
     elements.paletteInput.value = '';
     elements.paletteInput.focus();
     renderCommands('');
+  } else {
+    elements.commandPalette.classList.add('hidden');
+    sendIpc('set_ui_height', { height: 74 });
   }
 }
 
@@ -2968,7 +2971,7 @@ checkTopNavOverflow();
 renderTabs();
 renderHorizontalTabs();
 const initialTab = tabs.find(t => t.is_active);
-if (initialTab) {
+if (initialTab && initialTab.url && initialTab.url !== 'sonde://startpage') {
   loadTabContent(initialTab);
 }
 applyLanguage(currentLanguage);

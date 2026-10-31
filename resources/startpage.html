@@ -220,7 +220,7 @@
     <div class="container">
         <header class="header">
             <div class="system-bar">
-                <div><span class="status-dot"></span>SONDE</div>
+                <div><span class="status-dot"></span>SONDE <span id="startpageVersion" style="color: var(--text-muted); font-size: 11px; margin-left: 8px; font-weight: normal;">v2.0.0 // beta</span></div>
             </div>
             <div class="clock-display" id="clock">00:00:00</div>
             <div class="date-display" id="date">Loading...</div>
@@ -338,6 +338,11 @@
             applyTheme(theme, accent);
             const lang = params.get('lang') || 'ru';
             applyLanguage(lang);
+            const ver = params.get('version');
+            if (ver) {
+                const verEl = document.getElementById('startpageVersion');
+                if (verEl) verEl.textContent = ver;
+            }
         })();
 
         function updateClock() {

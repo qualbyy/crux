@@ -330,6 +330,8 @@
             try {
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'crux_cmd', url: url }, '*');
+                } else {
+                    window.location.href = url;
                 }
             } catch (e) {
                 console.log("CRUX_IPC:", e);

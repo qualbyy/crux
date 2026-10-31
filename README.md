@@ -9,8 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://t.me/qualbyy"><b>[ TELEGRAM ]</b></a> •
-  <a href="https://sonde.pages.dev"><b>[ САЙТ / WEBSITE ]</b></a>
+  <a href="https://github.com/qualbyy/sonde/releases"><b>[ СКАЧАТЬ / DOWNLOAD ]</b></a> •
+  <a href="https://sonde.pages.dev"><b>[ САЙТ / WEBSITE ]</b></a> •
+  <a href="https://t.me/qualbyy"><b>[ TELEGRAM ]</b></a>
 </p>
 
 <p align="center">

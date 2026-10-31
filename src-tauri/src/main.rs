@@ -40,6 +40,48 @@ enum UserEvent {
     MinimizeWindow,
     MaximizeWindow,
     DragWindow,
+    NavigateUrl(String),
+    CreateTab { id: u32, url: String },
+    CloseTab { id: u32, new_active: Option<u32> },
+    ActivateTab(u32),
+    GoBack,
+    GoForward,
+    Reload,
+    SetUiHeight(i32),
+    SetZoom(f64),
+    PageUrlChanged { id: u32, url: String },
+    PageTitleChanged { id: u32, title: String },
+    PageLoadingState { id: u32, is_loading: bool, progress: f64 },
+    InternalSettingCommand(String),
+    NativeKeyPress { ctrl: bool, alt: bool, shift: bool, key: String, code: String },
+}
+
+#[derive(Clone)]
+struct InternalPages {
+    startpage: String,
+    settings: String,
+    history: String,
+    downloads: String,
+}
+
+fn load_tab_content(wv: &webkit2gtk::WebView, url: &str, pages: &InternalPages) {
+    use webkit2gtk::WebViewExt;
+    if url == "sonde://startpage" || url == "crux://startpage" || url == "about:blank" || url.is_empty() {
+        wv.load_html(&pages.startpage, None);
+    } else if url.starts_with("sonde://settings") || url.starts_with("crux://settings") {
+        wv.load_html(&pages.settings, None);
+    } else if url.starts_with("sonde://history") || url.starts_with("crux://history") {
+        wv.load_html(&pages.history, None);
+    } else if url.starts_with("sonde://downloads") || url.starts_with("crux://downloads") {
+        wv.load_html(&pages.downloads, None);
+    } else {
+        let full = if url.starts_with("http://") || url.starts_with("https://") {
+            url.to_string()
+        } else {
+            format!("https://{}", url)
+        };
+        wv.load_uri(&full);
+    }
 }
 
 fn parse_reader_mode(url: &str, html: &str) -> serde_json::Value {
@@ -89,6 +131,28 @@ fn parse_reader_mode(url: &str, html: &str) -> serde_json::Value {
     })
 }
 
+fn percent_decode(input: &str) -> String {
+    let mut bytes = Vec::new();
+    let mut chars = input.bytes();
+    while let Some(b) = chars.next() {
+        if b == b'%' {
+            let h1 = chars.next();
+            let h2 = chars.next();
+            if let (Some(c1), Some(c2)) = (h1, h2) {
+                if let Ok(num) = u8::from_str_radix(&format!("{}{}", c1 as char, c2 as char), 16) {
+                    bytes.push(num);
+                    continue;
+                }
+            }
+        } else if b == b'+' {
+            bytes.push(b' ');
+            continue;
+        }
+        bytes.push(b);
+    }
+    String::from_utf8_lossy(&bytes).to_string()
+}
+
 fn main() -> wry::Result<()> {
     // WebKitGTK Wayland rendering fix to prevent blank/gray screen on Linux Wayland/Hyprland
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
@@ -108,8 +172,12 @@ fn main() -> wry::Result<()> {
 
     let db = Arc::new(Database::init(db_path).expect("Failed to initialize SQLite database"));
 
-    // 2. Initialize Core State: TabManager & AdBlocker
-    let tab_manager = Arc::new(Mutex::new(TabManager::new()));
+    let initial_url = std::env::args().nth(1).unwrap_or_else(|| "sonde://startpage".to_string());
+    let mut init_tm = TabManager::new();
+    if initial_url != "sonde://startpage" {
+        init_tm.set_url(1, initial_url.clone());
+    }
+    let tab_manager = Arc::new(Mutex::new(init_tm));
     let adblocker = Arc::new(AdBlocker::new());
 
     // Restore saved adblock state
@@ -184,7 +252,8 @@ fn main() -> wry::Result<()> {
         .replace(
             r#"<script src="main.js"></script>"#,
             &format!(
-                "<script>\nwindow.SONDE_APP_VERSION = \"v2.0.0 // BETA\";\nwindow.SONDE_STARTPAGE_HTML = {};\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.SONDE_SETTINGS_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.SONDE_HISTORY_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.SONDE_DOWNLOADS_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
+                "<script>\nwindow.SONDE_INITIAL_URL = {};\nwindow.SONDE_APP_VERSION = \"v2.0.0 // BETA\";\nwindow.SONDE_STARTPAGE_HTML = {};\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.SONDE_SETTINGS_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.SONDE_HISTORY_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.SONDE_DOWNLOADS_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
+                serde_json::to_string(&initial_url).unwrap_or_default(),
                 startpage_escaped, startpage_escaped, settings_escaped, settings_escaped, history_escaped, history_escaped, downloads_escaped, downloads_escaped, js_content
             ),
         );
@@ -215,20 +284,28 @@ fn main() -> wry::Result<()> {
                             }
                             db_clone.add_history(url, "Web Page").ok();
                             println!("[Sonde Core] Navigating to: {}", url);
+                            let _ = proxy_clone.send_event(UserEvent::NavigateUrl(url.to_string()));
                         }
                     }
                     "create_tab" => {
+                        let id_opt = v["id"].as_u64().map(|x| x as u32);
                         let url = v["url"].as_str().unwrap_or("sonde://startpage");
                         let container = v["container"].as_str().unwrap_or("default");
                         let mut tm = tm_clone.lock().unwrap();
-                        let tab = tm.create_tab(url.to_string(), container.to_string());
+                        let tab = if let Some(req_id) = id_opt {
+                            tm.create_tab_with_id(req_id, url.to_string(), container.to_string())
+                        } else {
+                            tm.create_tab(url.to_string(), container.to_string())
+                        };
                         println!("[Sonde Core] Created Tab: #{} - {}", tab.id, tab.url);
+                        let _ = proxy_clone.send_event(UserEvent::CreateTab { id: tab.id, url: tab.url });
                     }
                     "close_tab" => {
                         if let Some(id) = v["id"].as_u64() {
                             let mut tm = tm_clone.lock().unwrap();
-                            tm.close_tab(id as u32);
+                            let new_active = tm.close_tab(id as u32);
                             println!("[Sonde Core] Closed Tab: #{}", id);
+                            let _ = proxy_clone.send_event(UserEvent::CloseTab { id: id as u32, new_active });
                         }
                     }
                     "activate_tab" => {
@@ -236,6 +313,26 @@ fn main() -> wry::Result<()> {
                             let mut tm = tm_clone.lock().unwrap();
                             tm.activate_tab(id as u32);
                             println!("[Sonde Core] Activated Tab: #{}", id);
+                            let _ = proxy_clone.send_event(UserEvent::ActivateTab(id as u32));
+                        }
+                    }
+                    "go_back" => {
+                        let _ = proxy_clone.send_event(UserEvent::GoBack);
+                    }
+                    "go_forward" => {
+                        let _ = proxy_clone.send_event(UserEvent::GoForward);
+                    }
+                    "reload" => {
+                        let _ = proxy_clone.send_event(UserEvent::Reload);
+                    }
+                    "set_ui_height" => {
+                        if let Some(h) = v["height"].as_i64() {
+                            let _ = proxy_clone.send_event(UserEvent::SetUiHeight(h as i32));
+                        }
+                    }
+                    "set_zoom" => {
+                        if let Some(z) = v["zoom"].as_f64() {
+                            let _ = proxy_clone.send_event(UserEvent::SetZoom(z));
                         }
                     }
                     "toggle_pin" => {
@@ -602,41 +699,188 @@ fn main() -> wry::Result<()> {
     ))]
     let webview = builder.build(&window)?;
 
+    let internal_pages = InternalPages {
+        startpage: startpage_content.to_string(),
+        settings: settings_content.to_string(),
+        history: history_content.to_string(),
+        downloads: downloads_content.to_string(),
+    };
+
     #[cfg(not(any(
         target_os = "windows",
         target_os = "macos",
         target_os = "ios",
         target_os = "android"
     )))]
-    let webview = {
+    let (webview, content_stack, top_box, initial_wv) = {
         use gtk::prelude::*;
         use tao::platform::unix::WindowExtUnix;
         use wry::WebViewBuilderExtUnix;
         use wry::WebViewExtUnix;
         use webkit2gtk::SettingsExt;
+        use webkit2gtk::WebViewExt;
+        use webkit2gtk::NavigationPolicyDecisionExt;
+        use webkit2gtk::PolicyDecisionExt;
+        use webkit2gtk::URIRequestExt;
 
         let vbox = window.default_vbox().expect("Failed to get default vbox from Tao window");
-        let wv = builder.build_gtk(vbox)?;
+
+        let top_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        top_box.set_size_request(-1, 74);
+        vbox.pack_start(&top_box, false, false, 0);
+
+        let stack = gtk::Stack::new();
+        stack.set_transition_type(gtk::StackTransitionType::None);
+        vbox.pack_start(&stack, true, true, 0);
+
+        let wv = builder.build_gtk(&top_box)?;
 
         if let Some(settings) = webkit2gtk::WebViewExt::settings(&wv.webview()) {
             settings.set_disable_web_security(true);
             settings.set_allow_universal_access_from_file_urls(true);
             settings.set_allow_file_access_from_file_urls(true);
             settings.set_enable_developer_extras(true);
+            settings.set_enable_javascript(true);
+        }
+
+        let init_wv = webkit2gtk::WebView::new();
+        let active_ua = proxy::get_current_user_agent();
+        if let Some(settings) = webkit2gtk::WebViewExt::settings(&init_wv) {
+            settings.set_enable_developer_extras(true);
             settings.set_enable_webgl(true);
             settings.set_enable_webaudio(true);
             settings.set_enable_media_stream(true);
             settings.set_enable_mediasource(true);
             settings.set_enable_javascript(true);
-            let active_ua = proxy::get_current_user_agent();
             settings.set_user_agent(Some(&active_ua));
+            settings.set_allow_universal_access_from_file_urls(true);
+            settings.set_allow_file_access_from_file_urls(true);
         }
 
+        let p1 = proxy.clone();
+        init_wv.connect_notify(Some("uri"), move |wv, _| {
+            if let Some(u) = wv.uri() {
+                let _ = p1.send_event(UserEvent::PageUrlChanged { id: 1, url: u.to_string() });
+            }
+        });
+
+        let p2 = proxy.clone();
+        init_wv.connect_notify(Some("title"), move |wv, _| {
+            if let Some(t) = wv.title() {
+                let _ = p2.send_event(UserEvent::PageTitleChanged { id: 1, title: t.to_string() });
+            }
+        });
+
+        let p3 = proxy.clone();
+        init_wv.connect_load_changed(move |wv, ev| {
+            let is_loading = ev != webkit2gtk::LoadEvent::Finished;
+            let _ = p3.send_event(UserEvent::PageLoadingState { id: 1, is_loading, progress: wv.estimated_load_progress() });
+        });
+
+        let p4 = proxy.clone();
+        init_wv.connect_decide_policy(move |_wv, decision, decision_type| {
+            if decision_type == webkit2gtk::PolicyDecisionType::NavigationAction {
+                if let Some(nav_decision) = decision.dynamic_cast_ref::<webkit2gtk::NavigationPolicyDecision>() {
+                    #[allow(deprecated)]
+                    if let Some(req) = nav_decision.request() {
+                        if let Some(uri) = req.uri() {
+                            let u_str = uri.to_string();
+                            if u_str.starts_with("sonde://action/") || u_str.starts_with("crux://action/")
+                                || u_str.starts_with("sonde://live-setting") || u_str.starts_with("crux://live-setting")
+                                || u_str.starts_with("sonde://apply-settings") || u_str.starts_with("crux://apply-settings")
+                                || u_str.starts_with("sonde://new-tab") || u_str.starts_with("crux://new-tab") {
+                                decision.ignore();
+                                let _ = p4.send_event(UserEvent::InternalSettingCommand(u_str));
+                                return true;
+                            } else if u_str.starts_with("sonde://") || u_str.starts_with("crux://") {
+                                decision.ignore();
+                                let _ = p4.send_event(UserEvent::NavigateUrl(u_str));
+                                return true;
+                            }
+                        }
+                    }
+                }
+            } else if decision_type == webkit2gtk::PolicyDecisionType::NewWindowAction {
+                if let Some(nav_decision) = decision.dynamic_cast_ref::<webkit2gtk::NavigationPolicyDecision>() {
+                    #[allow(deprecated)]
+                    if let Some(req) = nav_decision.request() {
+                        if let Some(uri) = req.uri() {
+                            let s_uri = uri.to_string();
+                            let p = p4.clone();
+                            gtk::glib::idle_add_local(move || {
+                                let _ = p.send_event(UserEvent::CreateTab { id: 0, url: s_uri.clone() });
+                                gtk::glib::ControlFlow::Break
+                            });
+                            decision.ignore();
+                            return true;
+                        }
+                    }
+                }
+            }
+            false
+        });
+
+        load_tab_content(&init_wv, &initial_url, &internal_pages);
+        use gtk::gdk;
+        webkit2gtk::WebViewExt::set_background_color(&init_wv, &gdk::RGBA::new(0.094, 0.094, 0.106, 1.0));
+        stack.add_named(&init_wv, "tab_1");
+        init_wv.show();
+        stack.set_visible_child_name("tab_1");
+
+        let p_keys = proxy.clone();
+        window.gtk_window().connect_key_press_event(move |_win, event| {
+            use gtk::gdk;
+            let state = event.state();
+            let has_ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
+            let has_alt = state.contains(gdk::ModifierType::MOD1_MASK);
+            let has_shift = state.contains(gdk::ModifierType::SHIFT_MASK);
+            let keyval = event.keyval();
+
+            let is_f5 = keyval == gdk::keys::constants::F5;
+            let is_f11 = keyval == gdk::keys::constants::F11;
+            let is_f12 = keyval == gdk::keys::constants::F12;
+
+            if has_ctrl || has_alt || is_f5 || is_f11 || is_f12 {
+                let name = keyval.name().map(|s| s.to_string()).unwrap_or_default();
+                let ch_opt = keyval.to_unicode();
+                let key_str = if let Some(ch) = ch_opt {
+                    ch.to_string()
+                } else {
+                    name.clone()
+                };
+
+                let lower_ch = key_str.to_lowercase();
+                let is_standard_edit = has_ctrl && !has_alt && !has_shift && (
+                    lower_ch == "c" || lower_ch == "v" || lower_ch == "x" || lower_ch == "a" || lower_ch == "z" ||
+                    lower_ch == "с" || lower_ch == "м" || lower_ch == "ч" || lower_ch == "ф" || lower_ch == "я"
+                );
+
+                if !is_standard_edit {
+                    let _ = p_keys.send_event(UserEvent::NativeKeyPress {
+                        ctrl: has_ctrl,
+                        alt: has_alt,
+                        shift: has_shift,
+                        key: key_str,
+                        code: format!("Key{}", name.to_uppercase()),
+                    });
+                    return gtk::glib::Propagation::Stop;
+                }
+            }
+            gtk::glib::Propagation::Proceed
+        });
+
         window.gtk_window().show_all();
-        wv
+        (wv, stack, top_box, init_wv)
     };
 
     let db_for_events = Arc::clone(&db);
+    let tab_stack = content_stack;
+    let top_box_ref = top_box;
+    let mut tab_views: std::collections::HashMap<u32, webkit2gtk::WebView> = std::collections::HashMap::new();
+    tab_views.insert(1, initial_wv);
+    let mut active_tab_id: u32 = 1;
+    let mut next_tab_id: u32 = 2;
+    let event_proxy_loop = proxy.clone();
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -740,6 +984,210 @@ fn main() -> wry::Result<()> {
             Event::UserEvent(UserEvent::ReaderContentLoaded(json_str)) => {
                 let script = format!("if (window.onReaderContentLoaded) window.onReaderContentLoaded({});", json_str);
                 let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::NavigateUrl(url)) => {
+                if let Some(wv) = tab_views.get(&active_tab_id) {
+                    load_tab_content(wv, &url, &internal_pages);
+                }
+            }
+            Event::UserEvent(UserEvent::CreateTab { mut id, url }) => {
+                use gtk::prelude::*;
+                use webkit2gtk::WebViewExt;
+                use webkit2gtk::SettingsExt;
+                use webkit2gtk::NavigationPolicyDecisionExt;
+                use webkit2gtk::PolicyDecisionExt;
+                use webkit2gtk::URIRequestExt;
+                if id == 0 {
+                    id = next_tab_id;
+                    next_tab_id += 1;
+                }
+                let wv = webkit2gtk::WebView::new();
+                let active_ua = proxy::get_current_user_agent();
+                if let Some(settings) = webkit2gtk::WebViewExt::settings(&wv) {
+                    settings.set_enable_developer_extras(true);
+                    settings.set_enable_webgl(true);
+                    settings.set_enable_webaudio(true);
+                    settings.set_enable_media_stream(true);
+                    settings.set_enable_mediasource(true);
+                    settings.set_enable_javascript(true);
+                    settings.set_user_agent(Some(&active_ua));
+                    settings.set_allow_universal_access_from_file_urls(true);
+                    settings.set_allow_file_access_from_file_urls(true);
+                }
+                webkit2gtk::WebViewExt::set_background_color(&wv, &gtk::gdk::RGBA::new(0.094, 0.094, 0.106, 1.0));
+
+                let p1 = event_proxy_loop.clone();
+                let tid = id;
+                wv.connect_notify(Some("uri"), move |wv, _| {
+                    if let Some(u) = wv.uri() {
+                        let _ = p1.send_event(UserEvent::PageUrlChanged { id: tid, url: u.to_string() });
+                    }
+                });
+
+                let p2 = event_proxy_loop.clone();
+                wv.connect_notify(Some("title"), move |wv, _| {
+                    if let Some(t) = wv.title() {
+                        let _ = p2.send_event(UserEvent::PageTitleChanged { id: tid, title: t.to_string() });
+                    }
+                });
+
+                let p3 = event_proxy_loop.clone();
+                wv.connect_load_changed(move |wv, ev| {
+                    let is_loading = ev != webkit2gtk::LoadEvent::Finished;
+                    let _ = p3.send_event(UserEvent::PageLoadingState { id: tid, is_loading, progress: wv.estimated_load_progress() });
+                });
+
+                let p4 = event_proxy_loop.clone();
+                wv.connect_decide_policy(move |_wv, decision, decision_type| {
+                    if decision_type == webkit2gtk::PolicyDecisionType::NavigationAction {
+                        if let Some(nav_decision) = decision.dynamic_cast_ref::<webkit2gtk::NavigationPolicyDecision>() {
+                            #[allow(deprecated)]
+                            if let Some(req) = nav_decision.request() {
+                                if let Some(uri) = req.uri() {
+                                    let u_str = uri.to_string();
+                                    if u_str.starts_with("sonde://action/") || u_str.starts_with("crux://action/")
+                                        || u_str.starts_with("sonde://live-setting") || u_str.starts_with("crux://live-setting")
+                                        || u_str.starts_with("sonde://apply-settings") || u_str.starts_with("crux://apply-settings")
+                                        || u_str.starts_with("sonde://new-tab") || u_str.starts_with("crux://new-tab") {
+                                        decision.ignore();
+                                        let _ = p4.send_event(UserEvent::InternalSettingCommand(u_str));
+                                        return true;
+                                    } else if u_str.starts_with("sonde://") || u_str.starts_with("crux://") {
+                                        decision.ignore();
+                                        let _ = p4.send_event(UserEvent::NavigateUrl(u_str));
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    } else if decision_type == webkit2gtk::PolicyDecisionType::NewWindowAction {
+                        if let Some(nav_decision) = decision.dynamic_cast_ref::<webkit2gtk::NavigationPolicyDecision>() {
+                            #[allow(deprecated)]
+                            if let Some(req) = nav_decision.request() {
+                                if let Some(uri) = req.uri() {
+                                    let s_uri = uri.to_string();
+                                    let p = p4.clone();
+                                    gtk::glib::idle_add_local(move || {
+                                        let _ = p.send_event(UserEvent::CreateTab { id: 0, url: s_uri.clone() });
+                                        gtk::glib::ControlFlow::Break
+                                    });
+                                    decision.ignore();
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    false
+                });
+
+                load_tab_content(&wv, &url, &internal_pages);
+                let name = format!("tab_{}", id);
+                tab_stack.add_named(&wv, &name);
+                wv.show();
+                tab_stack.set_visible_child_name(&name);
+                active_tab_id = id;
+                tab_views.insert(id, wv);
+
+                let script = format!("if (window.onNativeTabCreated) window.onNativeTabCreated({}, {});", id, serde_json::to_string(&url).unwrap());
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::CloseTab { id, new_active }) => {
+                use gtk::prelude::*;
+                if let Some(wv) = tab_views.remove(&id) {
+                    tab_stack.remove(&wv);
+                }
+                if let Some(next_id) = new_active {
+                    tab_stack.set_visible_child_name(&format!("tab_{}", next_id));
+                    active_tab_id = next_id;
+                } else if let Some(&first_id) = tab_views.keys().next() {
+                    tab_stack.set_visible_child_name(&format!("tab_{}", first_id));
+                    active_tab_id = first_id;
+                }
+            }
+            Event::UserEvent(UserEvent::ActivateTab(id)) => {
+                use gtk::prelude::*;
+                tab_stack.set_visible_child_name(&format!("tab_{}", id));
+                active_tab_id = id;
+            }
+            Event::UserEvent(UserEvent::GoBack) => {
+                if let Some(wv) = tab_views.get(&active_tab_id) {
+                    use webkit2gtk::WebViewExt;
+                    wv.go_back();
+                }
+            }
+            Event::UserEvent(UserEvent::GoForward) => {
+                if let Some(wv) = tab_views.get(&active_tab_id) {
+                    use webkit2gtk::WebViewExt;
+                    wv.go_forward();
+                }
+            }
+            Event::UserEvent(UserEvent::Reload) => {
+                if let Some(wv) = tab_views.get(&active_tab_id) {
+                    use webkit2gtk::WebViewExt;
+                    wv.reload();
+                }
+            }
+            Event::UserEvent(UserEvent::SetUiHeight(h)) => {
+                use gtk::prelude::*;
+                top_box_ref.set_size_request(-1, h);
+                top_box_ref.queue_resize();
+            }
+            Event::UserEvent(UserEvent::SetZoom(level)) => {
+                if let Some(wv) = tab_views.get(&active_tab_id) {
+                    use webkit2gtk::WebViewExt;
+                    wv.set_zoom_level(level);
+                }
+            }
+            Event::UserEvent(UserEvent::PageUrlChanged { id, url }) => {
+                let script = format!("if (window.onNativeUrlChanged) window.onNativeUrlChanged({}, {});", id, serde_json::to_string(&url).unwrap());
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::PageTitleChanged { id, title }) => {
+                let script = format!("if (window.onNativeTitleChanged) window.onNativeTitleChanged({}, {});", id, serde_json::to_string(&title).unwrap());
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::PageLoadingState { id, is_loading, progress }) => {
+                let script = format!("if (window.onNativeLoadingState) window.onNativeLoadingState({}, {}, {});", id, is_loading, progress);
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::NativeKeyPress { ctrl, alt, shift, key, code }) => {
+                let script = format!(
+                    "if (window.handleGlobalShortcut) window.handleGlobalShortcut({{ ctrlKey: {}, altKey: {}, shiftKey: {}, key: {}, code: {}, preventDefault: function(){{}} }});",
+                    ctrl, alt, shift,
+                    serde_json::to_string(&key).unwrap_or_default(),
+                    serde_json::to_string(&code).unwrap_or_default()
+                );
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::InternalSettingCommand(cmd_url)) => {
+                let script = format!("if (window.handleSondeInternalCommand) window.handleSondeInternalCommand({});", serde_json::to_string(&cmd_url).unwrap_or_default());
+                let _ = webview.evaluate_script(&script);
+
+                if let Some(q_idx) = cmd_url.find('?') {
+                    let qs = &cmd_url[q_idx + 1..];
+                    let mut key = String::new();
+                    let mut val = String::new();
+                    for part in qs.split('&') {
+                        if let Some((k, v)) = part.split_once('=') {
+                            let decoded_v = percent_decode(v);
+                            if k == "key" {
+                                key = decoded_v;
+                            } else if k == "value" {
+                                val = decoded_v;
+                            }
+                        }
+                    }
+                    if !key.is_empty() {
+                        db_for_events.save_setting(&key, &val).ok();
+                        if key == "network_proxy" {
+                            proxy::set_network_proxy(&val);
+                        }
+                        if key == "user_agent" {
+                            proxy::set_custom_user_agent(&val);
+                        }
+                        println!("[Sonde Core] Live Setting Saved via Native Event: {} = {}", key, val);
+                    }
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
