@@ -72,7 +72,7 @@ impl TabManager {
 
     pub fn activate_tab(&mut self, id: u32) {
         for t in &mut self.tabs {
-            t.is_active = (t.id == id);
+            t.is_active = t.id == id;
         }
         self.active_id = Some(id);
     }

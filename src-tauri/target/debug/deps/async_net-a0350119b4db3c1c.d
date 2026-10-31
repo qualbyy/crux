@@ -1,0 +1,11 @@
+/home/qualbyy/.gemini/antigravity/scratch/zinc-browser/src-tauri/target/debug/deps/async_net-a0350119b4db3c1c.d: /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/lib.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/unix.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/addr.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/tcp.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/udp.rs
+
+/home/qualbyy/.gemini/antigravity/scratch/zinc-browser/src-tauri/target/debug/deps/libasync_net-a0350119b4db3c1c.rlib: /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/lib.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/unix.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/addr.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/tcp.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/udp.rs
+
+/home/qualbyy/.gemini/antigravity/scratch/zinc-browser/src-tauri/target/debug/deps/libasync_net-a0350119b4db3c1c.rmeta: /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/lib.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/unix.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/addr.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/tcp.rs /home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/udp.rs
+
+/home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/lib.rs:
+/home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/unix.rs:
+/home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/addr.rs:
+/home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/tcp.rs:
+/home/qualbyy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-net-2.0.0/src/udp.rs:
