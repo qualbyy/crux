@@ -54,30 +54,6 @@ impl TabManager {
         tab
     }
 
-    pub fn create_tab_with_id(&mut self, id: u32, url: String, container: String) -> Tab {
-        if id >= self.next_id {
-            self.next_id = id + 1;
-        }
-
-        let tab = Tab {
-            id,
-            title: "New Tab".to_string(),
-            url,
-            container,
-            is_pinned: false,
-            is_muted: false,
-            is_active: true,
-        };
-
-        for t in &mut self.tabs {
-            t.is_active = false;
-        }
-
-        self.active_id = Some(id);
-        self.tabs.push(tab.clone());
-        tab
-    }
-
     pub fn close_tab(&mut self, id: u32) -> Option<u32> {
         if let Some(pos) = self.tabs.iter().position(|t| t.id == id) {
             self.tabs.remove(pos);

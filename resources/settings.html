@@ -1509,8 +1509,8 @@
                 if (document.getElementById('setting-ua-preset')) document.getElementById('setting-ua-preset').value = 'chrome-linux';
             }
 
-            if (document.getElementById('setting-use-proxy') && s.use_proxy !== undefined) {
-                document.getElementById('setting-use-proxy').checked = s.use_proxy === 'true';
+            if (document.getElementById('setting-use-proxy')) {
+                document.getElementById('setting-use-proxy').checked = s.use_proxy !== undefined ? (s.use_proxy === 'true') : true;
             }
             if (document.getElementById('setting-network-proxy') && s.network_proxy !== undefined) {
                 document.getElementById('setting-network-proxy').value = s.network_proxy;

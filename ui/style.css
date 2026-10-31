@@ -85,12 +85,9 @@ body, html {
 
 .popup-backdrop {
   position: fixed;
-  top: 38px;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   z-index: 1500;
-  background: rgba(0, 0, 0, 0.25);
+  background: transparent;
 }
 
 .popup-backdrop.hidden {
@@ -307,21 +304,15 @@ body, html {
 }
 
 .top-nav {
-  height: 38px;
-  min-height: 38px;
-  max-height: 38px;
-  box-sizing: border-box;
   display: flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 6px 8px;
   gap: 6px;
   background-color: var(--bg-app);
   border-bottom: 1px solid var(--border);
   user-select: none;
   min-width: 0;
   overflow: hidden;
-  position: relative;
-  z-index: 100;
 }
 
 .nav-buttons {
@@ -713,9 +704,17 @@ body, html {
   }
 }
 
-/* Split View is handled natively via WebKitGTK */
+/* Split View */
 .webview-container.split-mode {
-  display: none !important;
+  display: flex !important;
+  flex-direction: row;
+}
+
+.webview-container.split-mode > #webFrame {
+  width: 50% !important;
+  flex: 1 1 50% !important;
+  display: block !important;
+  border-right: 1px solid var(--border);
 }
 
 /* Horizontal Tab Bar */
@@ -1085,7 +1084,7 @@ body, html {
 /* Crux Dropdown Menu (Anchored to Top Right) */
 .dropdown-menu {
   position: absolute;
-  top: 38px;
+  top: 40px;
   right: 8px;
   width: 290px;
   max-width: 290px;
@@ -1376,46 +1375,6 @@ body, html {
   box-sizing: border-box !important;
 }
 
-/* Native Multi-WebView Architecture */
-html, body {
-  width: 100vw !important;
-  height: 100vh !important;
-  background: transparent !important;
-  overflow: hidden !important;
-}
-
-.app-container {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  background: transparent !important;
-}
-
-.sidebar {
-  height: 100vh;
-  background-color: var(--bg-sidebar);
-}
-
-.workspace-wrapper {
-  flex: 1;
-  display: flex !important;
-  position: relative;
-  background: transparent !important;
-  pointer-events: none;
-}
-
-.workspace-wrapper > * {
-  pointer-events: auto;
-}
-
-.webview-container {
-  display: none !important;
-}
-
-.bottom-status-bar {
-  display: none !important;
-}
-
 .action-buttons.collapsed #btnBookmark,
 .action-buttons.collapsed #btnDownloads,
 .action-buttons.collapsed #btnSplitView,
@@ -1594,7 +1553,7 @@ html, body {
 /* Floating Tool Popups (Bookmarks & Downloads) */
 .floating-popup {
   position: absolute;
-  top: 38px;
+  top: 40px;
   background-color: var(--bg-elevated);
   border: 1px solid var(--border);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.85);

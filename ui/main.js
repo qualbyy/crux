@@ -21,7 +21,7 @@ let currentZoom = 1.0;
 let isMobileMode = false;
 let mobileWidth = 390;
 let mobileHeight = 844;
-let useProxy = false; // By default disabled for native HTTP/2, GitHub search & direct fast loading
+let useProxy = true; // Enabled by default to strip CSP frame-ancestors and X-Frame-Options for iframe loading
 let closedTabsStack = [];
 let currentSettings = {};
 let currentBookmarks = [];
@@ -49,14 +49,12 @@ function getWebFrameSrc(url) {
   return url;
 }
 
-const defaultInitUrl = window.SONDE_INITIAL_URL || 'sonde://startpage';
-
 let tabs = [
   {
     id: 1,
-    title: (defaultInitUrl === 'sonde://startpage' || defaultInitUrl === 'crux://startpage') ? 'Sonde Startpage' : defaultInitUrl,
-    url: defaultInitUrl,
-    history: [defaultInitUrl],
+    title: 'Sonde Startpage',
+    url: 'sonde://startpage',
+    history: ['sonde://startpage'],
     historyIndex: 0,
     container: 'default',
     is_pinned: false,
@@ -428,16 +426,64 @@ function updateNavButtons() {
 // Per-Tab Split View Synchronizer
 function syncTabSplitView(tab) {
   if (!tab) return;
-  if (elements.btnSplitView) {
-    elements.btnSplitView.classList.toggle('active', !!tab.is_split);
+  if (tab.is_split) {
+    elements.webViewContainer.classList.add('split-mode');
+    if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
+      elements.readerOverlay.classList.add('split-left');
+    }
+    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.remove('hidden');
+    if (elements.btnSplitView) elements.btnSplitView.classList.add('active');
+
+    if (elements.splitToolbar) {
+      if (tab.hide_split_url) {
+        elements.splitToolbar.classList.add('hidden');
+        if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.remove('hidden');
+      } else {
+        elements.splitToolbar.classList.remove('hidden');
+        if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.add('hidden');
+      }
+    }
+
+    if (elements.webFrameSplit) {
+      const splitUrl = tab.split_url || 'sonde://startpage';
+      if (elements.urlInputSplit) elements.urlInputSplit.value = (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage') ? '' : unwrapProxyUrl(splitUrl);
+      if (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage' || splitUrl === 'about:blank') {
+        elements.webFrameSplit.removeAttribute('src');
+        elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
+      } else if (splitUrl.startsWith('http://') || splitUrl.startsWith('https://')) {
+        elements.webFrameSplit.removeAttribute('srcdoc');
+        elements.webFrameSplit.src = getWebFrameSrc(splitUrl);
+      } else {
+        elements.webFrameSplit.removeAttribute('srcdoc');
+        elements.webFrameSplit.src = splitUrl;
+      }
+    }
+  } else {
+    elements.webViewContainer.classList.remove('split-mode');
+    if (elements.readerOverlay) {
+      elements.readerOverlay.classList.remove('split-left', 'split-right');
+    }
+    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.add('hidden');
+    if (elements.btnSplitView) elements.btnSplitView.classList.remove('active');
+    if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.add('hidden');
   }
 }
 
 function toggleSplitView() {
-  sendIpc('toggle_split');
+  const active = tabs.find(t => t.is_active);
+  if (!active) return;
+  active.is_split = !active.is_split;
+  if (active.is_split && !active.split_url) {
+    active.split_url = 'sonde://startpage';
+  }
+  syncTabSplitView(active);
+  showToast(active.is_split ? (currentLanguage === 'ru' ? "Разделение экрана: ВКЛ" : "Split View: ON") : (currentLanguage === 'ru' ? "Разделение экрана: ВЫКЛ" : "Split View: OFF"));
 }
 
 function navigateSplitTab(input) {
+  const active = tabs.find(t => t.is_active);
+  if (!active || !elements.webFrameSplit) return;
+
   let url = (input || "").trim();
   if (!url) {
     url = 'sonde://startpage';
@@ -448,26 +494,21 @@ function navigateSplitTab(input) {
       url = getSearchUrl(url);
     }
   }
-  sendIpc('navigate_split', { url });
+
+  active.split_url = url;
+  if (elements.urlInputSplit) elements.urlInputSplit.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : unwrapProxyUrl(url);
+
+  if (url === 'sonde://startpage' || url === 'crux://startpage') {
+    elements.webFrameSplit.removeAttribute('src');
+    elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
+  } else if (url.startsWith('http://') || url.startsWith('https://')) {
+    elements.webFrameSplit.removeAttribute('srcdoc');
+    elements.webFrameSplit.src = getWebFrameSrc(url);
+  } else {
+    elements.webFrameSplit.removeAttribute('srcdoc');
+    elements.webFrameSplit.src = url;
+  }
 }
-
-window.onNativeSplitState = function(tabId, isSplit, splitUrl) {
-  const tab = tabs.find(t => t.id === tabId);
-  if (tab) {
-    tab.is_split = isSplit;
-    tab.split_url = splitUrl || 'sonde://startpage';
-  }
-  if (elements.btnSplitView) {
-    elements.btnSplitView.classList.toggle('active', isSplit);
-  }
-  showToast(isSplit ? (currentLanguage === 'ru' ? "Разделение экрана: ВКЛ" : "Split View: ON") : (currentLanguage === 'ru' ? "Разделение экрана: ВЫКЛ" : "Split View: OFF"));
-};
-
-window.onNativeReaderState = function(inReader) {
-  if (elements.btnReaderMode) {
-    elements.btnReaderMode.classList.toggle('active', inReader);
-  }
-};
 
 function updateSecurityDetails(url) {
   const secBadge = document.getElementById('statusBarSecurity');
@@ -552,15 +593,71 @@ function updateSecurityDetails(url) {
 }
 
 function loadTabContent(tab) {
-  if (!tab) return;
+  if (!tab || !elements.webFrame) return;
+
   const url = tab.url || 'sonde://startpage';
 
-  if (elements.urlInput) {
-    elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
-  }
+  const prog = document.getElementById('statusBarProgress');
+  const progFill = document.getElementById('statusBarProgressFill');
+  const sbUrl = document.getElementById('statusBarUrl');
+  if (sbUrl) sbUrl.textContent = url.startsWith('http') ? url : (currentLanguage === 'ru' ? 'Готово' : 'Ready');
+
   updateSecurityDetails(url);
-  updateNavButtons();
-  sendIpc('navigate', { url });
+
+  if (prog && progFill) {
+    prog.classList.remove('hidden');
+    progFill.style.width = '35%';
+    setTimeout(() => { if (progFill) progFill.style.width = '75%'; }, 150);
+  }
+
+  if (url === 'sonde://startpage' || url === 'crux://startpage' || url === 'about:blank') {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
+    if (elements.urlInput) elements.urlInput.value = '';
+    setTimeout(() => {
+      applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
+    }, 60);
+  } else if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_SETTINGS_HTML || window.CRUX_SETTINGS_HTML || '<h1>Sonde Settings</h1>');
+    if (elements.urlInput) elements.urlInput.value = url;
+    setTimeout(() => {
+      sendIpc('get_settings');
+      applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
+    }, 60);
+  } else if (url.startsWith('sonde://history') || url.startsWith('crux://history')) {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_HISTORY_HTML || window.CRUX_HISTORY_HTML || '<h1>Sonde History</h1>');
+    if (elements.urlInput) elements.urlInput.value = url;
+    setTimeout(() => {
+      sendIpc('get_history');
+      applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
+    }, 60);
+  } else if (url.startsWith('sonde://downloads') || url.startsWith('crux://downloads')) {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_DOWNLOADS_HTML || window.CRUX_DOWNLOADS_HTML || '<h1>Sonde Downloads</h1>');
+    if (elements.urlInput) elements.urlInput.value = url;
+    setTimeout(() => {
+      sendIpc('get_downloads');
+      applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
+    }, 60);
+  } else if (url.startsWith('http://') || url.startsWith('https://')) {
+    elements.webFrame.removeAttribute('srcdoc');
+    elements.webFrame.src = getWebFrameSrc(url);
+    if (elements.urlInput) elements.urlInput.value = unwrapProxyUrl(url);
+    sendIpc('get_autofill', { url: unwrapProxyUrl(url) });
+  } else {
+    elements.webFrame.removeAttribute('srcdoc');
+    elements.webFrame.src = url;
+    if (elements.urlInput) elements.urlInput.value = unwrapProxyUrl(url);
+  }
+
+  syncTabSplitView(tab);
+  applyZoom(currentZoom);
 }
 
 if (elements.webFrame) {
@@ -756,12 +853,10 @@ function setTabOrientation(orient) {
     if (elements.sidebar) elements.sidebar.classList.add('hidden');
     if (elements.horizontalTabBar) elements.horizontalTabBar.classList.remove('hidden');
     renderHorizontalTabs();
-    sendIpc('set_tab_orientation', { orientation: 'horizontal' });
   } else {
     if (elements.sidebar) elements.sidebar.classList.remove('hidden');
     if (elements.horizontalTabBar) elements.horizontalTabBar.classList.add('hidden');
     renderTabs();
-    sendIpc('set_tab_orientation', { orientation: 'vertical' });
   }
   if (elements.chkTabVert) elements.chkTabVert.textContent = tabOrientation === 'vertical' ? '[x]' : '[ ]';
   if (elements.chkTabHoriz) elements.chkTabHoriz.textContent = tabOrientation === 'horizontal' ? '[x]' : '[ ]';
@@ -796,11 +891,7 @@ function activateTab(id) {
   renderHorizontalTabs();
   const current = tabs.find(t => t.id === id);
   if (current) {
-    syncTabSplitView(current);
-    if (elements.urlInput) {
-      elements.urlInput.value = (current.url === 'sonde://startpage' || current.url === 'crux://startpage') ? '' : current.url;
-    }
-    updateSecurityDetails(current.url);
+    loadTabContent(current);
     updateNavButtons();
     sendIpc('activate_tab', { id });
   }
@@ -882,13 +973,8 @@ function createTab(url = 'sonde://startpage', container = 'default') {
   tabs.push(tab);
   renderTabs();
   renderHorizontalTabs();
-  if (elements.urlInput) elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
-  updateSecurityDetails(url);
-  updateNavButtons();
-  syncTabSplitView(tab);
-  if (elements.btnSplitView) elements.btnSplitView.classList.remove('active');
-  if (elements.btnReaderMode) elements.btnReaderMode.classList.remove('active');
-  sendIpc('create_tab', { id: newId, url, container });
+  activateTab(newId);
+  sendIpc('create_tab', { url, container });
 }
 
 function closeTab(id) {
@@ -1043,92 +1129,41 @@ if (elements.btnNewTabHoriz) elements.btnNewTabHoriz.addEventListener('click', (
 if (elements.btnToggleSidebar) {
   elements.btnToggleSidebar.addEventListener('click', () => {
     elements.sidebar.classList.toggle('compact');
-    const isCompact = elements.sidebar.classList.contains('compact');
-    sendIpc('set_sidebar_margin', { width: isCompact ? 52 : 240 });
   });
 }
 
 if (elements.btnBack) {
   elements.btnBack.addEventListener('click', () => {
-    sendIpc('go_back');
+    const active = tabs.find(t => t.is_active);
+    if (!active || active.historyIndex <= 0) return;
+    active.historyIndex--;
+    const prevUrl = active.history[active.historyIndex];
+    active.url = prevUrl;
+    loadTabContent(active);
+    updateNavButtons();
   });
 }
 
 if (elements.btnForward) {
   elements.btnForward.addEventListener('click', () => {
-    sendIpc('go_forward');
+    const active = tabs.find(t => t.is_active);
+    if (!active || active.historyIndex >= active.history.length - 1) return;
+    active.historyIndex++;
+    const nextUrl = active.history[active.historyIndex];
+    active.url = nextUrl;
+    loadTabContent(active);
+    updateNavButtons();
   });
 }
 
 if (elements.btnReload) {
   elements.btnReload.addEventListener('click', () => {
-    sendIpc('reload');
+    const active = tabs.find(t => t.is_active);
+    if (!active) return;
+    loadTabContent(active);
     showToast(currentLanguage === 'ru' ? "Страница обновлена" : "Page reloaded");
   });
 }
-
-window.onNativeUrlChanged = function(id, url) {
-  const tab = tabs.find(t => t.id === id);
-  if (tab) {
-    tab.url = url;
-    if (tab.is_active) {
-      if (elements.urlInput) {
-        elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
-      }
-      updateSecurityDetails(url);
-      updateNavButtons();
-    }
-  }
-};
-
-window.onNativeTitleChanged = function(id, title) {
-  const tab = tabs.find(t => t.id === id);
-  if (tab) {
-    tab.title = title;
-    renderTabs();
-    renderHorizontalTabs();
-  }
-};
-
-window.onNativeLoadingState = function(id, isLoading, progress) {
-  const tab = tabs.find(t => t.id === id);
-  if (tab && tab.is_active) {
-    const prog = document.getElementById('progressBar');
-    if (prog) {
-      prog.style.width = isLoading ? `${Math.max(15, progress * 100)}%` : '0%';
-      prog.style.opacity = isLoading ? '1' : '0';
-    }
-  }
-};
-
-window.onNativeTabCreated = function(id, url) {
-  let tab = tabs.find(t => t.id === id);
-  if (!tab) {
-    tab = {
-      id,
-      title: 'New Tab',
-      url,
-      history: [url],
-      historyIndex: 0,
-      container: 'default',
-      is_pinned: false,
-      is_muted: false,
-      is_playing_audio: false,
-      is_split: false,
-      split_url: 'sonde://startpage',
-      hide_split_url: false,
-      is_active: true
-    };
-    tabs.forEach(t => t.is_active = false);
-    tabs.push(tab);
-    renderTabs();
-    renderHorizontalTabs();
-    syncTabSplitView(tab);
-    if (elements.urlInput) elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
-  } else {
-    syncTabSplitView(tab);
-  }
-};
 
 if (elements.urlInput) {
   elements.urlInput.addEventListener('keydown', (e) => {
@@ -1273,8 +1308,6 @@ function closeAllPopups() {
   if (elements.popupBackdrop) elements.popupBackdrop.classList.add('hidden');
   const secPopup = document.getElementById('securityPopup');
   if (secPopup) secPopup.classList.add('hidden');
-  if (elements.commandPalette) elements.commandPalette.classList.add('hidden');
-  sendIpc('set_ui_height', { height: 74 });
 }
 
 if (elements.popupBackdrop) {
@@ -1294,7 +1327,6 @@ if (btnSecBadge && secPopup) {
     const isHidden = secPopup.classList.contains('hidden');
     closeAllPopups();
     if (isHidden) {
-      sendIpc('set_ui_height', { height: 350 });
       const active = tabs.find(t => t.is_active);
       updateSecurityDetails(active ? active.url : 'sonde://startpage');
       secPopup.classList.remove('hidden');
@@ -1396,7 +1428,6 @@ function toggleBookmarksPopup(e) {
   const isHidden = elements.bookmarksPopup ? elements.bookmarksPopup.classList.contains('hidden') : true;
   closeAllPopups();
   if (isHidden && elements.bookmarksPopup) {
-    sendIpc('set_ui_height', { height: 420 });
     sendIpc('get_bookmarks');
     elements.bookmarksPopup.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
@@ -1473,7 +1504,6 @@ function toggleDownloadsPopup(e) {
   const isHidden = elements.downloadsPopup ? elements.downloadsPopup.classList.contains('hidden') : true;
   closeAllPopups();
   if (isHidden && elements.downloadsPopup) {
-    sendIpc('set_ui_height', { height: 420 });
     sendIpc('get_downloads');
     elements.downloadsPopup.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
@@ -1536,7 +1566,6 @@ function toggleAppMenu(e) {
   const isHidden = elements.appMenu ? elements.appMenu.classList.contains('hidden') : true;
   closeAllPopups();
   if (isHidden && elements.appMenu) {
-    sendIpc('set_ui_height', { height: 420 });
     elements.appMenu.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
   }
@@ -1555,12 +1584,43 @@ function openDevTools() {
 }
 
 // Distraction-Free Reader Mode
-function toggleReaderMode() {
-  sendIpc('toggle_reader');
+function toggleReaderMode(targetPane = 'left') {
+  if (!elements.readerOverlay) return;
+  const isHidden = elements.readerOverlay.classList.contains('hidden');
+
+  if (isHidden) {
+    const active = tabs.find(t => t.is_active);
+    if (!active) return;
+    const url = (targetPane === 'right' && active.split_url) ? active.split_url : active.url;
+
+    if (url.startsWith('sonde://') || url.startsWith('crux://') || url === 'about:blank') {
+      showToast(currentLanguage === 'ru' ? "Режим чтения недоступен для системных страниц" : "Reader mode unavailable for internal pages");
+      return;
+    }
+
+    elements.readerOverlay.classList.remove('split-left', 'split-right');
+    if (active.is_split) {
+      elements.readerOverlay.classList.add(targetPane === 'right' ? 'split-right' : 'split-left');
+    }
+
+    elements.readerTitle.textContent = active.title || 'Reader View';
+    elements.readerContent.innerHTML = `
+      <h2 style="font-size: 22px; margin-bottom: 8px;">${escapeHtml(active.title || 'Loading Article...')}</h2>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Source: ${escapeHtml(url)}</p>
+      <div style="font-size: 14px; line-height: 1.8; color: var(--text-muted);">
+        ${currentLanguage === 'ru' ? 'Извлечение чистого текста статьи...' : 'Extracting clean article text...'}
+      </div>
+    `;
+    elements.readerOverlay.classList.remove('hidden');
+    sendIpc('fetch_reader_content', { url });
+  } else {
+    elements.readerOverlay.classList.add('hidden');
+    elements.readerOverlay.classList.remove('split-left', 'split-right');
+  }
 }
 
 if (elements.btnReaderMode) elements.btnReaderMode.addEventListener('click', toggleReaderMode);
-if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => sendIpc('toggle_reader'));
+if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => elements.readerOverlay.classList.add('hidden'));
 
 // Tab Context Menu Controller
 let contextTargetTabId = null;
@@ -1569,8 +1629,6 @@ function openTabContextMenu(e, tab) {
   contextTargetTabId = tab.id;
   closeAllPopups();
   if (!elements.tabContextMenu) return;
-
-  sendIpc('set_ui_height', { height: 260 });
 
   if (elements.ctxPinLabel) {
     elements.ctxPinLabel.textContent = tab.is_pinned
@@ -1589,7 +1647,6 @@ function openTabContextMenu(e, tab) {
   elements.tabContextMenu.style.left = `${x}px`;
   elements.tabContextMenu.style.top = `${y}px`;
   elements.tabContextMenu.classList.remove('hidden');
-  sendIpc('set_ui_height', { height: 350 });
 
   if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
 }
@@ -1691,9 +1748,7 @@ document.addEventListener('mouseup', () => {
   if (elements.sidebarResizer) elements.sidebarResizer.classList.remove('resizing');
   document.body.style.cursor = '';
   if (elements.sidebar) {
-    const widthVal = parseInt(elements.sidebar.style.width, 10) || 240;
-    sendIpc('set_sidebar_margin', { width: widthVal });
-    sendIpc('save_setting', { key: 'sidebar_width', value: `${widthVal}px` });
+    sendIpc('save_setting', { key: 'sidebar_width', value: elements.sidebar.style.width });
   }
 });
 
@@ -1844,7 +1899,6 @@ function toggleNavOverflow(e) {
   const isHidden = elements.navOverflowPopup.classList.contains('hidden');
   closeAllPopups();
   if (isHidden) {
-    sendIpc('set_ui_height', { height: 350 });
     elements.navOverflowPopup.classList.remove('hidden');
     if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
   }
@@ -1974,12 +2028,10 @@ if (elements.dragRegion) {
   });
 }
 
-// Sonde AI Panel
+// Crux AI Panel
 function toggleAiPanel() {
   if (!elements.aiPanel) return;
   elements.aiPanel.classList.toggle('hidden');
-  const isOpen = !elements.aiPanel.classList.contains('hidden');
-  sendIpc('set_ai_panel', { open: isOpen });
 }
 
 if (elements.btnToggleAi) elements.btnToggleAi.addEventListener('click', toggleAiPanel);
@@ -2084,17 +2136,11 @@ if (elements.btnAiExplain) {
 // Command Palette (Ctrl+Shift+P)
 function toggleCommandPalette() {
   if (!elements.commandPalette) return;
-  const isOpening = elements.commandPalette.classList.contains('hidden');
-  closeAllPopups();
-  if (isOpening) {
-    elements.commandPalette.classList.remove('hidden');
-    sendIpc('set_ui_height', { height: 420 });
+  elements.commandPalette.classList.toggle('hidden');
+  if (!elements.commandPalette.classList.contains('hidden')) {
     elements.paletteInput.value = '';
     elements.paletteInput.focus();
     renderCommands('');
-  } else {
-    elements.commandPalette.classList.add('hidden');
-    sendIpc('set_ui_height', { height: 74 });
   }
 }
 
@@ -2606,12 +2652,6 @@ function handleSondeInternalCommand(cmdUrl) {
     return;
   }
 
-  if (cmdUrl.startsWith('sonde://action/') || cmdUrl.startsWith('crux://action/') ||
-      cmdUrl.startsWith('sonde://live-setting') || cmdUrl.startsWith('crux://live-setting') ||
-      cmdUrl.startsWith('sonde://apply-settings') || cmdUrl.startsWith('crux://apply-settings')) {
-    return;
-  }
-
   if (cmdUrl.startsWith('sonde://') || cmdUrl.startsWith('crux://') || cmdUrl.startsWith('http://') || cmdUrl.startsWith('https://')) {
     navigateActiveTab(cmdUrl);
     return;
@@ -2723,7 +2763,7 @@ window.onSettingsLoaded = function(settings) {
   if (settings.use_proxy !== undefined) {
     useProxy = (settings.use_proxy === 'true');
   } else {
-    useProxy = false;
+    useProxy = true;
   }
   const forceDarkTag = document.getElementById('forceDarkStatusTag');
   if (forceDarkTag) {
@@ -2928,7 +2968,7 @@ checkTopNavOverflow();
 renderTabs();
 renderHorizontalTabs();
 const initialTab = tabs.find(t => t.is_active);
-if (initialTab && initialTab.url && initialTab.url !== 'sonde://startpage') {
+if (initialTab) {
   loadTabContent(initialTab);
 }
 applyLanguage(currentLanguage);
