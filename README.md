@@ -1,4 +1,4 @@
-# Sonde 2.0
+# Sonde
 
 A lightweight, modern, keyboard-driven web browser built with Rust, Wry/WebKitGTK, and native hardware acceleration for Linux and Windows.
 
