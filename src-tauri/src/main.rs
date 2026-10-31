@@ -159,7 +159,7 @@ fn main() -> wry::Result<()> {
     let window = WindowBuilder::new()
         .with_title("Sonde")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
-        .with_min_inner_size(LogicalSize::new(800.0, 500.0))
+        .with_min_inner_size(LogicalSize::new(320.0, 200.0))
         .with_decorations(false) // Frameless Minimal Dark / Sand Aesthetic
         .build(&event_loop)
         .unwrap();
@@ -257,6 +257,9 @@ fn main() -> wry::Result<()> {
                             db_clone.save_setting(key, value).ok();
                             if key == "user_agent" {
                                 proxy::set_custom_user_agent(value);
+                            }
+                            if key == "network_proxy" {
+                                proxy::set_network_proxy(value);
                             }
                             println!("[Sonde Core] Saved setting: {} = {}", key, value);
                         }

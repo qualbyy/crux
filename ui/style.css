@@ -311,6 +311,8 @@ body, html {
   background-color: var(--bg-app);
   border-bottom: 1px solid var(--border);
   user-select: none;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .nav-buttons {
@@ -396,8 +398,8 @@ body, html {
 }
 
 .url-bar-container {
-  flex: 1 1 180px;
-  min-width: 130px;
+  flex: 1 1 120px;
+  min-width: 60px;
   position: relative;
 }
 
@@ -1361,6 +1363,16 @@ body, html {
   #btnNavOverflow {
     display: flex !important;
   }
+}
+
+#btnNavOverflow, #btnMenu {
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
 }
 
 .action-buttons.collapsed #btnBookmark,

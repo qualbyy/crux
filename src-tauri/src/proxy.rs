@@ -98,20 +98,66 @@ fn parse_query_url(path: &str) -> Option<String> {
     None
 }
 
-pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
-    let client = match reqwest::blocking::Client::builder()
-        .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-        .timeout(Duration::from_secs(60))
+static PROXY_CLIENT: std::sync::RwLock<Option<Arc<reqwest::blocking::Client>>> = std::sync::RwLock::new(None);
+
+fn create_http_client(proxy_url: Option<&str>) -> Arc<reqwest::blocking::Client> {
+    let active_ua = get_current_user_agent();
+    let mut builder = reqwest::blocking::Client::builder()
+        .user_agent(active_ua)
+        .connect_timeout(Duration::from_secs(7))
+        .timeout(Duration::from_secs(25))
         .redirect(reqwest::redirect::Policy::limited(10))
-        .cookie_store(true)
-        .build()
-    {
+        .cookie_store(true);
+
+    if let Some(p_url) = proxy_url {
+        let trimmed = p_url.trim();
+        if !trimmed.is_empty() {
+            if let Ok(proxy) = reqwest::Proxy::all(trimmed) {
+                println!("[Sonde Proxy] Configured upstream proxy: {}", trimmed);
+                builder = builder.proxy(proxy);
+            }
+        }
+    }
+
+    match builder.build() {
         Ok(c) => Arc::new(c),
         Err(e) => {
-            eprintln!("[Sonde Proxy] Failed to build HTTP client: {}", e);
-            return;
+            eprintln!("[Sonde Proxy] Failed to build HTTP client with proxy, building fallback: {}", e);
+            Arc::new(
+                reqwest::blocking::Client::builder()
+                    .connect_timeout(Duration::from_secs(7))
+                    .timeout(Duration::from_secs(25))
+                    .redirect(reqwest::redirect::Policy::limited(10))
+                    .cookie_store(true)
+                    .build()
+                    .unwrap(),
+            )
         }
-    };
+    }
+}
+
+pub fn set_network_proxy(proxy_url: &str) {
+    let client = create_http_client(Some(proxy_url));
+    if let Ok(mut lock) = PROXY_CLIENT.write() {
+        *lock = Some(client);
+    }
+}
+
+pub fn get_client() -> Arc<reqwest::blocking::Client> {
+    if let Ok(lock) = PROXY_CLIENT.read() {
+        if let Some(ref c) = *lock {
+            return Arc::clone(c);
+        }
+    }
+    create_http_client(None)
+}
+
+pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
+    let initial_proxy = db.get_setting("network_proxy");
+    let client = create_http_client(initial_proxy.as_deref());
+    if let Ok(mut lock) = PROXY_CLIENT.write() {
+        *lock = Some(Arc::clone(&client));
+    }
 
     std::thread::spawn(move || {
         let addr = format!("127.0.0.1:{}", port);
@@ -127,9 +173,9 @@ pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
         for stream in listener.incoming() {
             if let Ok(stream) = stream {
                 let adb = Arc::clone(&adblocker);
-                let cli = Arc::clone(&client);
                 let d = Arc::clone(&db);
                 std::thread::spawn(move || {
+                    let cli = get_client();
                     handle_client(stream, adb, cli, d);
                 });
             }
@@ -176,12 +222,24 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
                 || key_lower == "connection"
                 || key_lower == "accept-encoding"
                 || key_lower == "user-agent"
-                || key_lower == "cookie"
                 || key_lower == "origin"
                 || key_lower.starts_with("sec-fetch-")
             {
                 if key_lower == "origin" {
                     req_origin = Some(val.to_string());
+                }
+                continue;
+            }
+            if key_lower == "content-length" {
+                if let Ok(cl) = val.parse::<usize>() {
+                    content_length = cl;
+                }
+                continue;
+            }
+            if key_lower == "cookie" {
+                let clean: String = val.chars().filter(|c| c.is_ascii() && *c >= ' ' && *c <= '~').collect();
+                if !clean.is_empty() {
+                    forwarded_headers.push(("Cookie".to_string(), clean));
                 }
                 continue;
             }
@@ -192,11 +250,6 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
                     forwarded_headers.push(("Referer".to_string(), unproxied));
                 }
                 continue;
-            }
-            if key_lower == "content-length" {
-                if let Ok(cl) = val.parse::<usize>() {
-                    content_length = cl;
-                }
             }
             forwarded_headers.push((key.to_string(), val.to_string()));
         }
@@ -321,7 +374,7 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
         let body_in_buf = if header_end < n { &buf[header_end..n] } else { &[] };
         let mut post_body = body_in_buf.to_vec();
         if post_body.len() < content_length {
-            let _ = stream.set_read_timeout(Some(Duration::from_millis(600)));
+            let _ = stream.set_read_timeout(Some(Duration::from_millis(3000)));
             while post_body.len() < content_length {
                 let mut chunk = [0u8; 4096];
                 match stream.read(&mut chunk) {
@@ -352,6 +405,31 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
     let active_ua = get_current_user_agent();
     req_builder = req_builder.header("User-Agent", active_ua);
+
+    // Default YouTube consent & language cookies so it never defaults to empty feed
+    if target.contains("youtube.com") {
+        let mut cookie_parts: Vec<String> = Vec::new();
+        let mut has_socs = false;
+        let mut has_pref = false;
+
+        for (k, v) in &forwarded_headers {
+            if k.eq_ignore_ascii_case("cookie") {
+                if v.contains("SOCS=") { has_socs = true; }
+                if v.contains("PREF=") { has_pref = true; }
+                cookie_parts.push(v.clone());
+            }
+        }
+
+        if !has_socs {
+            cookie_parts.push("SOCS=CAESEwgDEgk1NDk4NjQ1MTMaAnJ1IAEaBgiA_L20Bg".to_string());
+        }
+        if !has_pref {
+            cookie_parts.push("PREF=hl=ru&gl=RU".to_string());
+        }
+
+        forwarded_headers.retain(|(k, _)| !k.eq_ignore_ascii_case("cookie"));
+        forwarded_headers.push(("Cookie".to_string(), cookie_parts.join("; ")));
+    }
 
     for (k, v) in forwarded_headers {
         if let Ok(header_name) = reqwest::header::HeaderName::from_bytes(k.as_bytes()) {
@@ -441,6 +519,11 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
             content_type,
             client_origin
         );
+        for sc_val in resp_headers.get_all("set-cookie") {
+            if let Ok(sc_str) = sc_val.to_str() {
+                header.push_str(&format!("Set-Cookie: {}\r\n", sc_str));
+            }
+        }
         if let Some(cr) = resp_headers.get("content-range").and_then(|v| v.to_str().ok()) {
             header.push_str(&format!("Content-Range: {}\r\n", cr));
         }
@@ -538,6 +621,90 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     return u;
   }}
 
+  // Hook Image src to proxy external images/thumbnails
+  try {{
+    var imgDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+    if (imgDesc && imgDesc.set) {{
+      var origImgSet = imgDesc.set;
+      Object.defineProperty(HTMLImageElement.prototype, 'src', {{
+        set: function(val) {{
+          try {{
+            if (typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://')) && val.indexOf('/proxy?url=') === -1) {{
+              val = toProxyUrl(val);
+            }}
+          }} catch(e) {{}}
+          return origImgSet.call(this, val);
+        }},
+        get: imgDesc.get,
+        configurable: true,
+        enumerable: true
+      }});
+    }}
+  }} catch(e) {{}}
+
+  // Hook setAttribute for src, href, data-src, srcset
+  try {{
+    var origSetAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function(name, val) {{
+      try {{
+        if (typeof name === 'string' && typeof val === 'string') {{
+          var n = name.toLowerCase();
+          if ((n === 'src' || n === 'data-src') && (val.startsWith('http://') || val.startsWith('https://')) && val.indexOf('/proxy?url=') === -1) {{
+            val = toProxyUrl(val);
+          }} else if (n === 'srcset') {{
+            val = val.split(',').map(function(part) {{
+              var trimmed = part.trim();
+              var sp = trimmed.indexOf(' ');
+              if (sp === -1) {{
+                return toProxyUrl(trimmed);
+              }} else {{
+                return toProxyUrl(trimmed.substring(0, sp)) + trimmed.substring(sp);
+              }}
+            }}).join(', ');
+          }}
+        }}
+      }} catch(e) {{}}
+      return origSetAttribute.call(this, name, val);
+    }};
+  }} catch(e) {{}}
+
+  // DOM MutationObserver to ensure all dynamically created thumbnails and media get proxied
+  try {{
+    var domObserver = new MutationObserver(function(mutations) {{
+      for (var i = 0; i < mutations.length; i++) {{
+        var m = mutations[i];
+        if (m.type === 'childList') {{
+          for (var j = 0; j < m.addedNodes.length; j++) {{
+            var node = m.addedNodes[j];
+            if (node.nodeType === 1) {{
+              if ((node.tagName === 'IMG' || node.tagName === 'SOURCE') && node.src && node.src.indexOf('/proxy?url=') === -1) {{
+                if (node.src.startsWith('http://') || node.src.startsWith('https://')) {{
+                  node.src = toProxyUrl(node.src);
+                }}
+              }}
+              if (node.querySelectorAll) {{
+                var subImgs = node.querySelectorAll('img, source');
+                for (var k = 0; k < subImgs.length; k++) {{
+                  var sImg = subImgs[k];
+                  if (sImg.src && (sImg.src.startsWith('http://') || sImg.src.startsWith('https://')) && sImg.src.indexOf('/proxy?url=') === -1) {{
+                    sImg.src = toProxyUrl(sImg.src);
+                  }}
+                }}
+              }}
+            }}
+          }}
+        }}
+      }}
+    }});
+    if (document.documentElement) {{
+      domObserver.observe(document.documentElement, {{ childList: true, subtree: true }});
+    }} else {{
+      window.addEventListener('DOMContentLoaded', function() {{
+        if (document.documentElement) domObserver.observe(document.documentElement, {{ childList: true, subtree: true }});
+      }});
+    }}
+  }} catch(e) {{}}
+
   // Hook window.fetch
   try {{
     var origFetch = window.fetch;
@@ -550,7 +717,11 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
           }} else if (resource && resource.url) {{
             var pUrl2 = toProxyUrl(resource.url);
             if (pUrl2 !== resource.url) {{
-              return origFetch.call(this, new Request(pUrl2, resource), init);
+              if (!init && !resource.body) {{
+                return origFetch.call(this, new Request(pUrl2, resource));
+              }} else {{
+                return origFetch.call(this, pUrl2, init || resource);
+              }}
             }}
           }}
         }} catch(e) {{}}
@@ -562,11 +733,13 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
   // Hook XMLHttpRequest
   try {{
     var origXhrOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url, async, user, password) {{
+    XMLHttpRequest.prototype.open = function(method, url) {{
       try {{
-        url = toProxyUrl(url);
+        if (typeof url === 'string') {{
+          arguments[1] = toProxyUrl(url);
+        }}
       }} catch(e) {{}}
-      return origXhrOpen.call(this, method, url, async !== false, user, password);
+      return origXhrOpen.apply(this, arguments);
     }};
   }} catch(e) {{}}
 
@@ -847,14 +1020,20 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     };
 
     let body_bytes = modified_body.as_bytes();
-    let header = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: {}\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n\r\n",
+    let mut header = format!(
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: {}\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n",
         status.as_u16(),
         status.canonical_reason().unwrap_or("OK"),
         content_type,
         body_bytes.len(),
         client_origin
     );
+    for sc_val in resp_headers.get_all("set-cookie") {
+        if let Ok(sc_str) = sc_val.to_str() {
+            header.push_str(&format!("Set-Cookie: {}\r\n", sc_str));
+        }
+    }
+    header.push_str("\r\n");
 
     let _ = stream.write_all(header.as_bytes());
     let _ = stream.write_all(body_bytes);
@@ -1030,6 +1209,35 @@ fn send_download_complete_page(stream: &mut TcpStream, filename: &str, path: &st
 }
 
 fn send_error_page(stream: &mut TcpStream, url: &str, err_msg: &str) {
+    let lower_url = url.to_lowercase();
+    let lower_err = err_msg.to_lowercase();
+    let is_likely_blocked = lower_url.contains("youtube.com")
+        || lower_url.contains("googlevideo.com")
+        || lower_url.contains("ytimg.com")
+        || lower_url.contains("github.com")
+        || lower_url.contains("twitter.com")
+        || lower_url.contains("x.com")
+        || lower_url.contains("instagram.com")
+        || lower_url.contains("facebook.com")
+        || lower_err.contains("timeout")
+        || lower_err.contains("timedout")
+        || lower_err.contains("reset")
+        || lower_err.contains("connect")
+        || lower_err.contains("error sending request");
+
+    let blocked_notice = if is_likely_blocked {
+        r#"<div style="background:#1f1f23; border:1px solid #d4a373; border-radius:4px; padding:14px; margin:18px 0; text-align:left; font-size:12px; line-height:1.6; color:#f5f5f0;">
+          <div style="color:#d4a373; font-weight:700; margin-bottom:6px;">[ВОЗМОЖНА БЛОКИРОВКА ИЛИ СЕТЕВОЙ СБОЙ]</div>
+          Соединение с сервером было сброшено или заблокировано без VPN (ТСПУ / фильтрация РКН).<br>
+          <ul style="margin:8px 0 4px 18px; padding:0;">
+            <li>Включите VPN или утилиту обхода замедления (GoodbyeDPI / Zapret / ByeDPI).</li>
+            <li>Либо в настройках Sonde (вкладка «Дополнительно») задайте сетевой SOCKS5/HTTP прокси (например, <code>socks5://127.0.0.1:10808</code> или <code>http://127.0.0.1:10809</code>).</li>
+          </ul>
+        </div>"#
+    } else {
+        ""
+    };
+
     let html = format!(
         r#"<!DOCTYPE html>
 <html>
@@ -1096,12 +1304,13 @@ fn send_error_page(stream: &mut TcpStream, url: &str, err_msg: &str) {
   <div class="box">
     <h1>Unable to Load Web Page</h1>
     <p>Target: <span class="url">{}</span></p>
+    {}
     <p>Error: {}</p>
     <button class="btn" onclick="location.reload()">TRY AGAIN</button>
   </div>
 </body>
 </html>"#,
-        url, err_msg
+        url, blocked_notice, err_msg
     );
 
     let resp = format!(

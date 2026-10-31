@@ -21,7 +21,7 @@ let currentZoom = 1.0;
 let isMobileMode = false;
 let mobileWidth = 390;
 let mobileHeight = 844;
-let useProxy = true; // Embedded CSP & Frame-ancestors bypass proxy enabled by default
+let useProxy = false; // By default disabled for native HTTP/2, GitHub search & direct fast loading
 let closedTabsStack = [];
 let currentSettings = {};
 let currentBookmarks = [];
@@ -2760,7 +2760,11 @@ window.onSettingsLoaded = function(settings) {
   if (settings.language) applyLanguage(settings.language);
   if (settings.tab_orientation) setTabOrientation(settings.tab_orientation);
   if (settings.ui_mode) setUiMode(settings.ui_mode, true);
-  if (settings.use_proxy !== undefined) useProxy = (settings.use_proxy === 'true');
+  if (settings.use_proxy !== undefined) {
+    useProxy = (settings.use_proxy === 'true');
+  } else {
+    useProxy = false;
+  }
   const forceDarkTag = document.getElementById('forceDarkStatusTag');
   if (forceDarkTag) {
     const isDark = settings.force_dark_mode === 'true';
