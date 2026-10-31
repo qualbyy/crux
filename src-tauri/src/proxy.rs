@@ -773,9 +773,43 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     }}
   }});
 
+  function isAlreadyDark() {{
+    try {{
+      var bg = '';
+      if (document.body) {{
+        bg = window.getComputedStyle(document.body).backgroundColor;
+      }}
+      if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {{
+        if (document.documentElement) {{
+          bg = window.getComputedStyle(document.documentElement).backgroundColor;
+        }}
+      }}
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {{
+        var m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (m) {{
+          var lum = 0.299 * parseInt(m[1], 10) + 0.587 * parseInt(m[2], 10) + 0.114 * parseInt(m[3], 10);
+          if (lum < 130) return true;
+        }}
+      }}
+      var meta = document.querySelector('meta[name="color-scheme"]');
+      if (meta && meta.content && meta.content.indexOf('dark') !== -1) return true;
+      var docEl = document.documentElement;
+      if (docEl && (docEl.getAttribute('data-theme') === 'dark' || docEl.classList.contains('dark') || docEl.classList.contains('theme-dark'))) return true;
+      var host = window.location.hostname.toLowerCase();
+      if (host.includes('twitter.com') || host.includes('x.com')) {{
+        if (document.body && (document.body.style.backgroundColor === 'rgb(0, 0, 0)' || document.body.style.backgroundColor === 'rgb(21, 32, 43)')) return true;
+      }}
+    }} catch(e) {{}}
+    return false;
+  }}
+
   function toggleDarkMode(enable) {{
     var el = document.getElementById('sonde-dark-injected');
     if (enable) {{
+      if (isAlreadyDark()) {{
+        if (el) el.remove();
+        return;
+      }}
       if (!el) {{
         el = document.createElement('style');
         el.id = 'sonde-dark-injected';

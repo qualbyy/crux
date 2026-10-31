@@ -710,11 +710,15 @@ body, html {
   flex-direction: row;
 }
 
-.webview-container.split-mode > #webFrame {
+.webview-container.split-mode > .web-frame:not([style*="display: none"]) {
   width: 50% !important;
   flex: 1 1 50% !important;
   display: block !important;
   border-right: 1px solid var(--border);
+}
+
+.web-frame[style*="display: none"] {
+  display: none !important;
 }
 
 /* Horizontal Tab Bar */

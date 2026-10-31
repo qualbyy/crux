@@ -193,7 +193,14 @@ const elements = {
   btnToggleSidebar: document.getElementById('btnToggleSidebar'),
   sidebar: document.getElementById('sidebar'),
   urlInput: document.getElementById('urlInput'),
-  webFrame: document.getElementById('webFrame'),
+  get webFrame() {
+    const active = tabs.find(t => t.is_active);
+    if (active) {
+      const f = document.getElementById(`webFrame_${active.id}`);
+      if (f) return f;
+    }
+    return document.getElementById('webFrame_1') || document.getElementById('webFrame') || document.querySelector('.web-frame');
+  },
   splitPaneWrapper: document.getElementById('splitPaneWrapper'),
   urlInputSplit: document.getElementById('urlInputSplit'),
   splitToolbar: document.getElementById('splitToolbar'),
@@ -885,13 +892,78 @@ function setUiMode(mode, silent = false) {
   sendIpc('save_setting', { key: 'ui_mode', value: uiMode });
 }
 
+function ensureTabFrame(tabId) {
+  let frame = document.getElementById(`webFrame_${tabId}`);
+  if (!frame) {
+    if (tabId === 1 && document.getElementById('webFrame')) {
+      frame = document.getElementById('webFrame');
+      frame.id = 'webFrame_1';
+      frame.dataset.tabId = '1';
+      return frame;
+    }
+    frame = document.createElement('iframe');
+    frame.id = `webFrame_${tabId}`;
+    frame.className = 'web-frame';
+    frame.dataset.tabId = String(tabId);
+    frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; camera; microphone; fullscreen');
+    frame.setAttribute('allowfullscreen', 'true');
+    frame.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+
+    frame.addEventListener('load', () => {
+      const prog = document.getElementById('statusBarProgress');
+      const progFill = document.getElementById('statusBarProgressFill');
+      if (prog && progFill) {
+        progFill.style.width = '100%';
+        setTimeout(() => {
+          prog.classList.add('hidden');
+          progFill.style.width = '0%';
+        }, 250);
+      }
+      if (currentSettings && currentSettings.force_dark_mode === 'true') {
+        try {
+          frame.contentWindow.postMessage({ type: 'sonde_toggle_dark', enabled: true }, '*');
+        } catch(e) {}
+      }
+    });
+
+    if (elements.splitPaneWrapper && elements.webViewContainer) {
+      elements.webViewContainer.insertBefore(frame, elements.splitPaneWrapper);
+    } else if (elements.webViewContainer) {
+      elements.webViewContainer.appendChild(frame);
+    }
+  }
+  return frame;
+}
+
 function activateTab(id) {
   tabs.forEach(t => t.is_active = (t.id === id));
   renderTabs();
   renderHorizontalTabs();
   const current = tabs.find(t => t.id === id);
   if (current) {
-    loadTabContent(current);
+    ensureTabFrame(id);
+    if (elements.webViewContainer) {
+      const allFrames = elements.webViewContainer.querySelectorAll('.web-frame:not(#webFrameSplit)');
+      allFrames.forEach(f => {
+        if (f.id === `webFrame_${id}`) {
+          f.style.display = 'block';
+        } else {
+          f.style.display = 'none';
+        }
+      });
+    }
+
+    if (!current.has_loaded) {
+      loadTabContent(current);
+      current.has_loaded = true;
+    } else {
+      syncTabSplitView(current);
+      applyZoom(currentZoom);
+      updateSecurityDetails(current.url);
+      if (elements.urlInput) {
+        elements.urlInput.value = (current.url === 'sonde://startpage' || current.url === 'crux://startpage') ? '' : unwrapProxyUrl(current.url);
+      }
+    }
     updateNavButtons();
     sendIpc('activate_tab', { id });
   }
@@ -938,7 +1010,9 @@ function navigateActiveTab(input) {
     active.historyIndex = active.history.length - 1;
   }
 
+  active.has_loaded = false;
   loadTabContent(active);
+  active.has_loaded = true;
   updateNavButtons();
   renderTabs();
   renderHorizontalTabs();
@@ -984,6 +1058,9 @@ function closeTab(id) {
   const closed = tabs[idx];
   closedTabsStack.push(closed);
 
+  const f = document.getElementById(`webFrame_${id}`);
+  if (f) f.remove();
+
   tabs.splice(idx, 1);
   if (tabs.length === 0) {
     createTab('sonde://startpage');
@@ -992,12 +1069,12 @@ function closeTab(id) {
 
   if (closed.is_active) {
     const nextIdx = Math.max(0, idx - 1);
-    tabs[nextIdx].is_active = true;
-    loadTabContent(tabs[nextIdx]);
+    activateTab(tabs[nextIdx].id);
+  } else {
+    renderTabs();
+    renderHorizontalTabs();
   }
 
-  renderTabs();
-  renderHorizontalTabs();
   sendIpc('close_tab', { id });
 }
 

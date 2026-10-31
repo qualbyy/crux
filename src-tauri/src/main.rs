@@ -624,6 +624,10 @@ fn main() -> wry::Result<()> {
         let vbox = window.default_vbox().expect("Failed to get default vbox from Tao window");
         let wv = builder.build_gtk(vbox)?;
 
+        if let Some(gtk_settings) = gtk::Settings::default() {
+            gtk_settings.set_gtk_application_prefer_dark_theme(true);
+        }
+
         if let Some(settings) = webkit2gtk::WebViewExt::settings(&wv.webview()) {
             settings.set_disable_web_security(true);
             settings.set_allow_universal_access_from_file_urls(true);
