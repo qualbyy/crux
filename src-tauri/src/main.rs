@@ -51,6 +51,7 @@ enum UserEvent {
     SetSidebarMargin(i32),
     SetOverlayOrder(bool),
     SetTabOrientation(String),
+    SetAiPanel(bool),
     SetZoom(f64),
     PageUrlChanged { id: u32, url: String },
     PageTitleChanged { id: u32, title: String },
@@ -70,13 +71,13 @@ struct InternalPages {
 fn load_tab_content(wv: &webkit2gtk::WebView, url: &str, pages: &InternalPages) {
     use webkit2gtk::WebViewExt;
     if url == "sonde://startpage" || url == "crux://startpage" || url == "about:blank" || url.is_empty() {
-        wv.load_html(&pages.startpage, None);
+        wv.load_html(&pages.startpage, Some("sonde://startpage"));
     } else if url.starts_with("sonde://settings") || url.starts_with("crux://settings") {
-        wv.load_html(&pages.settings, None);
+        wv.load_html(&pages.settings, Some("sonde://settings"));
     } else if url.starts_with("sonde://history") || url.starts_with("crux://history") {
-        wv.load_html(&pages.history, None);
+        wv.load_html(&pages.history, Some("sonde://history"));
     } else if url.starts_with("sonde://downloads") || url.starts_with("crux://downloads") {
-        wv.load_html(&pages.downloads, None);
+        wv.load_html(&pages.downloads, Some("sonde://downloads"));
     } else {
         let full = if url.starts_with("http://") || url.starts_with("https://") {
             url.to_string()
@@ -353,6 +354,11 @@ fn main() -> wry::Result<()> {
                     "set_tab_orientation" => {
                         if let Some(ori) = v["orientation"].as_str() {
                             let _ = proxy_clone.send_event(UserEvent::SetTabOrientation(ori.to_string()));
+                        }
+                    }
+                    "set_ai_panel" => {
+                        if let Some(open) = v["open"].as_bool() {
+                            let _ = proxy_clone.send_event(UserEvent::SetAiPanel(open));
                         }
                     }
                     "set_zoom" => {
@@ -933,8 +939,8 @@ fn main() -> wry::Result<()> {
 
     let db_for_events = Arc::clone(&db);
     let tab_stack = content_stack;
-    let ui_box_ref = ui_box;
-    let overlay_ref = overlay;
+    let _ui_box_ref = ui_box;
+    let _overlay_ref = overlay;
     let mut tab_views: std::collections::HashMap<u32, webkit2gtk::WebView> = std::collections::HashMap::new();
     tab_views.insert(1, initial_wv);
     let mut active_tab_id: u32 = 1;
@@ -1189,18 +1195,27 @@ fn main() -> wry::Result<()> {
             Event::UserEvent(UserEvent::SetUiHeight(h)) => {
                 use gtk::prelude::*;
                 if h > 74 {
-                    overlay_ref.reorder_overlay(&ui_box_ref, 1);
+                    tab_stack.hide();
                 } else {
-                    overlay_ref.reorder_overlay(&tab_stack, 1);
+                    tab_stack.show();
                 }
             }
             Event::UserEvent(UserEvent::SetOverlayOrder(ui_on_top)) => {
                 use gtk::prelude::*;
                 if ui_on_top {
-                    overlay_ref.reorder_overlay(&ui_box_ref, 1);
+                    tab_stack.hide();
                 } else {
-                    overlay_ref.reorder_overlay(&tab_stack, 1);
+                    tab_stack.show();
                 }
+            }
+            Event::UserEvent(UserEvent::SetAiPanel(open)) => {
+                use gtk::prelude::*;
+                if open {
+                    tab_stack.set_margin_end(320);
+                } else {
+                    tab_stack.set_margin_end(0);
+                }
+                tab_stack.queue_resize();
             }
             Event::UserEvent(UserEvent::SetSidebarMargin(w)) => {
                 use gtk::prelude::*;

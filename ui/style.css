@@ -85,9 +85,12 @@ body, html {
 
 .popup-backdrop {
   position: fixed;
-  inset: 0;
+  top: 38px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1500;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .popup-backdrop.hidden {
@@ -304,15 +307,21 @@ body, html {
 }
 
 .top-nav {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  padding: 6px 8px;
+  padding: 4px 8px;
   gap: 6px;
   background-color: var(--bg-app);
   border-bottom: 1px solid var(--border);
   user-select: none;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 100;
 }
 
 .nav-buttons {
@@ -1084,7 +1093,7 @@ body, html {
 /* Crux Dropdown Menu (Anchored to Top Right) */
 .dropdown-menu {
   position: absolute;
-  top: 40px;
+  top: 38px;
   right: 8px;
   width: 290px;
   max-width: 290px;
@@ -1399,8 +1408,7 @@ html, body {
   flex: 1;
   display: flex !important;
   position: relative;
-  background: transparent !important;
-  pointer-events: none;
+  background: var(--bg-app) !important;
 }
 
 .workspace-wrapper > * {
@@ -1593,7 +1601,7 @@ html, body {
 /* Floating Tool Popups (Bookmarks & Downloads) */
 .floating-popup {
   position: absolute;
-  top: 40px;
+  top: 38px;
   background-color: var(--bg-elevated);
   border: 1px solid var(--border);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.85);

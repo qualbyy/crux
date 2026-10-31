@@ -839,6 +839,7 @@ function activateTab(id) {
   renderHorizontalTabs();
   const current = tabs.find(t => t.id === id);
   if (current) {
+    syncTabSplitView(current);
     loadTabContent(current);
     updateNavButtons();
     sendIpc('activate_tab', { id });
@@ -1147,13 +1148,20 @@ window.onNativeTabCreated = function(id, url) {
       container: 'default',
       is_pinned: false,
       is_muted: false,
+      is_playing_audio: false,
+      is_split: false,
+      split_url: 'sonde://startpage',
+      hide_split_url: false,
       is_active: true
     };
     tabs.forEach(t => t.is_active = false);
     tabs.push(tab);
     renderTabs();
     renderHorizontalTabs();
+    syncTabSplitView(tab);
     if (elements.urlInput) elements.urlInput.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
+  } else {
+    syncTabSplitView(tab);
   }
 };
 
@@ -2032,10 +2040,12 @@ if (elements.dragRegion) {
   });
 }
 
-// Crux AI Panel
+// Sonde AI Panel
 function toggleAiPanel() {
   if (!elements.aiPanel) return;
   elements.aiPanel.classList.toggle('hidden');
+  const isOpen = !elements.aiPanel.classList.contains('hidden');
+  sendIpc('set_ai_panel', { open: isOpen });
 }
 
 if (elements.btnToggleAi) elements.btnToggleAi.addEventListener('click', toggleAiPanel);
