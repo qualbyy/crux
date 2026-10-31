@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-# Sonde 2.0 — Quick Native Linux Release Build Script
+# Sonde — Quick Native Linux Release Build Script
 # Minimal RAM footprint (1 compiler worker thread)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/src-tauri"
 
-echo "===> [Sonde 2.0] Building optimized release binary for Linux (x86_64)..."
+echo "===> [Sonde] Building optimized release binary for Linux (x86_64)..."
 cargo build --release -j 1
 
 OUTPUT_BIN="$SCRIPT_DIR/src-tauri/target/release/sonde-rs"
@@ -23,7 +23,7 @@ if [ -f "$OUTPUT_BIN" ]; then
         cp "$SCRIPT_DIR/sonde.desktop" "$HOME/.local/share/applications/sonde.desktop" || true
     fi
 
-    echo "===> [SUCCESS] Sonde 2.0 binary built and installed:"
+    echo "===> [SUCCESS] Sonde binary built and installed:"
     echo "       - Binary:  $HOME/.local/bin/sonde-rs"
     echo "       - Command: sonde (or sonde-browser)"
 else

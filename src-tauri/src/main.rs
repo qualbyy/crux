@@ -133,10 +133,10 @@ fn main() -> wry::Result<()> {
     let proxy = event_loop.create_proxy();
 
     let window = WindowBuilder::new()
-        .with_title("Sonde 2.0")
+        .with_title("Sonde")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(LogicalSize::new(800.0, 500.0))
-        .with_decorations(false) // Frameless Anthropic Minimal Dark / Sand Aesthetic
+        .with_decorations(false) // Frameless Minimal Dark / Sand Aesthetic
         .build(&event_loop)
         .unwrap();
 
@@ -295,6 +295,25 @@ fn main() -> wry::Result<()> {
                     "delete_password" => {
                         if let Some(id) = v["id"].as_i64() {
                             db_clone.delete_password(id).ok();
+                            let passwords = db_clone.get_passwords().unwrap_or_default();
+                            if let Ok(json) = serde_json::to_string(&passwords) {
+                                let _ = proxy_clone.send_event(UserEvent::VaultUnlocked(json));
+                            }
+                        }
+                    }
+                    "import_passwords" => {
+                        if let Some(list) = v["passwords"].as_array() {
+                            let mut count = 0;
+                            for item in list {
+                                let u = item["url"].as_str().unwrap_or("").trim();
+                                let user = item["username"].as_str().unwrap_or("").trim();
+                                let pwd = item["password"].as_str().unwrap_or("").trim();
+                                if !u.is_empty() && (!user.is_empty() || !pwd.is_empty()) {
+                                    db_clone.add_password(u, user, pwd).ok();
+                                    count += 1;
+                                }
+                            }
+                            println!("[Sonde Core] Imported {} credentials into vault", count);
                             let passwords = db_clone.get_passwords().unwrap_or_default();
                             if let Ok(json) = serde_json::to_string(&passwords) {
                                 let _ = proxy_clone.send_event(UserEvent::VaultUnlocked(json));
@@ -571,7 +590,7 @@ fn main() -> wry::Result<()> {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::NewEvents(StartCause::Init) => println!("Sonde 2.0 running..."),
+            Event::NewEvents(StartCause::Init) => println!("Sonde running..."),
             Event::UserEvent(UserEvent::CloseWindow) => *control_flow = ControlFlow::Exit,
             Event::UserEvent(UserEvent::MinimizeWindow) => window.set_minimized(true),
             Event::UserEvent(UserEvent::MaximizeWindow) => window.set_maximized(!window.is_maximized()),

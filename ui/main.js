@@ -1,4 +1,4 @@
-// Sonde 2.0 — Frontend Controller with Rust IPC & AI Engine (Sand Minimalist Aesthetic)
+// Sonde — Frontend Controller with Rust IPC & AI Engine (Sand Minimalist Aesthetic)
 
 function sendIpc(cmd, data = {}) {
   try {
@@ -21,11 +21,33 @@ let currentZoom = 1.0;
 let isMobileMode = false;
 let mobileWidth = 390;
 let mobileHeight = 844;
+let useProxy = false; // Direct connection by default for maximum compatibility (YouTube, GitHub, HTTP/2)
 let closedTabsStack = [];
 let currentSettings = {};
 let currentBookmarks = [];
 let currentDownloads = [];
 let currentHistory = [];
+
+function unwrapProxyUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://127.0.0.1:39281/proxy?url=')) {
+    const raw = url.replace('http://127.0.0.1:39281/proxy?url=', '');
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return url;
+}
+
+function getWebFrameSrc(url) {
+  if (!url) return 'about:blank';
+  if (useProxy && (url.startsWith('http://') || url.startsWith('https://'))) {
+    return `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
 
 let tabs = [
   {
@@ -418,13 +440,13 @@ function syncTabSplitView(tab) {
 
     if (elements.webFrameSplit) {
       const splitUrl = tab.split_url || 'sonde://startpage';
-      if (elements.urlInputSplit) elements.urlInputSplit.value = (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage') ? '' : splitUrl;
+      if (elements.urlInputSplit) elements.urlInputSplit.value = (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage') ? '' : unwrapProxyUrl(splitUrl);
       if (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage' || splitUrl === 'about:blank') {
         elements.webFrameSplit.removeAttribute('src');
         elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
       } else if (splitUrl.startsWith('http://') || splitUrl.startsWith('https://')) {
         elements.webFrameSplit.removeAttribute('srcdoc');
-        elements.webFrameSplit.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(splitUrl)}`;
+        elements.webFrameSplit.src = getWebFrameSrc(splitUrl);
       } else {
         elements.webFrameSplit.removeAttribute('srcdoc');
         elements.webFrameSplit.src = splitUrl;
@@ -465,14 +487,14 @@ function navigateSplitTab(input) {
   }
 
   active.split_url = url;
-  if (elements.urlInputSplit) elements.urlInputSplit.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
+  if (elements.urlInputSplit) elements.urlInputSplit.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : unwrapProxyUrl(url);
 
   if (url === 'sonde://startpage' || url === 'crux://startpage') {
     elements.webFrameSplit.removeAttribute('src');
     elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
   } else if (url.startsWith('http://') || url.startsWith('https://')) {
     elements.webFrameSplit.removeAttribute('srcdoc');
-    elements.webFrameSplit.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
+    elements.webFrameSplit.src = getWebFrameSrc(url);
   } else {
     elements.webFrameSplit.removeAttribute('srcdoc');
     elements.webFrameSplit.src = url;
@@ -616,14 +638,13 @@ function loadTabContent(tab) {
     }, 60);
   } else if (url.startsWith('http://') || url.startsWith('https://')) {
     elements.webFrame.removeAttribute('srcdoc');
-    // Load external site through embedded Rust proxy to bypass WebKit CSP & X-Frame-Options
-    elements.webFrame.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
-    if (elements.urlInput) elements.urlInput.value = url;
-    sendIpc('get_autofill', { url });
+    elements.webFrame.src = getWebFrameSrc(url);
+    if (elements.urlInput) elements.urlInput.value = unwrapProxyUrl(url);
+    sendIpc('get_autofill', { url: unwrapProxyUrl(url) });
   } else {
     elements.webFrame.removeAttribute('srcdoc');
     elements.webFrame.src = url;
-    if (elements.urlInput) elements.urlInput.value = url;
+    if (elements.urlInput) elements.urlInput.value = unwrapProxyUrl(url);
   }
 
   syncTabSplitView(tab);
@@ -653,7 +674,7 @@ if (elements.webFrame) {
 function getTabBadgeLetter(tab) {
   const url = tab.url || '';
   if (url.startsWith('sonde://startpage') || url.startsWith('crux://startpage')) return 'S';
-  if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) return '⚙';
+  if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) return 'P';
   if (url.startsWith('sonde://history') || url.startsWith('crux://history')) return 'H';
   if (url.startsWith('sonde://downloads') || url.startsWith('crux://downloads')) return 'D';
   try {
@@ -2182,6 +2203,43 @@ if (elements.paletteInput) {
 
 if (elements.btnCommandPalette) elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
 
+// Flexible Shortcut Matcher for Custom and Rebound Keys
+function matchShortcut(e, shortcutStr) {
+  if (!shortcutStr || typeof shortcutStr !== 'string') return false;
+  const parts = shortcutStr.split('+').map(s => s.trim().toLowerCase());
+  const needsCtrl = parts.includes('ctrl') || parts.includes('control');
+  const needsAlt = parts.includes('alt');
+  const needsShift = parts.includes('shift');
+  const needsMeta = parts.includes('super') || parts.includes('meta');
+
+  const actualCtrl = !!(e.ctrlKey || (e.metaKey && navigator.platform && navigator.platform.includes('Mac')));
+  const actualAlt = !!e.altKey;
+  const actualShift = !!e.shiftKey;
+  const actualMeta = !!e.metaKey;
+
+  if (needsCtrl !== actualCtrl) return false;
+  if (needsAlt !== actualAlt) return false;
+  if (needsShift !== actualShift) return false;
+  if (needsMeta !== actualMeta && (!navigator.platform || !navigator.platform.includes('Mac'))) return false;
+
+  const keyPart = parts.find(p => !['ctrl', 'control', 'alt', 'shift', 'super', 'meta'].includes(p));
+  if (!keyPart) return false;
+
+  const k = (e.key || '').toLowerCase();
+  const c = (e.code || '').toLowerCase();
+
+  if (keyPart === 'space' && (k === ' ' || c === 'space')) return true;
+  if (keyPart === '\\' && (k === '\\' || c === 'backslash')) return true;
+  if (keyPart === ',' && (k === ',' || c === 'comma' || k === 'б')) return true;
+  if (keyPart === k) return true;
+  if (c === `key${keyPart}` || c === `digit${keyPart}` || c === keyPart) return true;
+
+  const ruEnMap = { 'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','х':'[','ъ':']','ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','ж':';','э':'\'','я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.' };
+  if (ruEnMap[k] && ruEnMap[k] === keyPart) return true;
+
+  return false;
+}
+
 // Global Keyboard Shortcuts (Including Vim Mode, Zoom & Find)
 function handleGlobalShortcut(e) {
   const isInput = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
@@ -2212,6 +2270,54 @@ function handleGlobalShortcut(e) {
   if (e.key === 'F11') {
     if (e.preventDefault) e.preventDefault();
     sendIpc('toggle_fullscreen');
+    return;
+  }
+
+  // Dynamic user-customized shortcuts from settings
+  if (matchShortcut(e, currentSettings.kb_palette)) {
+    if (e.preventDefault) e.preventDefault();
+    toggleCommandPalette();
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_new_tab)) {
+    if (e.preventDefault) e.preventDefault();
+    createTab('sonde://startpage');
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_close_tab)) {
+    if (e.preventDefault) e.preventDefault();
+    const active = tabs.find(t => t.is_active);
+    if (active) closeTab(active.id);
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_split)) {
+    if (e.preventDefault) e.preventDefault();
+    toggleSplitView();
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_ai)) {
+    if (e.preventDefault) e.preventDefault();
+    toggleAiPanel();
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_orient)) {
+    if (e.preventDefault) e.preventDefault();
+    setTabOrientation(tabOrientation === 'vertical' ? 'horizontal' : 'vertical');
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_mode)) {
+    if (e.preventDefault) e.preventDefault();
+    setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal');
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_settings)) {
+    if (e.preventDefault) e.preventDefault();
+    openInternalPage('sonde://settings');
+    return;
+  }
+  if (matchShortcut(e, currentSettings.kb_downloads)) {
+    if (e.preventDefault) e.preventDefault();
+    toggleDownloadsPopup();
     return;
   }
 
@@ -2381,6 +2487,7 @@ function handleSondeInternalCommand(cmdUrl) {
       if (key === 'language') applyLanguage(value);
       if (key === 'tab_orientation') setTabOrientation(value);
       if (key === 'ui_mode') setUiMode(value, true);
+      if (key === 'use_proxy') useProxy = value === 'true';
       if (key === 'force_dark_mode') {
         const en = value === 'true';
         const tag = document.getElementById('forceDarkStatusTag');
@@ -2413,6 +2520,7 @@ function handleSondeInternalCommand(cmdUrl) {
       if (key === 'language') applyLanguage(value);
       if (key === 'tab_orientation') setTabOrientation(value);
       if (key === 'ui_mode') setUiMode(value, true);
+      if (key === 'use_proxy') useProxy = value === 'true';
       if (key === 'force_dark_mode') {
         const en = value === 'true';
         const tag = document.getElementById('forceDarkStatusTag');
@@ -2503,16 +2611,22 @@ const handleCruxInternalCommand = handleSondeInternalCommand;
 // Listen to messages from internal page iframes & bypass proxy
 window.addEventListener('message', (e) => {
   if (!e.data) return;
+  if (e.data.type === 'sonde_import_passwords' && Array.isArray(e.data.passwords)) {
+    sendIpc('import_passwords', { passwords: e.data.passwords });
+    showToast(currentLanguage === 'ru' ? `Импортировано учетных записей: ${e.data.passwords.length}` : `Imported credentials: ${e.data.passwords.length}`);
+    return;
+  }
   if ((e.data.type === 'sonde_navigated' || e.data.type === 'crux_navigated') && e.data.url) {
+    const cleanUrl = unwrapProxyUrl(e.data.url);
     const active = tabs.find(t => t.is_active);
-    if (active && active.url !== e.data.url) {
-      active.url = e.data.url;
-      if (active.history[active.history.length - 1] !== e.data.url) {
-        active.history.push(e.data.url);
+    if (active && active.url !== cleanUrl) {
+      active.url = cleanUrl;
+      if (active.history[active.history.length - 1] !== cleanUrl) {
+        active.history.push(cleanUrl);
         active.historyIndex = active.history.length - 1;
       }
-      if (elements.urlInput) elements.urlInput.value = e.data.url;
-      sendIpc('navigate', { url: e.data.url });
+      if (elements.urlInput) elements.urlInput.value = cleanUrl;
+      sendIpc('navigate', { url: cleanUrl });
       renderTabs();
       renderHorizontalTabs();
     }
@@ -2594,6 +2708,7 @@ window.onSettingsLoaded = function(settings) {
   if (settings.language) applyLanguage(settings.language);
   if (settings.tab_orientation) setTabOrientation(settings.tab_orientation);
   if (settings.ui_mode) setUiMode(settings.ui_mode, true);
+  if (settings.use_proxy !== undefined) useProxy = (settings.use_proxy === 'true');
   const forceDarkTag = document.getElementById('forceDarkStatusTag');
   if (forceDarkTag) {
     const isDark = settings.force_dark_mode === 'true';
@@ -2738,7 +2853,7 @@ window.finishOnboarding = function() {
   }
   sendIpc('save_setting', { key: 'first_run_completed', value: 'true' });
   currentSettings.first_run_completed = 'true';
-  showToast(currentLanguage === 'ru' ? "Добро пожаловать в Sonde 2.0!" : "Welcome to Sonde 2.0!");
+  showToast(currentLanguage === 'ru' ? "Добро пожаловать в Sonde!" : "Welcome to Sonde!");
 };
 
 window.onDownloadDirSelected = function(path) {
@@ -2789,4 +2904,4 @@ if (initialTab) {
 }
 applyLanguage(currentLanguage);
 sendIpc('get_settings');
-console.log("Sonde 2.0 Rust Architecture initialized with full parity.");
+console.log("Sonde Rust Architecture initialized with full parity.");

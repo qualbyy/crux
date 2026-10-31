@@ -2,13 +2,13 @@
 set -e
 
 # ========================================================
-#  Sonde 2.0 — Build & Run Windows Binary Under Wine
+#  Sonde — Build & Run Windows Binary Under Wine
 # ========================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="x86_64-pc-windows-gnu"
 
-echo "===> [Sonde 2.0 Wine] Preparing cross-compilation for Windows ($TARGET)..."
+echo "===> [Sonde Wine] Preparing cross-compilation for Windows ($TARGET)..."
 
 # Ensure Rust target is installed
 if ! rustup target list | grep -q "$TARGET (installed)"; then

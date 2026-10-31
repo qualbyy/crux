@@ -316,6 +316,33 @@
             color: var(--accent);
         }
 
+        .btn-keybind {
+            min-width: 140px;
+            padding: 5px 12px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: bold;
+            background: var(--bg-base);
+            border: 1px solid var(--border-muted);
+            color: var(--accent);
+            cursor: pointer;
+            text-align: center;
+            outline: none;
+            transition: all 0.15s ease;
+        }
+
+        .btn-keybind:hover {
+            border-color: var(--accent);
+            background: var(--bg-elevated);
+        }
+
+        .btn-keybind.recording {
+            background: var(--accent) !important;
+            color: #121214 !important;
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 8px var(--accent);
+        }
+
         .toast {
             display: none;
             background-color: var(--status-success);
@@ -508,7 +535,7 @@
     <div class="settings-wrapper">
         <div class="top-header">
             <div class="logo-title">
-                CRUX <span>//</span> <span data-i18n="title_settings">PREFERENCES & CONFIGURATION</span>
+                SONDE <span>//</span> <span data-i18n="title_settings">PREFERENCES & CONFIGURATION</span>
             </div>
             <div class="header-actions">
                 <button class="btn-save-top" onclick="saveAndApply()" data-i18n="btn_save">СОХРАНИТЬ</button>
@@ -889,8 +916,11 @@
                                 <input type="text" id="vault-pwd-search" class="vault-search-input" placeholder="Filter passwords by domain or username..." oninput="filterVaultPasswords()" data-i18n="placeholder_filter_pwd">
                                 <div class="vault-actions-group">
                                     <button type="button" class="btn-action" onclick="promptAddPassword()" style="border-color: var(--accent); color: var(--accent);" data-i18n="btn_add_password">+ ДОБАВИТЬ ПАРОЛЬ</button>
+                                    <button type="button" class="btn-action" onclick="triggerPasswordImport()" style="border-color: var(--accent); color: var(--accent);" title="Импорт из Chrome, Firefox, Brave, Edge, Opera, JSON">[ МИГРАЦИЯ ПАРОЛЕЙ ]</button>
+                                    <button type="button" class="btn-action" onclick="showBrowserProfilesInfo()" title="Справка по экспорту">[ СПРАВКА ]</button>
                                     <button type="button" class="btn-action" onclick="exportPasswordsCSV()" data-i18n="btn_export_csv">EXPORT CSV</button>
                                     <button type="button" class="btn-action" onclick="exportPasswordsJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
+                                    <input type="file" id="pwdImportFileInput" accept=".csv,.json,.txt" style="display: none;" onchange="handlePasswordFileSelected(event)">
                                 </div>
                             </div>
 
@@ -1037,47 +1067,47 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td><input type="text" id="kb-palette" value="Ctrl + Shift + P" onchange="applySettingLive('kb_palette', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-palette" data-key="kb_palette" onclick="startKeybindRecord(this)">Ctrl + Shift + P</button></td>
                                 <td data-i18n="act_palette">Command Palette & Omnibar Focus</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-new-tab" value="Ctrl + T" onchange="applySettingLive('kb_new_tab', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-new-tab" data-key="kb_new_tab" onclick="startKeybindRecord(this)">Ctrl + T</button></td>
                                 <td data-i18n="act_new_tab">New Tab</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-close-tab" value="Ctrl + W" onchange="applySettingLive('kb_close_tab', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-close-tab" data-key="kb_close_tab" onclick="startKeybindRecord(this)">Ctrl + W</button></td>
                                 <td data-i18n="act_close_tab">Close Current Tab</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-split" value="Ctrl + \" onchange="applySettingLive('kb_split', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-split" data-key="kb_split" onclick="startKeybindRecord(this)">Ctrl + \</button></td>
                                 <td data-i18n="act_split_screen">Toggle Split Screen</td>
                                 <td data-i18n="ctx_tab_manager">Tab Manager</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-ai" value="Ctrl + B" onchange="applySettingLive('kb_ai', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-ai" data-key="kb_ai" onclick="startKeybindRecord(this)">Ctrl + B</button></td>
                                 <td data-i18n="act_ai_notes">Toggle Sonde AI Assistant</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-orient" value="Ctrl + Alt + T" onchange="applySettingLive('kb_orient', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-orient" data-key="kb_orient" onclick="startKeybindRecord(this)">Ctrl + Alt + T</button></td>
                                 <td data-i18n="act_switch_orient">Switch Vertical / Horizontal Tab Orientation</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-mode" value="Ctrl + M" onchange="applySettingLive('kb_mode', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-mode" data-key="kb_mode" onclick="startKeybindRecord(this)">Ctrl + M</button></td>
                                 <td data-i18n="act_toggle_mode">Toggle UI Mode (Minimal / Vim)</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-settings" value="Ctrl + ," onchange="applySettingLive('kb_settings', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-settings" data-key="kb_settings" onclick="startKeybindRecord(this)">Ctrl + ,</button></td>
                                 <td data-i18n="act_open_settings">Open Preferences & Settings</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><input type="text" id="kb-downloads" value="Ctrl + Shift + D" onchange="applySettingLive('kb_downloads', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td><button type="button" class="btn-keybind" id="kb-downloads" data-key="kb_downloads" onclick="startKeybindRecord(this)">Ctrl + Shift + D</button></td>
                                 <td data-i18n="act_open_downloads">Open Downloads Dropdown / Page</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
@@ -1098,15 +1128,14 @@
                     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.6;">
                         <p data-i18n="about_body" data-i18n-html="true">
                             <strong>Sonde</strong> is a lightweight, keyboard-driven browser engineered with a strict 
-                            Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
+                            minimalist dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
                         </p>
                         <p>
-                            <span data-i18n="about_version">Version:</span> <strong>1.3.6 (Release)</strong><br>
-                            <span data-i18n="about_engine">Engine:</span> <strong>Chromium // Qt6WebEngine</strong><br>
+                            <span data-i18n="about_version">Version:</span> <strong>2.0.0-alpha.1</strong><br>
+                            <span data-i18n="about_engine">Engine:</span> <strong>Rust // WebKitGTK & Wry</strong><br>
                             <span data-i18n="about_arch">Architecture:</span> <strong>x86_64 Desktop</strong>
                         </p>
                         <div style="display: flex; gap: 12px; margin-top: 12px;">
-                            <button type="button" class="btn-action" onclick="openExternalUrl('https://github.com/qualbyy/sonde')" data-i18n="btn_github">GITHUB</button>
                             <button type="button" class="btn-action" onclick="openExternalUrl('https://t.me/qualbyy')" data-i18n="btn_telegram">TELEGRAM</button>
                         </div>
                     </div>
@@ -1117,6 +1146,18 @@
                     <div class="section-header">
                         <h2>ADVANCED & DEVELOPER CONFIGURATION // ПРОДВИНУТЫЕ НАСТРОЙКИ</h2>
                         <p>Настройки User-Agent, инструментов разработчика и пользовательских скриптов/расширений (Extensions / Userscripts).</p>
+                    </div>
+
+                    <!-- LOCAL PROXY CONFIGURATION -->
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Локальный прокси-сервер (Local HTTP Proxy)</span>
+                            <span class="label-desc">Перенаправлять трафик через локальный прокси 127.0.0.1:39281. По умолчанию выключено для прямой загрузки YouTube, поиска GitHub и поддержки нативного HTTP/2.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-use-proxy" onchange="applySettingLive('use_proxy', this.checked ? 'true' : 'false')">
+                            <span class="label-title">Включить прокси</span>
+                        </label>
                     </div>
 
                     <!-- USER AGENT & PRESETS -->
@@ -1190,12 +1231,85 @@
                     <div style="font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
                         <p>
                             Контейнеры позволяют разделять профили работы, личных дел, банков и покупок. 
-                            Каждый контейнер использует независимый профиль Chromium (cookie, LocalStorage, IndexedDB),
+                            Каждый контейнер использует независимый контекст WebKitGTK (cookie, LocalStorage, IndexedDB),
                             предотвращая отслеживание между сайтами и позволяя находиться под разными аккаунтами одновременно.
                         </p>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 24px;">
+                    <!-- CONTAINER SETTINGS & ISOLATION -->
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Изоляция Cookie и сессий</span>
+                            <span class="label-desc">Полная изоляция сессионных и постоянных куки между контейнерами.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-container-cookie" checked onchange="applySettingLive('container_cookie_isolation', this.checked ? 'true' : 'false')">
+                            <span class="label-title">Включено</span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Изоляция LocalStorage & IndexedDB</span>
+                            <span class="label-desc">Запретить веб-сайтам доступ к локальным хранилищам других контейнеров.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-container-storage" checked onchange="applySettingLive('container_storage_isolation', this.checked ? 'true' : 'false')">
+                            <span class="label-title">Включено</span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Очистка данных при закрытии вкладки</span>
+                            <span class="label-desc">Автоматически очищать временные данные контейнера при закрытии последней вкладки этого контейнера.</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-container-clean-close" onchange="applySettingLive('container_clean_on_close', this.checked ? 'true' : 'false')">
+                            <span class="label-title">Очищать</span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Контейнер по умолчанию для новых вкладок</span>
+                            <span class="label-desc">Выберите контейнер, который будет автоматически назначаться при создании новой вкладки.</span>
+                        </div>
+                        <select id="setting-container-default" style="width: 200px;" onchange="applySettingLive('container_default', this.value)">
+                            <option value="default">Default (Обычный)</option>
+                            <option value="personal">Personal (Личный)</option>
+                            <option value="work">Work (Работа)</option>
+                            <option value="banking">Banking (Банкинг)</option>
+                            <option value="shopping">Shopping (Шопинг)</option>
+                            <option value="isolated">Isolated (Изолированный)</option>
+                        </select>
+                    </div>
+
+                    <!-- ACTIVE CONTAINERS LIST & CREATOR -->
+                    <div style="margin-top: 16px;">
+                        <h3 style="font-size: 12px; color: var(--accent); margin-bottom: 8px;">АКТИВНЫЕ КОНТЕЙНЕРЫ</h3>
+                        <table class="keybinds-table" style="margin-bottom: 14px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 35%;">КОНТЕЙНЕР</th>
+                                    <th style="width: 25%;">ID</th>
+                                    <th style="width: 20%;">ЦВЕТ</th>
+                                    <th style="width: 20%;">ДЕЙСТВИЯ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="containers-table-body">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+
+                        <div style="display: flex; gap: 8px; align-items: center; background: var(--bg-surface); padding: 10px; border: 1px solid var(--border-muted);">
+                            <input type="text" id="new-container-name" placeholder="Название нового контейнера..." style="flex: 1; padding: 6px 10px; font-size: 11px; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--text-bright);">
+                            <input type="color" id="new-container-color" value="#d4a373" style="width: 38px; height: 30px; padding: 0; background: var(--bg-base); border: 1px solid var(--border-muted); cursor: pointer;" title="Цвет маркера">
+                            <button type="button" class="btn-action" onclick="addCustomContainer()" style="border-color: var(--accent); color: var(--accent);">+ ДОБАВИТЬ КОНТЕЙНЕР</button>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 20px 0;">
                         <div style="border: 1px solid #38bdf8; background: #18181b; padding: 14px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                                 <span style="display: inline-block; width: 10px; height: 10px; background: #38bdf8;"></span>
@@ -1270,6 +1384,8 @@
                 }
             } else if (tabId === 'extensions') {
                 refreshExtensionsList();
+            } else if (tabId === 'containers') {
+                renderContainersList();
             }
         }
 
@@ -1278,10 +1394,10 @@
         function sendToHost(url) {
             try {
                 if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'crux_cmd', url: url }, '*');
+                    window.parent.postMessage({ type: 'sonde_cmd', url: url }, '*');
                 }
             } catch (e) {
-                console.log("CRUX_IPC:", e);
+                console.log("SONDE_IPC:", e);
             }
         }
         window.sendToHost = sendToHost;
@@ -1378,6 +1494,35 @@
                 document.getElementById('setting-user-agent').value = UA_PRESETS['chrome-linux'];
                 if (document.getElementById('setting-ua-preset')) document.getElementById('setting-ua-preset').value = 'chrome-linux';
             }
+
+            if (document.getElementById('setting-use-proxy') && s.use_proxy !== undefined) {
+                document.getElementById('setting-use-proxy').checked = s.use_proxy === 'true';
+            }
+            if (document.getElementById('setting-container-default') && s.container_default) {
+                document.getElementById('setting-container-default').value = s.container_default;
+            }
+            if (document.getElementById('setting-container-cookie') && s.container_cookie_isolation !== undefined) {
+                document.getElementById('setting-container-cookie').checked = s.container_cookie_isolation !== 'false';
+            }
+            if (document.getElementById('setting-container-storage') && s.container_storage_isolation !== undefined) {
+                document.getElementById('setting-container-storage').checked = s.container_storage_isolation !== 'false';
+            }
+            if (document.getElementById('setting-container-clean-close') && s.container_clean_on_close !== undefined) {
+                document.getElementById('setting-container-clean-close').checked = s.container_clean_on_close === 'true';
+            }
+
+            const kbKeys = ['kb_palette', 'kb_new_tab', 'kb_close_tab', 'kb_split', 'kb_ai', 'kb_orient', 'kb_mode', 'kb_settings', 'kb_downloads'];
+            for (const k of kbKeys) {
+                if (s[k]) {
+                    const el = document.getElementById(k.replace('_', '-'));
+                    if (el) {
+                        if (el.tagName === 'BUTTON') el.textContent = s[k];
+                        else el.value = s[k];
+                    }
+                }
+            }
+
+            renderContainersList();
         };
 
         window.addEventListener('message', (e) => {
@@ -1406,7 +1551,7 @@
             } else if (key === 'language') {
                 applyLanguage(value);
             }
-            sendToHost("crux://live-setting?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
+            sendToHost("sonde://live-setting?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
         }
         window.applySettingLive = applySettingLive;
 
@@ -1459,7 +1604,7 @@
         }
 
         function openExternalUrl(url) {
-            sendToHost("crux://new-tab?url=" + encodeURIComponent(url));
+            sendToHost("sonde://new-tab?url=" + encodeURIComponent(url));
         }
         window.openExternalUrl = openExternalUrl;
 
@@ -1607,11 +1752,10 @@
                 ctx_tab_manager: "Менеджер вкладок",
                 header_about: "О БРАУЗЕРЕ SONDE",
                 desc_about: "Минималистичный инженерный веб-браузер",
-                about_body: "<strong>Sonde</strong> — легковесный браузер с клавиатурным управлением, строгой эстетикой Anthropic Minimal Dark, квадратным дизайном (0px скругления), моноширинным шрифтом и полной локализацией.",
+                about_body: "<strong>Sonde</strong> — легковесный браузер с клавиатурным управлением, строгой минималистичной темной эстетикой, квадратным дизайном (0px скругления), моноширинным шрифтом и полной локализацией.",
                 about_version: "Версия:",
                 about_engine: "Движок:",
                 about_arch: "Архитектура:",
-                btn_github: "GITHUB",
                 btn_telegram: "TELEGRAM"
             },
             en: {
@@ -1756,11 +1900,10 @@
                 ctx_tab_manager: "Tab Manager",
                 header_about: "ABOUT SONDE",
                 desc_about: "Minimal, Engineer-Grade Web Browser",
-                about_body: "<strong>Sonde</strong> is a lightweight, keyboard-driven browser engineered with a strict Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.",
+                about_body: "<strong>Sonde</strong> is a lightweight, keyboard-driven browser engineered with a strict minimalist dark aesthetic, 0px border-radius, monospace typography, and full i18n support.",
                 about_version: "Version:",
                 about_engine: "Engine:",
                 about_arch: "Architecture:",
-                btn_github: "GITHUB",
                 btn_telegram: "TELEGRAM"
             }
         };
@@ -1890,12 +2033,282 @@
             };
             for (const [k, v] of Object.entries(defaults)) {
                 const el = document.getElementById(k.replace('_', '-'));
-                if (el) el.value = v;
+                if (el) {
+                    if (el.tagName === 'BUTTON') el.textContent = v;
+                    else el.value = v;
+                }
                 applySettingLive(k, v);
             }
             showToast(currentLang === 'ru' ? "Горячие клавиши сброшены" : "Shortcuts reset to defaults");
         }
         window.resetKeybinds = resetKeybinds;
+
+        // Interactive Click-to-Record Keybind Capture
+        let activeKeybindBtn = null;
+        let activeKeybindHandler = null;
+
+        function startKeybindRecord(btn) {
+            if (activeKeybindBtn) {
+                cancelKeybindRecord();
+            }
+            activeKeybindBtn = btn;
+            const originalVal = btn.textContent;
+            btn.classList.add('recording');
+            btn.textContent = currentLang === 'ru' ? '[НАЖМИТЕ КЛАВИШИ...]' : '[PRESS KEYS...]';
+
+            activeKeybindHandler = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (e.key === 'Escape') {
+                    cancelKeybindRecord(originalVal);
+                    return;
+                }
+
+                if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+                    return;
+                }
+
+                const parts = [];
+                if (e.ctrlKey) parts.push('Ctrl');
+                if (e.altKey) parts.push('Alt');
+                if (e.shiftKey) parts.push('Shift');
+                if (e.metaKey) parts.push('Super');
+
+                let k = e.key;
+                if (k === ' ') k = 'Space';
+                else if (k.length === 1) k = k.toUpperCase();
+                else if (e.code && e.code.startsWith('Key')) k = e.code.replace('Key', '');
+                else if (e.code && e.code.startsWith('Digit')) k = e.code.replace('Digit', '');
+
+                parts.push(k);
+                const combo = parts.join(' + ');
+
+                btn.textContent = combo;
+                btn.classList.remove('recording');
+                const settingKey = btn.dataset.key;
+                if (settingKey) {
+                    applySettingLive(settingKey, combo);
+                }
+
+                window.removeEventListener('keydown', activeKeybindHandler, true);
+                activeKeybindBtn = null;
+                activeKeybindHandler = null;
+                showToast((currentLang === 'ru' ? "Горячая клавиша: " : "Shortcut: ") + combo);
+            };
+
+            window.addEventListener('keydown', activeKeybindHandler, true);
+        }
+        window.startKeybindRecord = startKeybindRecord;
+
+        function cancelKeybindRecord(restoreVal) {
+            if (activeKeybindBtn) {
+                activeKeybindBtn.classList.remove('recording');
+                if (restoreVal) activeKeybindBtn.textContent = restoreVal;
+                activeKeybindBtn = null;
+            }
+            if (activeKeybindHandler) {
+                window.removeEventListener('keydown', activeKeybindHandler, true);
+                activeKeybindHandler = null;
+            }
+        }
+
+        // --- PASSWORD MIGRATION CONTROLLER (CHROME, FIREFOX, EDGE, BRAVE, OPERA) ---
+        function triggerPasswordImport() {
+            const input = document.getElementById('pwdImportFileInput');
+            if (input) input.click();
+        }
+        window.triggerPasswordImport = triggerPasswordImport;
+
+        function showBrowserProfilesInfo() {
+            const msg = currentLang === 'ru'
+                ? "Инструкция по миграции паролей:\n\n1. Google Chrome / Brave / Edge / Opera:\n   - Перейдите в менеджер паролей (chrome://password-manager)\n   - Нажмите Настройки -> Экспорт паролей (.csv)\n\n2. Mozilla Firefox:\n   - Перейдите в about:logins\n   - Меню (три точки) -> Экспорт логинов и паролей (.csv)\n\n3. Затем нажмите кнопку «МИГРАЦИЯ ПАРОЛЕЙ» и выберите файл.\nSonde автоматически распознает формат и добавит логины в локальное хранилище."
+                : "Password Migration Guide:\n\n1. Google Chrome / Brave / Edge / Opera:\n   - Open password manager (chrome://password-manager)\n   - Settings -> Export passwords (.csv)\n\n2. Mozilla Firefox:\n   - Open about:logins\n   - Click '...' menu -> Export Logins (.csv)\n\n3. Click 'MIGRATE PASSWORDS' and choose your CSV/JSON file.\nSonde will automatically parse and import all accounts.";
+            alert(msg);
+        }
+        window.showBrowserProfilesInfo = showBrowserProfilesInfo;
+
+        function handlePasswordFileSelected(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const imported = parsePasswordFileContent(text, file.name);
+                if (imported.length === 0) {
+                    alert(currentLang === 'ru' ? "Не удалось распознать учетные записи в файле." : "No valid credentials found in selected file.");
+                    return;
+                }
+
+                if (confirm(currentLang === 'ru' ? `Найдено ${imported.length} учетных записей. Импортировать в хранилище Sonde?` : `Found ${imported.length} credentials. Import into Sonde vault?`)) {
+                    try {
+                        if (window.parent && window.parent !== window) {
+                            window.parent.postMessage({ type: 'sonde_import_passwords', passwords: imported }, '*');
+                        }
+                    } catch(err) {
+                        console.error("Import postMessage failed:", err);
+                    }
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+        window.handlePasswordFileSelected = handlePasswordFileSelected;
+
+        function parsePasswordFileContent(text, filename) {
+            text = text.trim();
+            const results = [];
+
+            // 1. JSON parse
+            if (text.startsWith('[') || text.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(text);
+                    const list = Array.isArray(parsed) ? parsed : (parsed.logins || parsed.passwords || []);
+                    for (const item of list) {
+                        const u = item.url || item.origin || item.hostname || item.site || item.action_url || '';
+                        const usr = item.username || item.user || item.login || item.email || '';
+                        const pwd = item.password || item.pwd || item.pass || '';
+                        if (u && (usr || pwd)) {
+                            results.push({ url: u, username: usr, password: pwd });
+                        }
+                    }
+                    if (results.length > 0) return results;
+                } catch(e) {}
+            }
+
+            // 2. CSV parsing
+            const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+            if (lines.length < 2) return results;
+
+            const headerLine = lines[0];
+            let sep = ',';
+            if (headerLine.includes(';') && (headerLine.split(';').length > headerLine.split(',').length)) {
+                sep = ';';
+            } else if (headerLine.includes('\t') && (headerLine.split('\t').length > headerLine.split(',').length)) {
+                sep = '\t';
+            }
+
+            function parseCSVRow(rowStr, separator) {
+                const row = [];
+                let inQuotes = false;
+                let cur = '';
+                for (let i = 0; i < rowStr.length; i++) {
+                    const c = rowStr[i];
+                    if (c === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (c === separator && !inQuotes) {
+                        row.push(cur.trim().replace(/^"|"$/g, ''));
+                        cur = '';
+                    } else {
+                        cur += c;
+                    }
+                }
+                row.push(cur.trim().replace(/^"|"$/g, ''));
+                return row;
+            }
+
+            const headers = parseCSVRow(lines[0], sep).map(h => h.toLowerCase());
+            let urlIdx = -1, userIdx = -1, pwdIdx = -1;
+
+            for (let i = 0; i < headers.length; i++) {
+                const h = headers[i];
+                if (urlIdx === -1 && (h.includes('url') || h.includes('origin') || h.includes('site') || h.includes('адрес') || h.includes('сайт'))) urlIdx = i;
+                if (userIdx === -1 && (h.includes('user') || h.includes('login') || h.includes('email') || h.includes('имя') || h.includes('логин') || h.includes('почта'))) userIdx = i;
+                if (pwdIdx === -1 && (h.includes('pass') || h.includes('pwd') || h.includes('пароль'))) pwdIdx = i;
+            }
+
+            if (urlIdx === -1) urlIdx = 1;
+            if (userIdx === -1) userIdx = 2;
+            if (pwdIdx === -1) pwdIdx = 3;
+
+            for (let i = 1; i < lines.length; i++) {
+                const row = parseCSVRow(lines[i], sep);
+                if (row.length > Math.max(urlIdx, userIdx, pwdIdx)) {
+                    let u = row[urlIdx] || '';
+                    let usr = row[userIdx] || '';
+                    let pwd = row[pwdIdx] || '';
+                    if (u && (usr || pwd)) {
+                        results.push({ url: u, username: usr, password: pwd });
+                    }
+                }
+            }
+
+            return results;
+        }
+
+        // --- MULTI-ACCOUNT CONTAINERS CONTROLLER ---
+        let activeContainers = [
+            { id: 'default', name: 'Default', color: '#71717a', isSystem: true },
+            { id: 'personal', name: 'Personal (Личный)', color: '#38bdf8', isSystem: true },
+            { id: 'work', name: 'Work (Работа)', color: '#fe8019', isSystem: true },
+            { id: 'banking', name: 'Banking (Банкинг)', color: '#10b981', isSystem: true },
+            { id: 'shopping', name: 'Shopping (Шопинг)', color: '#a855f7', isSystem: true },
+            { id: 'isolated', name: 'Isolated (Изолированный)', color: '#f43f5e', isSystem: true }
+        ];
+
+        function renderContainersList() {
+            const tbody = document.getElementById('containers-table-body');
+            if (!tbody) return;
+            try {
+                const saved = localStorage.getItem('sonde_custom_containers');
+                if (saved) {
+                    const custom = JSON.parse(saved);
+                    for (const c of custom) {
+                        if (!activeContainers.find(x => x.id === c.id)) {
+                            activeContainers.push(c);
+                        }
+                    }
+                }
+            } catch(e) {}
+
+            tbody.innerHTML = '';
+            for (const c of activeContainers) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span style="display:inline-block;width:12px;height:12px;background:${c.color};vertical-align:middle;margin-right:8px;border:1px solid rgba(255,255,255,0.2);"></span><strong>${c.name}</strong></td>
+                    <td><code>${c.id}</code></td>
+                    <td><span style="color:${c.color};font-weight:bold;">${c.color}</span></td>
+                    <td>${c.isSystem ? '<span style="color:var(--text-muted);font-size:10px;">[СИСТЕМНЫЙ]</span>' : '<button type="button" class="btn-remove-sm" onclick="deleteCustomContainer(\'' + c.id + '\')">УДАЛИТЬ</button>'}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+        window.renderContainersList = renderContainersList;
+
+        function addCustomContainer() {
+            const nameInp = document.getElementById('new-container-name');
+            const colorInp = document.getElementById('new-container-color');
+            const name = (nameInp ? nameInp.value : '').trim();
+            const color = (colorInp ? colorInp.value : '#d4a373').trim();
+            if (!name) return;
+            const id = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            if (activeContainers.find(c => c.id === id)) {
+                alert(currentLang === 'ru' ? "Контейнер с таким ID уже существует" : "Container with this ID already exists");
+                return;
+            }
+            const newC = { id, name, color, isSystem: false };
+            activeContainers.push(newC);
+            if (nameInp) nameInp.value = '';
+            renderContainersList();
+            try {
+                const customOnly = activeContainers.filter(c => !c.isSystem);
+                localStorage.setItem('sonde_custom_containers', JSON.stringify(customOnly));
+            } catch(e) {}
+            showToast((currentLang === 'ru' ? "Контейнер добавлен: " : "Container added: ") + name);
+        }
+        window.addCustomContainer = addCustomContainer;
+
+        function deleteCustomContainer(id) {
+            activeContainers = activeContainers.filter(c => c.id !== id);
+            renderContainersList();
+            try {
+                const customOnly = activeContainers.filter(c => !c.isSystem);
+                localStorage.setItem('sonde_custom_containers', JSON.stringify(customOnly));
+            } catch(e) {}
+            showToast(currentLang === 'ru' ? "Контейнер удален" : "Container deleted");
+        }
+        window.deleteCustomContainer = deleteCustomContainer;
 
         function lockVault() {
             isVaultUnlocked = false;
@@ -2044,7 +2457,7 @@
 
         function deleteCookie(encHost, encName) {
             if (confirm("Delete this cookie?")) {
-                sendToHost(`crux://action/delete-cookie?host=${encHost}&name=${encName}`);
+                sendToHost(`sonde://action/delete-cookie?host=${encHost}&name=${encName}`);
             }
         }
 
@@ -2292,12 +2705,12 @@
         }
 
         function toggleUserscript(name) {
-            sendToHost("crux://action/toggle-userscript?name=" + encodeURIComponent(name));
+            sendToHost("sonde://action/toggle-userscript?name=" + encodeURIComponent(name));
             setTimeout(() => { location.reload(); }, 250);
         }
 
         function toggleUserstyle(name) {
-            sendToHost("crux://action/toggle-userstyle?name=" + encodeURIComponent(name));
+            sendToHost("sonde://action/toggle-userstyle?name=" + encodeURIComponent(name));
             setTimeout(() => { location.reload(); }, 250);
         }
 
@@ -2341,12 +2754,34 @@
             const uaInput = document.getElementById('setting-user-agent');
             if (uaInput) params.set('user_agent', uaInput.value);
 
+            if (document.getElementById('setting-use-proxy')) {
+                params.set('use_proxy', document.getElementById('setting-use-proxy').checked ? 'true' : 'false');
+            }
+            if (document.getElementById('setting-container-default')) {
+                params.set('container_default', document.getElementById('setting-container-default').value);
+            }
+            if (document.getElementById('setting-container-cookie')) {
+                params.set('container_cookie_isolation', document.getElementById('setting-container-cookie').checked ? 'true' : 'false');
+            }
+            if (document.getElementById('setting-container-storage')) {
+                params.set('container_storage_isolation', document.getElementById('setting-container-storage').checked ? 'true' : 'false');
+            }
+            if (document.getElementById('setting-container-clean-close')) {
+                params.set('container_clean_on_close', document.getElementById('setting-container-clean-close').checked ? 'true' : 'false');
+            }
+
+            const kbKeys = ['kb_palette', 'kb_new_tab', 'kb_close_tab', 'kb_split', 'kb_ai', 'kb_orient', 'kb_mode', 'kb_settings', 'kb_downloads'];
+            for (const k of kbKeys) {
+                const el = document.getElementById(k.replace('_', '-'));
+                if (el) params.set(k, el.textContent || el.value);
+            }
+
             const toast = document.getElementById('toastMessage');
             toast.style.display = 'block';
             setTimeout(() => { toast.style.display = 'none'; }, 3000);
 
-            // Execute dynamically in Qt without page navigation
-            sendToHost("crux://apply-settings?" + params.toString());
+            // Execute dynamically without page navigation
+            sendToHost("sonde://apply-settings?" + params.toString());
         }
 
         function toggleAIProviderUI() {
@@ -2375,7 +2810,7 @@
                 badge.style.color = '#38bdf8';
                 badge.innerText = 'Проверка подключения к ' + url + '...';
             }
-            sendToHost("crux://action/test-ollama?url=" + encodeURIComponent(url));
+            sendToHost("sonde://action/test-ollama?url=" + encodeURIComponent(url));
         }
 
         window.onOllamaTestResult = function(success, info) {

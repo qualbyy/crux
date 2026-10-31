@@ -1,9 +1,9 @@
 @echo off
 REM ========================================================
-REM  Sonde 2.0 — Native Windows Release Build Script
+REM  Sonde — Native Windows Release Build Script
 REM ========================================================
 
-echo ===^> [Sonde 2.0] Checking Windows build environment...
+echo ===^> [Sonde] Checking Windows build environment...
 
 where cargo >nul 2>nul
 if %ERRORLEVEL% neq 0 (
@@ -21,7 +21,7 @@ cargo build --release
 if %ERRORLEVEL% equ 0 (
     echo.
     echo ========================================================
-    echo  [SUCCESS] Sonde 2.0 Windows binary built successfully!
+    echo  [SUCCESS] Sonde Windows binary built successfully!
     echo  Binary: src-tauri\target\release\sonde-rs.exe
     echo ========================================================
 ) else (
