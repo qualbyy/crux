@@ -495,6 +495,7 @@ checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 name = "crux-rs"
 version = "2.0.0-alpha.1"
 dependencies = [
+ "gtk",
  "rfd",
  "rusqlite",
  "serde",

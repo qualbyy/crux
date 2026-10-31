@@ -82,6 +82,32 @@ impl TabManager {
             tab.is_pinned = !tab.is_pinned;
         }
     }
+
+    pub fn toggle_mute(&mut self, id: u32) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
+            tab.is_muted = !tab.is_muted;
+        }
+    }
+
+    pub fn set_title(&mut self, id: u32, title: String) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
+            tab.title = title;
+        }
+    }
+
+    pub fn set_url(&mut self, id: u32, url: String) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
+            tab.url = url;
+        }
+    }
+
+    pub fn get_active_tab(&self) -> Option<Tab> {
+        self.active_id.and_then(|id| self.tabs.iter().find(|t| t.id == id).cloned())
+    }
+
+    pub fn get_tabs(&self) -> Vec<Tab> {
+        self.tabs.clone()
+    }
 }
 
 pub type TabManagerState = Mutex<TabManager>;

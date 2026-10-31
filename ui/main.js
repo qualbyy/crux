@@ -1,6 +1,14 @@
-// Crux 2.0 — Frontend Controller
+// Crux 2.0 — Frontend Controller with Rust IPC
 
-const isTauri = window.__TAURI__ !== undefined;
+function sendIpc(cmd, data = {}) {
+  try {
+    if (window.ipc && window.ipc.postMessage) {
+      window.ipc.postMessage(JSON.stringify({ cmd, ...data }));
+    }
+  } catch (err) {
+    console.warn("IPC send failed:", err);
+  }
+}
 
 let tabs = [
   { id: 1, title: 'Crux Startpage', url: 'https://duckduckgo.com', container: 'default', is_pinned: false, is_active: true }
@@ -17,10 +25,13 @@ const elements = {
   commandPalette: document.getElementById('commandPalette'),
   paletteInput: document.getElementById('paletteInput'),
   paletteResults: document.getElementById('paletteResults'),
-  btnCommandPalette: document.getElementById('btnCommandPalette')
+  btnCommandPalette: document.getElementById('btnCommandPalette'),
+  btnAiSidebar: document.getElementById('btnAiSidebar'),
+  btnSettings: document.getElementById('btnSettings')
 };
 
 function renderTabs() {
+  if (!elements.tabsList) return;
   elements.tabsList.innerHTML = '';
   tabs.forEach(tab => {
     const el = document.createElement('div');
@@ -59,8 +70,9 @@ function activateTab(id) {
   renderTabs();
   const current = tabs.find(t => t.id === id);
   if (current) {
-    elements.urlInput.value = current.url;
-    elements.webFrame.src = current.url;
+    if (elements.urlInput) elements.urlInput.value = current.url;
+    if (elements.webFrame) elements.webFrame.src = current.url;
+    sendIpc('activate_tab', { id });
   }
 }
 
@@ -78,6 +90,7 @@ function createTab(url = 'https://duckduckgo.com') {
   tabs.push(tab);
   renderTabs();
   activateTab(newId);
+  sendIpc('create_tab', { url, container: 'default' });
 }
 
 function closeTab(id) {
@@ -85,6 +98,7 @@ function closeTab(id) {
   if (idx !== -1) {
     const wasActive = tabs[idx].is_active;
     tabs.splice(idx, 1);
+    sendIpc('close_tab', { id });
     if (wasActive && tabs.length > 0) {
       const nextIdx = Math.min(idx, tabs.length - 1);
       tabs[nextIdx].is_active = true;
@@ -96,32 +110,40 @@ function closeTab(id) {
 }
 
 // Event Listeners
-elements.btnNewTab.addEventListener('click', () => createTab());
+if (elements.btnNewTab) {
+  elements.btnNewTab.addEventListener('click', () => createTab());
+}
 
-elements.btnToggleSidebar.addEventListener('click', () => {
-  elements.sidebar.classList.toggle('compact');
-});
+if (elements.btnToggleSidebar) {
+  elements.btnToggleSidebar.addEventListener('click', () => {
+    elements.sidebar.classList.toggle('compact');
+  });
+}
 
-elements.urlInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    let input = elements.urlInput.value.trim();
-    if (!input.startsWith('http://') && !input.startsWith('https://') && !input.startsWith('crux://')) {
-      if (input.includes('.') && !input.includes(' ')) {
-        input = 'https://' + input;
-      } else {
-        input = 'https://duckduckgo.com/?q=' + encodeURIComponent(input);
+if (elements.urlInput) {
+  elements.urlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      let input = elements.urlInput.value.trim();
+      if (!input.startsWith('http://') && !input.startsWith('https://') && !input.startsWith('crux://')) {
+        if (input.includes('.') && !input.includes(' ')) {
+          input = 'https://' + input;
+        } else {
+          input = 'https://duckduckgo.com/?q=' + encodeURIComponent(input);
+        }
+      }
+      const active = tabs.find(t => t.is_active);
+      if (active) {
+        active.url = input;
+        if (elements.webFrame) elements.webFrame.src = input;
+        sendIpc('navigate', { url: input });
       }
     }
-    const active = tabs.find(t => t.is_active);
-    if (active) {
-      active.url = input;
-      elements.webFrame.src = input;
-    }
-  }
-});
+  });
+}
 
 // Command Palette (Ctrl+Shift+P)
 function toggleCommandPalette() {
+  if (!elements.commandPalette) return;
   elements.commandPalette.classList.toggle('hidden');
   if (!elements.commandPalette.classList.contains('hidden')) {
     elements.paletteInput.value = '';
@@ -133,18 +155,20 @@ function toggleCommandPalette() {
 const commands = [
   { name: 'New Tab', action: () => createTab() },
   { name: 'Toggle Compact Sidebar', action: () => elements.sidebar.classList.toggle('compact') },
-  { name: 'Clear History', action: () => alert('History cleared') },
+  { name: 'Choose Default Download Directory (Rust RFD)', action: () => sendIpc('choose_download_dir') },
   { name: 'Open Settings', action: () => createTab('crux://settings') },
   { name: 'Pin / Unpin Current Tab', action: () => {
     const active = tabs.find(t => t.is_active);
     if (active) {
       active.is_pinned = !active.is_pinned;
       renderTabs();
+      sendIpc('toggle_pin', { id: active.id });
     }
   }}
 ];
 
 function renderCommands(query) {
+  if (!elements.paletteResults) return;
   elements.paletteResults.innerHTML = '';
   const filtered = commands.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
   filtered.forEach(cmd => {
@@ -159,20 +183,25 @@ function renderCommands(query) {
   });
 }
 
-elements.paletteInput.addEventListener('input', (e) => {
-  renderCommands(e.target.value);
-});
+if (elements.paletteInput) {
+  elements.paletteInput.addEventListener('input', (e) => {
+    renderCommands(e.target.value);
+  });
+}
 
-elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
+if (elements.btnCommandPalette) {
+  elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
+}
 
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
     toggleCommandPalette();
-  } else if (e.key === 'Escape' && !elements.commandPalette.classList.contains('hidden')) {
+  } else if (e.key === 'Escape' && elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
     elements.commandPalette.classList.add('hidden');
   }
 });
 
 // Initial Render
 renderTabs();
+console.log("Crux 2.0 UI Shell initialized with Rust IPC.");
