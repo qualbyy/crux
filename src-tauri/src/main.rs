@@ -11,6 +11,7 @@ use serde_json::Value;
 
 mod adblock;
 mod ai;
+mod proxy;
 mod storage;
 mod tab_manager;
 
@@ -27,7 +28,9 @@ enum UserEvent {
     DownloadsLoaded(String),
     SettingsLoaded(String),
     ReaderContentLoaded(String),
+    AdBlockStateChanged(bool),
     OpenDevTools,
+    ToggleFullscreen,
     CloseWindow,
     MinimizeWindow,
     MaximizeWindow,
@@ -94,6 +97,16 @@ fn main() -> wry::Result<()> {
     // 2. Initialize Core State: TabManager & AdBlocker
     let tab_manager = Arc::new(Mutex::new(TabManager::new()));
     let adblocker = Arc::new(AdBlocker::new());
+
+    // Restore saved adblock state
+    if let Some(ab_saved) = db.get_setting("adblock_enabled") {
+        if ab_saved == "false" {
+            adblocker.set_enabled(false);
+        }
+    }
+
+    // Start local embedded proxy on 127.0.0.1:39281 to bypass WebKit CSP & frame-ancestors
+    proxy::start_proxy(Arc::clone(&adblocker), 39281);
 
     // 3. Initialize Tao Event Loop with UserEvent support
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
@@ -327,6 +340,16 @@ fn main() -> wry::Result<()> {
                             });
                         }
                     }
+                    "toggle_adblock" => {
+                        let new_state = adb_clone.toggle();
+                        let state_str = if new_state { "true" } else { "false" };
+                        db_clone.save_setting("adblock_enabled", state_str).ok();
+                        println!("[Rust Core] AdBlock toggled: enabled={}", new_state);
+                        let _ = proxy_clone.send_event(UserEvent::AdBlockStateChanged(new_state));
+                    }
+                    "toggle_fullscreen" => {
+                        let _ = proxy_clone.send_event(UserEvent::ToggleFullscreen);
+                    }
                     "window_close" => {
                         let _ = proxy_clone.send_event(UserEvent::CloseWindow);
                     }
@@ -395,6 +418,18 @@ fn main() -> wry::Result<()> {
             Event::UserEvent(UserEvent::CloseWindow) => *control_flow = ControlFlow::Exit,
             Event::UserEvent(UserEvent::MinimizeWindow) => window.set_minimized(true),
             Event::UserEvent(UserEvent::MaximizeWindow) => window.set_maximized(!window.is_maximized()),
+            Event::UserEvent(UserEvent::ToggleFullscreen) => {
+                let is_fullscreen = window.fullscreen().is_some();
+                if is_fullscreen {
+                    window.set_fullscreen(None);
+                } else {
+                    window.set_fullscreen(Some(tao::window::Fullscreen::Borderless(None)));
+                }
+            }
+            Event::UserEvent(UserEvent::AdBlockStateChanged(enabled)) => {
+                let script = format!("if (window.onAdBlockToggled) window.onAdBlockToggled({});", enabled);
+                let _ = webview.evaluate_script(&script);
+            }
             Event::UserEvent(UserEvent::DragWindow) => {
                 let _ = window.drag_window();
             }

@@ -86,7 +86,24 @@ const I18N = {
     all_downloads: "ВСЕ ЗАГРУЗКИ (crux://downloads)",
     all_bookmarks: "ВСЕ ЗАКЛАДКИ",
     open_folder: "ОТКРЫТЬ ПАПКУ",
-    add_bookmark: "+ ДОБАВИТЬ СТРАНИЦУ"
+    add_bookmark: "+ ДОБАВИТЬ СТРАНИЦУ",
+    new_tab_btn: "НОВАЯ ВКЛАДКА",
+    bookmarks_btn: "ЗАКЛАДКИ",
+    downloads_btn: "ЗАГРУЗКИ",
+    split_btn: "РАЗДЕЛИТЬ",
+    reader_btn: "ЧТЕНИЕ",
+    ai_btn: "ИИ",
+    cmd_btn: "КОМАНДЫ",
+    url_placeholder: "Поиск в DuckDuckGo или введите адрес...",
+    find_placeholder: "Поиск на странице...",
+    ctx_pin: "Закрепить вкладку",
+    ctx_unpin: "Открепить вкладку",
+    ctx_mute: "Отключить звук",
+    ctx_unmute: "Включить звук",
+    ctx_duplicate: "Дублировать вкладку",
+    ctx_split: "Разделить экран",
+    ctx_snooze: "Приостановить вкладку",
+    ctx_close: "Закрыть вкладку"
   },
   en: {
     zoom_label: "Zoom:",
@@ -127,7 +144,24 @@ const I18N = {
     all_downloads: "ALL DOWNLOADS (crux://downloads)",
     all_bookmarks: "ALL BOOKMARKS",
     open_folder: "OPEN FOLDER",
-    add_bookmark: "+ ADD CURRENT PAGE"
+    add_bookmark: "+ ADD CURRENT PAGE",
+    new_tab_btn: "NEW TAB",
+    bookmarks_btn: "BOOKMARKS",
+    downloads_btn: "DOWNLOADS",
+    split_btn: "SPLIT",
+    reader_btn: "READ",
+    ai_btn: "AI",
+    cmd_btn: "CMD",
+    url_placeholder: "Search DuckDuckGo or enter address...",
+    find_placeholder: "Find in page...",
+    ctx_pin: "Pin Tab",
+    ctx_unpin: "Unpin Tab",
+    ctx_mute: "Mute Tab",
+    ctx_unmute: "Unmute Tab",
+    ctx_duplicate: "Duplicate Tab",
+    ctx_split: "Split View",
+    ctx_snooze: "Snooze Tab",
+    ctx_close: "Close Tab"
   }
 };
 
@@ -220,7 +254,35 @@ const elements = {
   optContainerPersonal: document.getElementById('optContainerPersonal'),
   optContainerWork: document.getElementById('optContainerWork'),
   optContainerBanking: document.getElementById('optContainerBanking'),
-  optContainerShopping: document.getElementById('optContainerShopping')
+  optContainerShopping: document.getElementById('optContainerShopping'),
+  // Backdrop & Resizer
+  popupBackdrop: document.getElementById('popupBackdrop'),
+  sidebarResizer: document.getElementById('sidebarResizer'),
+  // Find in Page Elements
+  findInPageBar: document.getElementById('findInPageBar'),
+  findInput: document.getElementById('findInput'),
+  findMatchesCount: document.getElementById('findMatchesCount'),
+  btnFindPrev: document.getElementById('btnFindPrev'),
+  btnFindNext: document.getElementById('btnFindNext'),
+  btnFindClose: document.getElementById('btnFindClose'),
+  // Tab Context Menu Elements
+  tabContextMenu: document.getElementById('tabContextMenu'),
+  ctxPinTab: document.getElementById('ctxPinTab'),
+  ctxPinLabel: document.getElementById('ctxPinLabel'),
+  ctxMuteTab: document.getElementById('ctxMuteTab'),
+  ctxMuteLabel: document.getElementById('ctxMuteLabel'),
+  ctxDuplicateTab: document.getElementById('ctxDuplicateTab'),
+  ctxSplitTab: document.getElementById('ctxSplitTab'),
+  ctxSnoozeTab: document.getElementById('ctxSnoozeTab'),
+  ctxContainerDefault: document.getElementById('ctxContainerDefault'),
+  ctxContainerPersonal: document.getElementById('ctxContainerPersonal'),
+  ctxContainerWork: document.getElementById('ctxContainerWork'),
+  ctxContainerBanking: document.getElementById('ctxContainerBanking'),
+  ctxContainerShopping: document.getElementById('ctxContainerShopping'),
+  ctxCloseTab: document.getElementById('ctxCloseTab'),
+  // AdBlock Elements
+  menuAdBlock: document.getElementById('menuAdBlock'),
+  adblockCountTag: document.getElementById('adblockCountTag')
 };
 
 // SVG Icon Helpers
@@ -355,6 +417,9 @@ function syncTabSplitView(tab) {
       if (splitUrl === 'crux://startpage' || splitUrl === 'about:blank') {
         elements.webFrameSplit.removeAttribute('src');
         elements.webFrameSplit.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
+      } else if (splitUrl.startsWith('http://') || splitUrl.startsWith('https://')) {
+        elements.webFrameSplit.removeAttribute('srcdoc');
+        elements.webFrameSplit.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(splitUrl)}`;
       } else {
         elements.webFrameSplit.removeAttribute('srcdoc');
         elements.webFrameSplit.src = splitUrl;
@@ -400,6 +465,9 @@ function navigateSplitTab(input) {
   if (url === 'crux://startpage') {
     elements.webFrameSplit.removeAttribute('src');
     elements.webFrameSplit.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
+  } else if (url.startsWith('http://') || url.startsWith('https://')) {
+    elements.webFrameSplit.removeAttribute('srcdoc');
+    elements.webFrameSplit.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
   } else {
     elements.webFrameSplit.removeAttribute('srcdoc');
     elements.webFrameSplit.src = url;
@@ -446,6 +514,11 @@ function loadTabContent(tab) {
       applyAccentColor(currentAccent);
       applyTheme(currentTheme);
     }, 60);
+  } else if (url.startsWith('http://') || url.startsWith('https://')) {
+    elements.webFrame.removeAttribute('srcdoc');
+    // Load external site through embedded Rust proxy to bypass WebKit CSP & X-Frame-Options
+    elements.webFrame.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
+    if (elements.urlInput) elements.urlInput.value = url;
   } else {
     elements.webFrame.removeAttribute('srcdoc');
     elements.webFrame.src = url;
@@ -456,6 +529,21 @@ function loadTabContent(tab) {
   applyZoom(currentZoom);
 }
 
+// Letter Badge Helper for Compact Mode & Tab Favicon Fallback
+function getTabBadgeLetter(tab) {
+  const url = tab.url || '';
+  if (url.startsWith('crux://startpage')) return 'C';
+  if (url.startsWith('crux://settings')) return '⚙';
+  if (url.startsWith('crux://history')) return 'H';
+  if (url.startsWith('crux://downloads')) return 'D';
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    if (host.length > 0) return host[0].toUpperCase();
+  } catch(e) {}
+  if (tab.title && tab.title.trim().length > 0) return tab.title.trim()[0].toUpperCase();
+  return 'T';
+}
+
 // Tab Rendering (Vertical)
 function renderTabs() {
   if (!elements.tabsList) return;
@@ -463,6 +551,13 @@ function renderTabs() {
   tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = `tab-item ${tab.is_active ? 'active' : ''}`;
+
+    // Always render domain initial badge for compact mode & crisp recognition
+    const badge = document.createElement('span');
+    badge.className = 'tab-badge';
+    badge.textContent = getTabBadgeLetter(tab);
+    badge.title = tab.title || tab.url;
+    el.appendChild(badge);
 
     if (tab.is_pinned) {
       const pin = document.createElement('span');
@@ -515,6 +610,12 @@ function renderTabs() {
     }
 
     el.onclick = () => activateTab(tab.id);
+    el.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openTabContextMenu(e, tab);
+    };
+
     elements.tabsList.appendChild(el);
   });
   updateNavButtons();
@@ -527,6 +628,15 @@ function renderHorizontalTabs() {
   tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = `horizontal-tab-item ${tab.is_active ? 'active' : ''}`;
+
+    const badge = document.createElement('span');
+    badge.className = 'tab-badge';
+    badge.style.width = '16px';
+    badge.style.height = '16px';
+    badge.style.fontSize = '9px';
+    badge.style.marginRight = '4px';
+    badge.textContent = getTabBadgeLetter(tab);
+    el.appendChild(badge);
 
     if (tab.is_pinned) {
       const pin = document.createElement('span');
@@ -577,6 +687,12 @@ function renderHorizontalTabs() {
     }
 
     el.onclick = () => activateTab(tab.id);
+    el.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openTabContextMenu(e, tab);
+    };
+
     elements.horizontalTabsList.appendChild(el);
   });
 }
@@ -758,6 +874,36 @@ function getSearchUrl(query) {
 }
 
 // Live Responsive Viewport & Mobile Mode System
+function applyMobileViewport() {
+  if (!isMobileMode || !elements.webFrame) return;
+
+  const isCustomResponsive = elements.vpPresetSelect && elements.vpPresetSelect.value === 'custom';
+
+  if (isCustomResponsive) {
+    elements.webFrame.style.width = '100%';
+    elements.webFrame.style.height = '100%';
+    elements.webFrame.style.maxWidth = '100%';
+    elements.webFrame.style.maxHeight = '100%';
+    elements.webFrame.style.transform = '';
+    return;
+  }
+
+  const containerW = (elements.webViewContainer ? elements.webViewContainer.clientWidth : window.innerWidth) - 40;
+  const containerH = (elements.webViewContainer ? elements.webViewContainer.clientHeight : window.innerHeight) - 40;
+
+  let scale = 1.0;
+  if (mobileWidth > containerW || mobileHeight > containerH) {
+    scale = Math.min(containerW / mobileWidth, containerH / mobileHeight);
+  }
+
+  elements.webFrame.style.width = `${mobileWidth}px`;
+  elements.webFrame.style.height = `${mobileHeight}px`;
+  elements.webFrame.style.maxWidth = `${mobileWidth}px`;
+  elements.webFrame.style.maxHeight = `${mobileHeight}px`;
+  elements.webFrame.style.transform = scale < 1.0 ? `scale(${scale.toFixed(3)})` : '';
+  elements.webFrame.style.transformOrigin = 'center center';
+}
+
 function setMobileMode(active, width = 390, height = 844) {
   isMobileMode = active;
   mobileWidth = width;
@@ -776,22 +922,17 @@ function setMobileMode(active, width = 390, height = 844) {
     }
   }
 
-  if (elements.webFrame) {
-    if (isMobileMode) {
-      elements.webFrame.style.width = `${mobileWidth}px`;
-      elements.webFrame.style.height = `${mobileHeight}px`;
-      elements.webFrame.style.maxWidth = `${mobileWidth}px`;
-      elements.webFrame.style.maxHeight = `${mobileHeight}px`;
-      elements.webFrame.style.transform = 'none';
-    } else {
-      elements.webFrame.style.width = '100%';
-      elements.webFrame.style.height = '100%';
-      elements.webFrame.style.maxWidth = '100%';
-      elements.webFrame.style.maxHeight = '100%';
-      elements.webFrame.style.border = 'none';
-      elements.webFrame.style.boxShadow = 'none';
-      applyZoom(currentZoom);
-    }
+  if (isMobileMode) {
+    applyMobileViewport();
+  } else if (elements.webFrame) {
+    elements.webFrame.style.width = '100%';
+    elements.webFrame.style.height = '100%';
+    elements.webFrame.style.maxWidth = '100%';
+    elements.webFrame.style.maxHeight = '100%';
+    elements.webFrame.style.transform = '';
+    elements.webFrame.style.border = 'none';
+    elements.webFrame.style.boxShadow = 'none';
+    applyZoom(currentZoom);
   }
 
   if (elements.vpWidthInput) elements.vpWidthInput.value = mobileWidth;
@@ -801,6 +942,10 @@ function setMobileMode(active, width = 390, height = 844) {
     elements.lblMobileStatus.style.color = isMobileMode ? '#10b981' : 'var(--text-muted)';
   }
 }
+
+window.addEventListener('resize', () => {
+  if (isMobileMode) applyMobileViewport();
+});
 
 function toggleMobileMode() {
   setMobileMode(!isMobileMode, mobileWidth, mobileHeight);
@@ -927,37 +1072,63 @@ if (elements.vpPresetSelect) {
   elements.vpPresetSelect.addEventListener('change', (e) => {
     const val = e.target.value;
     if (val === 'custom') {
-      setMobileMode(false);
+      applyMobileViewport();
     } else {
-      const [w, h] = val.split('x').map(n => parseInt(n));
-      setMobileMode(true, w, h);
+      const parts = val.split('x');
+      const w = parseInt(parts[0]);
+      const h = parseInt(parts[1]);
+      if (!isNaN(w) && !isNaN(h)) {
+        mobileWidth = w;
+        mobileHeight = h;
+        if (elements.vpWidthInput) elements.vpWidthInput.value = w;
+        if (elements.vpHeightInput) elements.vpHeightInput.value = h;
+        applyMobileViewport();
+      }
     }
   });
 }
 
 if (elements.vpWidthInput) {
   elements.vpWidthInput.addEventListener('input', (e) => {
-    const w = parseInt(e.target.value) || 390;
-    setMobileMode(true, w, mobileHeight);
+    const w = parseInt(e.target.value);
+    if (!isNaN(w) && w >= 200) {
+      mobileWidth = w;
+      applyMobileViewport();
+    }
   });
 }
 
 if (elements.vpHeightInput) {
   elements.vpHeightInput.addEventListener('input', (e) => {
-    const h = parseInt(e.target.value) || 844;
-    setMobileMode(true, mobileWidth, h);
+    const h = parseInt(e.target.value);
+    if (!isNaN(h) && h >= 200) {
+      mobileHeight = h;
+      applyMobileViewport();
+    }
   });
 }
 
 if (elements.btnVpRotate) {
   elements.btnVpRotate.addEventListener('click', () => {
-    setMobileMode(true, mobileHeight, mobileWidth);
+    const tmp = mobileWidth;
+    mobileWidth = mobileHeight;
+    mobileHeight = tmp;
+    if (elements.vpWidthInput) elements.vpWidthInput.value = mobileWidth;
+    if (elements.vpHeightInput) elements.vpHeightInput.value = mobileHeight;
+    applyMobileViewport();
   });
 }
 
 if (elements.btnVpClose) {
   elements.btnVpClose.addEventListener('click', () => {
     setMobileMode(false);
+  });
+}
+
+// Fullscreen Button
+if (elements.btnFullscreen) {
+  elements.btnFullscreen.addEventListener('click', () => {
+    sendIpc('toggle_fullscreen');
   });
 }
 
@@ -979,22 +1150,32 @@ if (elements.btnFullscreen) {
   });
 }
 
-// Popups: Bookmarks & Downloads
+// Unified Popups & Backdrop Controller
+function closeAllPopups() {
+  if (elements.appMenu) elements.appMenu.classList.add('hidden');
+  if (elements.bookmarksPopup) elements.bookmarksPopup.classList.add('hidden');
+  if (elements.downloadsPopup) elements.downloadsPopup.classList.add('hidden');
+  if (elements.tabContextMenu) elements.tabContextMenu.classList.add('hidden');
+  if (elements.popupBackdrop) elements.popupBackdrop.classList.add('hidden');
+}
+
+if (elements.popupBackdrop) {
+  elements.popupBackdrop.addEventListener('click', closeAllPopups);
+}
+
 function openInternalPage(url) {
-  closeAppMenu();
-  closeBookmarksPopup();
-  closeDownloadsPopup();
+  closeAllPopups();
   createTab(url);
 }
 
 function toggleBookmarksPopup(e) {
   if (e) e.stopPropagation();
-  closeAppMenu();
-  closeDownloadsPopup();
-  if (!elements.bookmarksPopup) return;
-  elements.bookmarksPopup.classList.toggle('hidden');
-  if (!elements.bookmarksPopup.classList.contains('hidden')) {
+  const isHidden = elements.bookmarksPopup ? elements.bookmarksPopup.classList.contains('hidden') : true;
+  closeAllPopups();
+  if (isHidden && elements.bookmarksPopup) {
     sendIpc('get_bookmarks');
+    elements.bookmarksPopup.classList.remove('hidden');
+    if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
   }
 }
 
@@ -1043,7 +1224,7 @@ function renderBookmarksList(bookmarks) {
     item.appendChild(delBtn);
 
     item.onclick = () => {
-      closeBookmarksPopup();
+      closeAllPopups();
       navigateActiveTab(bm.url);
     };
 
@@ -1065,12 +1246,12 @@ if (elements.btnAddCurrentBookmark) {
 
 function toggleDownloadsPopup(e) {
   if (e) e.stopPropagation();
-  closeAppMenu();
-  closeBookmarksPopup();
-  if (!elements.downloadsPopup) return;
-  elements.downloadsPopup.classList.toggle('hidden');
-  if (!elements.downloadsPopup.classList.contains('hidden')) {
+  const isHidden = elements.downloadsPopup ? elements.downloadsPopup.classList.contains('hidden') : true;
+  closeAllPopups();
+  if (isHidden && elements.downloadsPopup) {
     sendIpc('get_downloads');
+    elements.downloadsPopup.classList.remove('hidden');
+    if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
   }
 }
 
@@ -1108,7 +1289,7 @@ function renderDownloadsList(downloads) {
     item.appendChild(info);
 
     item.onclick = () => {
-      closeDownloadsPopup();
+      closeAllPopups();
       if (dl.save_path) {
         sendIpc('open_file', { path: dl.save_path });
       } else {
@@ -1127,10 +1308,12 @@ if (elements.btnViewAllDownloads) elements.btnViewAllDownloads.addEventListener(
 // App Menu Controller
 function toggleAppMenu(e) {
   if (e) e.stopPropagation();
-  closeBookmarksPopup();
-  closeDownloadsPopup();
-  if (!elements.appMenu) return;
-  elements.appMenu.classList.toggle('hidden');
+  const isHidden = elements.appMenu ? elements.appMenu.classList.contains('hidden') : true;
+  closeAllPopups();
+  if (isHidden && elements.appMenu) {
+    elements.appMenu.classList.remove('hidden');
+    if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
+  }
 }
 
 function closeAppMenu() {
@@ -1178,11 +1361,215 @@ function toggleReaderMode() {
 if (elements.btnReaderMode) elements.btnReaderMode.addEventListener('click', toggleReaderMode);
 if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => elements.readerOverlay.classList.add('hidden'));
 
+// Tab Context Menu Controller
+let contextTargetTabId = null;
+
+function openTabContextMenu(e, tab) {
+  contextTargetTabId = tab.id;
+  closeAllPopups();
+  if (!elements.tabContextMenu) return;
+
+  if (elements.ctxPinLabel) {
+    elements.ctxPinLabel.textContent = tab.is_pinned
+      ? (currentLanguage === 'ru' ? 'Открепить вкладку' : 'Unpin Tab')
+      : (currentLanguage === 'ru' ? 'Закрепить вкладку' : 'Pin Tab');
+  }
+
+  if (elements.ctxMuteLabel) {
+    elements.ctxMuteLabel.textContent = tab.is_muted
+      ? (currentLanguage === 'ru' ? 'Включить звук' : 'Unmute Tab')
+      : (currentLanguage === 'ru' ? 'Отключить звук' : 'Mute Tab');
+  }
+
+  const x = Math.min(e.clientX, window.innerWidth - 240);
+  const y = Math.min(e.clientY, window.innerHeight - 300);
+  elements.tabContextMenu.style.left = `${x}px`;
+  elements.tabContextMenu.style.top = `${y}px`;
+  elements.tabContextMenu.classList.remove('hidden');
+
+  if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
+}
+
+if (elements.ctxPinTab) {
+  elements.ctxPinTab.addEventListener('click', () => {
+    const tab = tabs.find(t => t.id === contextTargetTabId);
+    if (tab) {
+      tab.is_pinned = !tab.is_pinned;
+      sendIpc('toggle_pin', { id: tab.id });
+      renderTabs();
+      renderHorizontalTabs();
+    }
+    closeAllPopups();
+  });
+}
+
+if (elements.ctxMuteTab) {
+  elements.ctxMuteTab.addEventListener('click', () => {
+    const tab = tabs.find(t => t.id === contextTargetTabId);
+    if (tab) {
+      tab.is_muted = !tab.is_muted;
+      sendIpc('toggle_mute', { id: tab.id });
+      renderTabs();
+      renderHorizontalTabs();
+    }
+    closeAllPopups();
+  });
+}
+
+if (elements.ctxDuplicateTab) {
+  elements.ctxDuplicateTab.addEventListener('click', () => {
+    const tab = tabs.find(t => t.id === contextTargetTabId);
+    if (tab) createTab(tab.url, tab.container);
+    closeAllPopups();
+  });
+}
+
+if (elements.ctxSplitTab) {
+  elements.ctxSplitTab.addEventListener('click', () => {
+    activateTab(contextTargetTabId);
+    toggleSplitView();
+    closeAllPopups();
+  });
+}
+
+if (elements.ctxSnoozeTab) {
+  elements.ctxSnoozeTab.addEventListener('click', () => {
+    showToast(currentLanguage === 'ru' ? "Вкладка приостановлена" : "Tab snoozed");
+    closeAllPopups();
+  });
+}
+
+function setTabContainer(name) {
+  const tab = tabs.find(t => t.id === contextTargetTabId);
+  if (tab) {
+    tab.container = name;
+    renderTabs();
+    renderHorizontalTabs();
+    showToast(currentLanguage === 'ru' ? `Контейнер: ${name}` : `Container: ${name}`);
+  }
+  closeAllPopups();
+}
+
+if (elements.ctxContainerDefault) elements.ctxContainerDefault.addEventListener('click', () => setTabContainer('default'));
+if (elements.ctxContainerPersonal) elements.ctxContainerPersonal.addEventListener('click', () => setTabContainer('personal'));
+if (elements.ctxContainerWork) elements.ctxContainerWork.addEventListener('click', () => setTabContainer('work'));
+if (elements.ctxContainerBanking) elements.ctxContainerBanking.addEventListener('click', () => setTabContainer('banking'));
+if (elements.ctxContainerShopping) elements.ctxContainerShopping.addEventListener('click', () => setTabContainer('shopping'));
+
+if (elements.ctxCloseTab) {
+  elements.ctxCloseTab.addEventListener('click', () => {
+    if (contextTargetTabId) closeTab(contextTargetTabId);
+    closeAllPopups();
+  });
+}
+
+// Sidebar Drag-to-Resize Handler
+let isResizingSidebar = false;
+
+if (elements.sidebarResizer) {
+  elements.sidebarResizer.addEventListener('mousedown', (e) => {
+    isResizingSidebar = true;
+    elements.sidebarResizer.classList.add('resizing');
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!isResizingSidebar || !elements.sidebar) return;
+  const newWidth = Math.max(140, Math.min(e.clientX, 480));
+  elements.sidebar.style.width = `${newWidth}px`;
+});
+
+document.addEventListener('mouseup', () => {
+  if (!isResizingSidebar) return;
+  isResizingSidebar = false;
+  if (elements.sidebarResizer) elements.sidebarResizer.classList.remove('resizing');
+  document.body.style.cursor = '';
+  if (elements.sidebar) {
+    sendIpc('save_setting', { key: 'sidebar_width', value: elements.sidebar.style.width });
+  }
+});
+
+// Find in Page Controller (Ctrl+F)
+function toggleFindInPage() {
+  if (!elements.findInPageBar) return;
+  const isHidden = elements.findInPageBar.classList.contains('hidden');
+  if (isHidden) {
+    elements.findInPageBar.classList.remove('hidden');
+    if (elements.findInput) {
+      elements.findInput.focus();
+      elements.findInput.select();
+    }
+    doFind(true);
+  } else {
+    elements.findInPageBar.classList.add('hidden');
+    if (elements.webFrame) elements.webFrame.focus();
+  }
+}
+
+function doFind(forward = true) {
+  if (!elements.findInput) return;
+  const query = elements.findInput.value.trim();
+  if (!query) {
+    if (elements.findMatchesCount) elements.findMatchesCount.textContent = '';
+    return;
+  }
+
+  let found = false;
+  try {
+    if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.find) {
+      found = elements.webFrame.contentWindow.find(query, false, !forward, true, false, false, false);
+    }
+  } catch(e) {}
+
+  if (!found) {
+    try {
+      found = window.find(query, false, !forward, true, false, false, false);
+    } catch(e) {}
+  }
+
+  if (elements.findMatchesCount) {
+    elements.findMatchesCount.textContent = found ? (currentLanguage === 'ru' ? 'найдено' : 'match') : (currentLanguage === 'ru' ? '0 совп.' : '0 matches');
+    elements.findMatchesCount.style.color = found ? '#10b981' : '#ef4444';
+  }
+}
+
+if (elements.findInput) {
+  elements.findInput.addEventListener('input', () => doFind(true));
+  elements.findInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      doFind(!e.shiftKey);
+    } else if (e.key === 'Escape') {
+      toggleFindInPage();
+    }
+  });
+}
+if (elements.btnFindPrev) elements.btnFindPrev.addEventListener('click', () => doFind(false));
+if (elements.btnFindNext) elements.btnFindNext.addEventListener('click', () => doFind(true));
+if (elements.btnFindClose) elements.btnFindClose.addEventListener('click', toggleFindInPage);
+
 // Full Interactive App Menu Actions
 const menuActions = {
   menuMobileMode: toggleMobileMode,
   menuReader: toggleReaderMode,
-  menuPip: () => showToast(currentLanguage === 'ru' ? "Картинка в картинке: Нажмите на видео" : "Picture-in-Picture: Click video player icon"),
+  menuPip: () => {
+    try {
+      if (elements.webFrame && elements.webFrame.contentDocument) {
+        const video = elements.webFrame.contentDocument.querySelector('video');
+        if (video) {
+          if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+          } else if (video.requestPictureInPicture) {
+            video.requestPictureInPicture();
+          }
+          return;
+        }
+      }
+    } catch(e) {}
+    showToast(currentLanguage === 'ru' ? "Видео для режима картинка-в-картинке не найдено" : "No video found for Picture-in-Picture");
+  },
   menuNewTab: () => createTab('crux://startpage'),
   menuReopenClosed: reopenLastClosedTab,
   menuNewWindow: () => showToast(currentLanguage === 'ru' ? "Новое окно Crux активно" : "Crux window active"),
@@ -1190,14 +1577,14 @@ const menuActions = {
     createTab('crux://startpage', 'incognito');
     showToast(currentLanguage === 'ru' ? "Создана вкладка инкогнито" : "Incognito container tab created");
   },
-  menuFindInPage: () => showToast(currentLanguage === 'ru' ? "Поиск на странице (Ctrl+F)" : "Find on page (Ctrl+F)"),
+  menuFindInPage: toggleFindInPage,
   menuSplit: toggleSplitView,
   menuDevTools: openDevTools,
   menuDownloads: (e) => toggleDownloadsPopup(e),
   menuHistory: () => openInternalPage('crux://history'),
   menuBookmarks: (e) => toggleBookmarksPopup(e),
   menuAi: () => toggleAiPanel(),
-  menuAdBlock: () => showToast(currentLanguage === 'ru' ? "Блокировщик рекламы: [АКТИВЕН]" : "Ad & Tracker Shield: [ACTIVE]"),
+  menuAdBlock: () => sendIpc('toggle_adblock'),
   menuSettings: () => openInternalPage('crux://settings'),
   // Submenu Actions
   optTabVert: () => setTabOrientation('vertical'),
@@ -1215,22 +1602,19 @@ Object.entries(menuActions).forEach(([id, action]) => {
   if (el) {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      closeAppMenu();
+      closeAllPopups();
       action(e);
     });
   }
 });
 
-// Click outside to close menus and popups
+// Dismiss popups on click outside
 document.addEventListener('click', (e) => {
-  if (elements.appMenu && !elements.appMenu.contains(e.target) && e.target !== elements.btnMenu && !elements.btnMenu.contains(e.target)) {
-    closeAppMenu();
-  }
-  if (elements.bookmarksPopup && !elements.bookmarksPopup.contains(e.target) && e.target !== elements.btnBookmark && !elements.btnBookmark.contains(e.target)) {
-    closeBookmarksPopup();
-  }
-  if (elements.downloadsPopup && !elements.downloadsPopup.contains(e.target) && e.target !== elements.btnDownloads && !elements.btnDownloads.contains(e.target)) {
-    closeDownloadsPopup();
+  if (elements.appMenu && !elements.appMenu.contains(e.target) && e.target !== elements.btnMenu && !elements.btnMenu.contains(e.target) &&
+      elements.bookmarksPopup && !elements.bookmarksPopup.contains(e.target) && e.target !== elements.btnBookmark && !elements.btnBookmark.contains(e.target) &&
+      elements.downloadsPopup && !elements.downloadsPopup.contains(e.target) && e.target !== elements.btnDownloads && !elements.btnDownloads.contains(e.target) &&
+      elements.tabContextMenu && !elements.tabContextMenu.contains(e.target)) {
+    closeAllPopups();
   }
 });
 
@@ -1402,24 +1786,36 @@ if (elements.paletteInput) {
 
 if (elements.btnCommandPalette) elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
 
-// Global Keyboard Shortcuts (Including Vim Mode & Zoom)
-document.addEventListener('keydown', (e) => {
-  const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+// Global Keyboard Shortcuts (Including Vim Mode, Zoom & Find)
+function handleGlobalShortcut(e) {
+  const isInput = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
 
-  // Escape key always closes overlays and exits Vim mode
+  // If typing in find bar, do not hijack normal typing
+  if (e.target && e.target.id === 'findInput' && e.key !== 'Escape') {
+    return;
+  }
+
+  // Escape key always closes overlays, popups, and exits Vim mode
   if (e.key === 'Escape') {
-    closeAppMenu();
-    closeBookmarksPopup();
-    closeDownloadsPopup();
+    closeAllPopups();
     if (elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
       elements.commandPalette.classList.add('hidden');
     }
     if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
       elements.readerOverlay.classList.add('hidden');
     }
+    if (elements.findInPageBar && !elements.findInPageBar.classList.contains('hidden')) {
+      elements.findInPageBar.classList.add('hidden');
+    }
     if (uiMode === 'vim') {
       setUiMode('minimal');
     }
+    return;
+  }
+
+  if (e.key === 'F11') {
+    if (e.preventDefault) e.preventDefault();
+    sendIpc('toggle_fullscreen');
     return;
   }
 
@@ -1461,64 +1857,78 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
+  const ctrl = e.ctrlKey || e.metaKey;
+  const key = (e.key || '').toLowerCase();
+
   // Zoom hotkeys (Ctrl++, Ctrl+=, Ctrl+-, Ctrl+0)
-  if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
-    e.preventDefault();
+  if (ctrl && (key === '=' || key === '+')) {
+    if (e.preventDefault) e.preventDefault();
     applyZoom(currentZoom + 0.1);
-  } else if (e.ctrlKey && e.key === '-') {
-    e.preventDefault();
+  } else if (ctrl && key === '-') {
+    if (e.preventDefault) e.preventDefault();
     applyZoom(currentZoom - 0.1);
-  } else if (e.ctrlKey && e.key === '0') {
-    e.preventDefault();
+  } else if (ctrl && key === '0') {
+    if (e.preventDefault) e.preventDefault();
     applyZoom(1.0);
-  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'm') {
-    e.preventDefault();
+  } else if (ctrl && e.shiftKey && key === 'm') {
+    if (e.preventDefault) e.preventDefault();
     toggleMobileMode();
-  } else if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 't') {
-    e.preventDefault();
+  } else if (ctrl && e.altKey && key === 't') {
+    if (e.preventDefault) e.preventDefault();
     setTabOrientation(tabOrientation === 'vertical' ? 'horizontal' : 'vertical');
-  } else if (e.ctrlKey && e.key.toLowerCase() === 'm') {
-    e.preventDefault();
+  } else if (ctrl && key === 'm') {
+    if (e.preventDefault) e.preventDefault();
     setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal');
-  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
-    e.preventDefault();
+  } else if (ctrl && e.shiftKey && key === 'p') {
+    if (e.preventDefault) e.preventDefault();
     toggleCommandPalette();
-  } else if (e.ctrlKey && e.key.toLowerCase() === 't') {
-    e.preventDefault();
+  } else if (ctrl && key === 't' && !e.shiftKey) {
+    if (e.preventDefault) e.preventDefault();
     createTab('crux://startpage');
-  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 't') {
-    e.preventDefault();
+  } else if (ctrl && e.shiftKey && key === 't') {
+    if (e.preventDefault) e.preventDefault();
     reopenLastClosedTab();
-  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'o') {
-    e.preventDefault();
+  } else if (ctrl && e.shiftKey && key === 'o') {
+    if (e.preventDefault) e.preventDefault();
     toggleBookmarksPopup();
-  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-    e.preventDefault();
+  } else if (ctrl && e.shiftKey && key === 'd') {
+    if (e.preventDefault) e.preventDefault();
     toggleDownloadsPopup();
-  } else if (e.ctrlKey && e.key.toLowerCase() === 'h') {
-    e.preventDefault();
+  } else if (ctrl && key === 'h' && !e.shiftKey) {
+    if (e.preventDefault) e.preventDefault();
     openInternalPage('crux://history');
-  } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
-    e.preventDefault();
+  } else if (ctrl && key === 'b') {
+    if (e.preventDefault) e.preventDefault();
     toggleAiPanel();
-  } else if (e.ctrlKey && e.key === ',') {
-    e.preventDefault();
+  } else if (ctrl && key === 'f') {
+    if (e.preventDefault) e.preventDefault();
+    toggleFindInPage();
+  } else if (ctrl && key === 'l') {
+    if (e.preventDefault) e.preventDefault();
+    if (elements.urlInput) {
+      elements.urlInput.focus();
+      elements.urlInput.select();
+    }
+  } else if (ctrl && key === ',') {
+    if (e.preventDefault) e.preventDefault();
     openInternalPage('crux://settings');
-  } else if (e.ctrlKey && e.key === '\\') {
-    e.preventDefault();
+  } else if (ctrl && (key === '\\' || e.code === 'Backslash')) {
+    if (e.preventDefault) e.preventDefault();
     toggleSplitView();
-  } else if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'r') {
-    e.preventDefault();
+  } else if (ctrl && e.altKey && key === 'r') {
+    if (e.preventDefault) e.preventDefault();
     toggleReaderMode();
-  } else if (e.ctrlKey && e.key.toLowerCase() === 'w') {
-    e.preventDefault();
+  } else if (ctrl && key === 'w' && !e.shiftKey) {
+    if (e.preventDefault) e.preventDefault();
     const active = tabs.find(t => t.is_active);
     if (active) closeTab(active.id);
-  } else if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i')) {
-    e.preventDefault();
+  } else if (e.key === 'F12' || (ctrl && e.shiftKey && key === 'i')) {
+    if (e.preventDefault) e.preventDefault();
     openDevTools();
   }
-});
+}
+
+document.addEventListener('keydown', handleGlobalShortcut);
 
 // Internal Page Communication Bridge
 function handleCruxInternalCommand(cmdUrl) {
@@ -1612,10 +2022,27 @@ function handleCruxInternalCommand(cmdUrl) {
   }
 }
 
-// Listen to messages from internal page iframes
+// Listen to messages from internal page iframes & bypass proxy
 window.addEventListener('message', (e) => {
   if (!e.data) return;
-  if (e.data.type === 'navigate' && e.data.url) {
+  if (e.data.type === 'crux_navigated' && e.data.url) {
+    const active = tabs.find(t => t.is_active);
+    if (active && active.url !== e.data.url) {
+      active.url = e.data.url;
+      if (active.history[active.history.length - 1] !== e.data.url) {
+        active.history.push(e.data.url);
+        active.historyIndex = active.history.length - 1;
+      }
+      if (elements.urlInput) elements.urlInput.value = e.data.url;
+      sendIpc('navigate', { url: e.data.url });
+      renderTabs();
+      renderHorizontalTabs();
+    }
+  } else if (e.data.type === 'crux_key') {
+    handleGlobalShortcut(e.data);
+  } else if (e.data.type === 'crux_click') {
+    closeAllPopups();
+  } else if (e.data.type === 'navigate' && e.data.url) {
     navigateActiveTab(e.data.url);
   } else if (e.data.type === 'crux_cmd' && e.data.url) {
     handleCruxInternalCommand(e.data.url);
@@ -1647,9 +2074,32 @@ window.onDownloadsLoaded = function(downloads) {
   }
 };
 
+window.onAdBlockToggled = function(enabled) {
+  if (elements.adblockCountTag) {
+    elements.adblockCountTag.textContent = enabled
+      ? (currentLanguage === 'ru' ? '[АКТИВЕН]' : '[ACTIVE]')
+      : (currentLanguage === 'ru' ? '[ОТКЛЮЧЕН]' : '[DISABLED]');
+    elements.adblockCountTag.style.color = enabled ? '#10b981' : '#ef4444';
+  }
+  showToast(enabled
+    ? (currentLanguage === 'ru' ? "Блокировщик рекламы: ВКЛ" : "AdBlock: ON")
+    : (currentLanguage === 'ru' ? "Блокировщик рекламы: ВЫКЛ" : "AdBlock: OFF"));
+};
+
 window.onSettingsLoaded = function(settings) {
   if (!settings) return;
   currentSettings = settings;
+
+  if (settings.sidebar_width && elements.sidebar) {
+    elements.sidebar.style.width = settings.sidebar_width;
+  }
+  if (settings.adblock_enabled !== undefined && elements.adblockCountTag) {
+    const isEn = settings.adblock_enabled !== 'false';
+    elements.adblockCountTag.textContent = isEn
+      ? (currentLanguage === 'ru' ? '[АКТИВЕН]' : '[ACTIVE]')
+      : (currentLanguage === 'ru' ? '[ОТКЛЮЧЕН]' : '[DISABLED]');
+    elements.adblockCountTag.style.color = isEn ? '#10b981' : '#ef4444';
+  }
   if (settings.search_engine) searchEngine = settings.search_engine;
   if (settings.accent_color) applyAccentColor(settings.accent_color);
   if (settings.theme) applyTheme(settings.theme);

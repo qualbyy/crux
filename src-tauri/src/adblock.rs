@@ -1,5 +1,8 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 pub struct AdBlocker {
     pub blocked_domains: Vec<&'static str>,
+    pub enabled: AtomicBool,
 }
 
 impl AdBlocker {
@@ -23,10 +26,27 @@ impl AdBlocker {
                 "taboola.com",
                 "scorecardresearch.com",
             ],
+            enabled: AtomicBool::new(true),
         }
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.load(Ordering::Relaxed)
+    }
+
+    pub fn set_enabled(&self, val: bool) {
+        self.enabled.store(val, Ordering::Relaxed);
+    }
+
+    pub fn toggle(&self) -> bool {
+        let prev = self.enabled.fetch_xor(true, Ordering::Relaxed);
+        !prev
+    }
+
     pub fn should_block(&self, url: &str) -> bool {
+        if !self.is_enabled() {
+            return false;
+        }
         let u_lower = url.to_lowercase();
         for domain in &self.blocked_domains {
             if u_lower.contains(domain) {
