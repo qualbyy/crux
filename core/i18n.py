@@ -14,6 +14,10 @@ LANGUAGES = {
 
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
     'ru': {
+        'open_link_new_tab': 'Открыть ссылку в новой вкладке',
+        'copy_link_address': 'Копировать адрес ссылки',
+        'always_ask_download_dir': 'Всегда спрашивать папку перед скачиванием',
+        'download_dir_label': 'Папка для загрузок',
         'app_title': 'Crux', 'new_tab': 'Новая вкладка', 'close_tab': 'Закрыть вкладку',
         'duplicate_tab': 'Дублировать вкладку', 'split_view': 'Разделить экран',
         'suspend_tab': 'Усыпить вкладку (Освободить ОЗУ)', 'wake_tab': 'Восстановить вкладку',
@@ -262,6 +266,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         'nav_ssl': 'Сведения о безопасности',
     },
     'en': {
+        'open_link_new_tab': 'Open Link in New Tab',
+        'copy_link_address': 'Copy Link Address',
+        'always_ask_download_dir': 'Always ask where to save each file before downloading',
+        'download_dir_label': 'Downloads Directory',
         'app_title': 'Crux', 'new_tab': 'New Tab', 'close_tab': 'Close Tab',
         'duplicate_tab': 'Duplicate Tab', 'split_view': 'Split Screen',
         'suspend_tab': 'Suspend Tab (Free RAM)', 'wake_tab': 'Restore Tab',

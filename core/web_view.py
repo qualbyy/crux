@@ -1242,6 +1242,8 @@ class ZincWebView(QWebEngineView):
                 s["prevent_webrtc_leak"] = params["prevent_webrtc_leak"][0].lower() in ["true", "1"]
             if "download_dir" in params:
                 s["download_dir"] = params["download_dir"][0]
+            if "always_ask_download_dir" in params:
+                s["always_ask_download_dir"] = params["always_ask_download_dir"][0].lower() in ["true", "1"]
             if "gemini_api_key" in params:
                 s["gemini_api_key"] = params["gemini_api_key"][0]
             if "ai_provider" in params:
@@ -1471,10 +1473,28 @@ class ZincWebView(QWebEngineView):
         return self._zoom
 
     def _on_link_hovered(self, url: str) -> None:
+        self._hovered_link = url if url else None
         self.status_message.emit(url)
 
     def _show_context_menu(self, pos) -> None:
         menu = QMenu(self)
+
+        # Check if cursor is over a link
+        req = self.lastContextMenuRequest() if hasattr(self, "lastContextMenuRequest") else None
+        link_url = None
+        if req and hasattr(req, "linkUrl") and req.linkUrl().isValid() and not req.linkUrl().isEmpty():
+            link_url = req.linkUrl().toString()
+        elif getattr(self, "_hovered_link", None):
+            link_url = self._hovered_link
+
+        if link_url:
+            act_open_new = menu.addAction(t("open_link_new_tab"))
+            act_open_new.triggered.connect(lambda: self.open_new_tab_requested.emit(QUrl(link_url)))
+
+            act_copy_link = menu.addAction(t("copy_link_address"))
+            act_copy_link.triggered.connect(lambda: from_pyqt_clipboard(link_url))
+
+            menu.addSeparator()
         
         # Navigation actions
         act_back = menu.addAction("Back")
@@ -1550,16 +1570,35 @@ class ZincWebView(QWebEngineView):
                     return list;
                 }
                 const videos = findVideos();
-                let video = videos.find(v => !v.paused && v.currentTime > 0) || videos[0];
+                let video = document.querySelector('video.html5-main-video') ||
+                            document.querySelector('#movie_player video') ||
+                            document.querySelector('ytd-player video');
+                if (!video) {
+                    video = videos.find(v => !v.paused && v.currentTime > 0) || videos[0];
+                }
                 if (!video) return 'no_video';
+
+                video.removeAttribute('disablepictureinpicture');
                 video.disablePictureInPicture = false;
+
                 if (document.pictureInPictureElement) {
                     await document.exitPictureInPicture();
                     return 'exited';
                 }
                 if (video.requestPictureInPicture) {
-                    await video.requestPictureInPicture();
-                    return 'entered';
+                    try {
+                        await video.requestPictureInPicture();
+                        return 'entered';
+                    } catch (pipErr) {
+                        const ytPipBtn = document.querySelector('.ytp-pip-button') ||
+                                         document.querySelector('button[data-tooltip-target-id="ytp-pip-button"]') ||
+                                         document.querySelector('.ytp-miniplayer-button');
+                        if (ytPipBtn) {
+                            ytPipBtn.click();
+                            return 'entered';
+                        }
+                        return 'error: ' + (pipErr ? pipErr.message : String(pipErr));
+                    }
                 }
                 return 'not_supported';
             } catch (err) {

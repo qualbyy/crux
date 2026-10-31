@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Base Paths
 APP_NAME = "Crux"
-APP_VERSION = "1.3.6"
+APP_VERSION = "1.3.7"
 
 if sys.platform == "win32":
     CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Crux"
@@ -52,6 +52,7 @@ DEFAULT_SETTINGS = {
     "homepage": "crux://startpage",
     "new_tab_url": "crux://startpage",
     "download_dir": str(Path.home() / "Downloads"),
+    "always_ask_download_dir": False,
     "restore_session": False,
     "tab_hibernation": "30",    # Inactive tab hibernation timeout in minutes ("never", "15", "30", "60")
     "pinned_toolbar": ["ai", "downloads", "history"],  # List of functions pinned to top toolbar

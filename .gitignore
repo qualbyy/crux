@@ -53,3 +53,4 @@ history.json
 bookmarks.json
 *.sqlite
 profiles/
+crux_deepseek_harness_context.json

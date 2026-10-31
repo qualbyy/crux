@@ -150,13 +150,27 @@ class TabItemWidget(QWidget):
             self.indicator.setFixedWidth(16)
             self.close_btn.show()
 
-        if getattr(self.tab_data, "is_audible", False) or getattr(self.tab_data, "is_muted", False):
-            self.audio_btn.setText("MUTE" if self.tab_data.is_muted else "VOL")
-            self.audio_btn.setStyleSheet(f"background: transparent; border: 1px solid {self.accent}; color: {self.accent}; font-family: monospace; font-size: 9px; font-weight: bold; padding: 0;")
-            self.audio_btn.setToolTip(t("unmute_tab") if self.tab_data.is_muted else t("mute_tab"))
-            self.audio_btn.show()
-        else:
+        if self.is_compact:
             self.audio_btn.hide()
+            self.title_label.hide()
+            self.close_btn.hide()
+            if getattr(self.tab_data, "is_pinned", False):
+                self.indicator.setText("PIN")
+            elif getattr(self.tab_data, "is_suspended", False):
+                self.indicator.setText("z")
+            elif getattr(self.tab_data, "is_muted", False):
+                self.indicator.setText("M")
+            elif getattr(self.tab_data, "is_audible", False):
+                self.indicator.setText("♪")
+        else:
+            self.title_label.show()
+            if getattr(self.tab_data, "is_audible", False) or getattr(self.tab_data, "is_muted", False):
+                self.audio_btn.setText("MUTE" if self.tab_data.is_muted else "VOL")
+                self.audio_btn.setStyleSheet(f"background: transparent; border: 1px solid {self.accent}; color: {self.accent}; font-family: monospace; font-size: 9px; font-weight: bold; padding: 0;")
+                self.audio_btn.setToolTip(t("unmute_tab") if self.tab_data.is_muted else t("mute_tab"))
+                self.audio_btn.show()
+            else:
+                self.audio_btn.hide()
 
         self.set_title(self.tab_data.title)
 
@@ -229,18 +243,24 @@ class TabItemWidget(QWidget):
         if is_compact:
             self.title_label.hide()
             self.close_btn.hide()
+            self.audio_btn.hide()
+            self.indicator.show()
             self._layout.setContentsMargins(0, 2, 0, 2)
             self._layout.setSpacing(0)
             self._layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.indicator.setFixedSize(26, 26)
             self.set_active(self.is_active)
             self.setToolTip(f"{self.tab_data.title}\n{self.tab_data.url}")
-            if getattr(self.tab_data, "is_audible", False) or getattr(self.tab_data, "is_muted", False):
-                self.indicator.hide()
-                self.audio_btn.show()
+            if getattr(self.tab_data, "is_pinned", False):
+                self.indicator.setText("PIN")
+            elif getattr(self.tab_data, "is_suspended", False):
+                self.indicator.setText("z")
+            elif getattr(self.tab_data, "is_muted", False):
+                self.indicator.setText("M")
+            elif getattr(self.tab_data, "is_audible", False):
+                self.indicator.setText("♪")
             else:
-                self.indicator.show()
-                self.audio_btn.hide()
+                self.indicator.setText("▪")
         else:
             self.title_label.show()
             self.close_btn.show()
@@ -348,17 +368,33 @@ class DraggableTabListWidget(QListWidget):
     def move_tab_row(self, from_row: int, to_row: int) -> None:
         if from_row == to_row or from_row < 0 or to_row < 0 or from_row >= self.count() or to_row >= self.count():
             return
-        it = self.item(from_row)
-        if not it:
-            return
-        w = self.itemWidget(it) or getattr(it, "_stored_widget", None)
-        it = self.takeItem(from_row)
-        if w:
-            it._stored_widget = w
-        self.insertItem(to_row, it)
-        if w:
-            self.setItemWidget(it, w)
-        self.setCurrentRow(to_row)
+        self.setUpdatesEnabled(False)
+        self.blockSignals(True)
+        try:
+            it = self.item(from_row)
+            if not it:
+                return
+            size_hint = it.sizeHint()
+            w = self.itemWidget(it) or getattr(it, "_stored_widget", None)
+            it = self.takeItem(from_row)
+            if size_hint and size_hint.isValid():
+                it.setSizeHint(size_hint)
+            if w:
+                it._stored_widget = w
+            self.insertItem(to_row, it)
+            if w:
+                self.setItemWidget(it, w)
+                w.show()
+                if hasattr(w, "refresh_ui"):
+                    w.refresh_ui()
+                if hasattr(w, "is_compact") and not w.is_compact:
+                    if hasattr(w, "title_label"):
+                        w.title_label.show()
+            self.setCurrentRow(to_row)
+        finally:
+            self.blockSignals(False)
+            self.setUpdatesEnabled(True)
+            self.viewport().update()
 
 
 
@@ -468,6 +504,22 @@ class VerticalTabSidebar(QWidget):
                 if item:
                     item.setSizeHint(QSize(max(180, self.expanded_width - 20), 36))
 
+    def hideEvent(self, event):
+        try:
+            self.list_widget.setUpdatesEnabled(False)
+            self.list_widget.clearFocus()
+        except Exception:
+            pass
+        super().hideEvent(event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            self.list_widget.setUpdatesEnabled(True)
+            self.list_widget.viewport().update()
+        except Exception:
+            pass
+
     def toggle_compact(self) -> bool:
         self.is_compact = not self.is_compact
         target_w = 50 if self.is_compact else getattr(self, "expanded_width", 240)
@@ -483,15 +535,22 @@ class VerticalTabSidebar(QWidget):
             self.row_compact.hide()
             self.row_expanded.show()
 
-        for row in range(self.list_widget.count()):
-            item = self.list_widget.item(row)
-            if self.is_compact:
-                item.setSizeHint(QSize(42, 36))
-            else:
-                item.setSizeHint(QSize(max(180, getattr(self, "expanded_width", 240) - 20), 36))
-            widget = self.list_widget.itemWidget(item)
-            if isinstance(widget, TabItemWidget):
-                widget.set_compact(self.is_compact)
+        self.list_widget.setUpdatesEnabled(False)
+        self.list_widget.blockSignals(True)
+        try:
+            for row in range(self.list_widget.count()):
+                item = self.list_widget.item(row)
+                if self.is_compact:
+                    item.setSizeHint(QSize(42, 36))
+                else:
+                    item.setSizeHint(QSize(max(180, getattr(self, "expanded_width", 240) - 20), 36))
+                widget = self.list_widget.itemWidget(item)
+                if isinstance(widget, TabItemWidget):
+                    widget.set_compact(self.is_compact)
+        finally:
+            self.list_widget.blockSignals(False)
+            self.list_widget.setUpdatesEnabled(True)
+            self.list_widget.viewport().update()
 
         return self.is_compact
 
@@ -826,6 +885,7 @@ class TabManager(QWidget):
         web_view.titleChanged.connect(lambda t: self._on_title_changed(tab_id, t))
         web_view.urlChanged.connect(lambda u: self._on_url_changed(tab_id, u))
         web_view.page().recentlyAudibleChanged.connect(lambda aud, tid=tab_id: self._on_audible_changed(tid, aud))
+        web_view.open_new_tab_requested.connect(lambda u, cid=container_id: self.create_tab(cid, u.toString() if hasattr(u, "toString") else str(u)))
 
         # Navigate
         web_view.navigate(target_url)

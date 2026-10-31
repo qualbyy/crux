@@ -1,6 +1,6 @@
 ; Script generated for Inno Setup 6
 #define MyAppName "Crux"
-#define MyAppVersion "1.3.6"
+#define MyAppVersion "1.3.7"
 #define MyAppPublisher "Qualbyy"
 #define MyAppURL "https://github.com/qualbyy/zephyrium"
 #define MyAppExeName "crux.exe"

@@ -469,17 +469,11 @@ class AIChatWidget(QWidget):
         self.combo_model = QComboBox()
         self.combo_model.setObjectName("aiModelCombo")
         self.combo_model.setFixedHeight(30)
-        self.combo_model.setView(QListView())
-        self.combo_model.setMaxVisibleItems(10)
-        self.combo_model.setStyleSheet("""
-            QComboBox#aiModelCombo {
-                min-height: 28px;
-                max-height: 28px;
-                padding: 0px 8px;
-                font-family: monospace;
-                font-size: 11px;
-            }
-        """)
+        list_view = QListView(self.combo_model)
+        list_view.setMinimumHeight(240)
+        self.combo_model.setView(list_view)
+        self.combo_model.setMaxVisibleItems(12)
+        self._apply_combo_model_style()
         self.combo_model.currentIndexChanged.connect(self._on_model_changed)
 
         model_row.addWidget(self.model_lbl)
@@ -866,6 +860,41 @@ class AIChatWidget(QWidget):
         self.transcript.clear()
         self._append_system("Session cleared.")
 
+    def _apply_combo_model_style(self) -> None:
+        if not hasattr(self, "combo_model"):
+            return
+        accent = getattr(self, "accent", "#a855f7")
+        self.combo_model.setStyleSheet(f"""
+            QComboBox#aiModelCombo {{
+                min-height: 28px;
+                max-height: 28px;
+                padding: 0px 8px;
+                font-family: monospace;
+                font-size: 11px;
+            }}
+            QComboBox#aiModelCombo QAbstractItemView {{
+                min-height: 240px;
+                background-color: #18181b;
+                border: 1px solid #3f3f46;
+                color: #d4d4d8;
+                selection-background-color: #262624;
+                selection-color: {accent};
+                outline: none;
+                padding: 4px;
+                font-family: monospace;
+                font-size: 11px;
+            }}
+            QComboBox#aiModelCombo QAbstractItemView::item {{
+                min-height: 28px;
+                padding: 4px 8px;
+                border: none;
+            }}
+            QComboBox#aiModelCombo QAbstractItemView::item:selected {{
+                background-color: #262624;
+                color: {accent};
+            }}
+        """)
+
     def update_theme(self, theme: str = "dark", accent: str = "#a855f7") -> None:
         self.accent = accent
         if hasattr(self, "title_lbl"):
@@ -873,8 +902,7 @@ class AIChatWidget(QWidget):
         self.transcript.setStyleSheet("")
         if hasattr(self, "input_field"):
             self.input_field.setStyleSheet("min-height: 30px; max-height: 30px; padding: 0px 8px;")
-        if hasattr(self, "combo_model"):
-            self.combo_model.setStyleSheet("min-height: 28px; max-height: 28px; padding: 0px 8px;")
+        self._apply_combo_model_style()
         if hasattr(self, "btn_send"):
             self.btn_send.setStyleSheet(f"min-height: 30px; max-height: 30px; padding: 0px 14px; border: 1px solid {accent}; color: {accent}; font-weight: bold;")
         self._update_status_display()

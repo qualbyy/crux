@@ -784,6 +784,14 @@
 
                     <div class="form-row">
                         <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_always_ask_download_dir">Always Ask Download Location</span>
+                            <span class="label-desc" data-i18n="desc_always_ask_download_dir">Prompt where to save each file before downloading.</span>
+                        </div>
+                        <input type="checkbox" id="setting-always-ask-download-dir">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
                             <span class="label-title" data-i18n="lbl_open_downloads">Open Full Downloads Page</span>
                             <span class="label-desc" data-i18n="desc_open_downloads">View all past and active file downloads in dedicated tab.</span>
                         </div>
@@ -1338,6 +1346,8 @@
                 desc_downloads: "Каталог сохранения файлов и история загрузок.",
                 lbl_download_dir: "Папка сохранения файлов",
                 desc_download_dir: "Локальный путь для сохранения скачанных файлов.",
+                lbl_always_ask_download_dir: "Всегда спрашивать папку для загрузки",
+                desc_always_ask_download_dir: "Запрашивать место сохранения перед началом скачивания каждого файла.",
                 lbl_open_downloads: "Страница загрузок",
                 desc_open_downloads: "Просмотр всех активных и завершенных загрузок в отдельной вкладке.",
                 btn_open_downloads: "ОТКРЫТЬ ВСЕ ЗАГРУЗКИ",
@@ -1483,6 +1493,8 @@
                 desc_downloads: "File storage destination and download history options.",
                 lbl_download_dir: "Default Download Directory",
                 desc_download_dir: "Local filesystem path where downloaded files are saved.",
+                lbl_always_ask_download_dir: "Always Ask Download Location",
+                desc_always_ask_download_dir: "Prompt for folder and filename before starting each download.",
                 lbl_open_downloads: "Open Full Downloads Page",
                 desc_open_downloads: "View all past and active file downloads in dedicated tab.",
                 btn_open_downloads: "OPEN ALL DOWNLOADS",
@@ -1930,6 +1942,7 @@
             if (s.send_dnt !== undefined) document.getElementById('setting-send-dnt').checked = s.send_dnt;
             if (s.prevent_webrtc_leak !== undefined) document.getElementById('setting-prevent-webrtc').checked = s.prevent_webrtc_leak;
             if (s.download_dir) document.getElementById('setting-download-dir').value = s.download_dir;
+            if (s.always_ask_download_dir !== undefined) document.getElementById('setting-always-ask-download-dir').checked = s.always_ask_download_dir;
             if (s.ai_provider) document.getElementById('setting-ai-provider').value = s.ai_provider;
             if (s.gemini_api_key) document.getElementById('setting-gemini-key').value = s.gemini_api_key;
             if (s.ai_model) document.getElementById('setting-ai-model').value = s.ai_model;
@@ -2031,6 +2044,7 @@
             params.set('send_dnt', document.getElementById('setting-send-dnt').checked ? 'true' : 'false');
             params.set('prevent_webrtc_leak', document.getElementById('setting-prevent-webrtc').checked ? 'true' : 'false');
             params.set('download_dir', document.getElementById('setting-download-dir').value);
+            params.set('always_ask_download_dir', document.getElementById('setting-always-ask-download-dir').checked ? 'true' : 'false');
             params.set('ai_provider', document.getElementById('setting-ai-provider').value);
             params.set('gemini_api_key', document.getElementById('setting-gemini-key').value);
             params.set('ai_model', document.getElementById('setting-ai-model').value);

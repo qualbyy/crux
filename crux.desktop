@@ -1,32 +1,38 @@
-#!/usr/bin/env xdg-open
 [Desktop Entry]
-Version=1.0
-Name=Crux
-GenericName=Web Browser
-Comment=Fast, keyboard-driven web browser
-Exec=/home/qualbyy/.local/bin/crux %u
-Terminal=false
-X-MultipleArgs=false
-Type=Application
-Icon=crux
-Categories=Network;WebBrowser;
-MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/crux;x-scheme-handler/zephyrium;
-StartupWMClass=crux
-StartupNotify=true
 Actions=NewTab;Incognito;Work;Dev;
-
-[Desktop Action NewTab]
-Name=New Tab
-Exec=/home/qualbyy/.local/bin/crux crux://startpage
-
-[Desktop Action Incognito]
-Name=Open in Incognito Container
-Exec=/home/qualbyy/.local/bin/crux --container incognito
-
-[Desktop Action Work]
-Name=Open in Work Container
-Exec=/home/qualbyy/.local/bin/crux --container work
+Categories=Network;WebBrowser;
+Comment[ru_RU]=Fast, keyboard-driven web browser
+Comment=Fast, keyboard-driven web browser
+Exec=/home/qualbyy/.local/bin/zephyrium %u
+GenericName[ru_RU]=Web Browser
+GenericName=Web Browser
+Icon=/home/qualbyy/.gemini/antigravity/scratch/zinc-browser/resources/crux.png
+MimeType=text/html;application/xml;application/xml;application/xhtml+xml;application/rss+xml;application/rdf+xml;
+Name[ru_RU]=Crux
+Name=Crux
+Path=
+StartupNotify=true
+StartupWMClass=zephyrium
+Terminal=false
+TerminalOptions=
+Type=Application
+Version=1.0
+X-KDE-SubstituteUID=false
+X-KDE-Username=
+X-MultipleArgs=false
 
 [Desktop Action Dev]
+Exec=/home/qualbyy/.local/bin/zephyrium --container dev
 Name=Open in Dev Container
-Exec=/home/qualbyy/.local/bin/crux --container dev
+
+[Desktop Action Incognito]
+Exec=/home/qualbyy/.local/bin/zephyrium --container incognito
+Name=Open in Incognito Container
+
+[Desktop Action NewTab]
+Exec=/home/qualbyy/.local/bin/zephyrium zephyrium://startpage
+Name=New Tab
+
+[Desktop Action Work]
+Exec=/home/qualbyy/.local/bin/zephyrium --container work
+Name=Open in Work Container

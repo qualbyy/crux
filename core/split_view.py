@@ -51,6 +51,7 @@ class SplitViewContainer(QWidget):
         self.is_split = True
 
         self._bind_view(self.secondary_view)
+        self.secondary_view.open_new_tab_requested.connect(self.primary_view.open_new_tab_requested)
         self.active_view = self.secondary_view
         self.secondary_view.setFocus()
 

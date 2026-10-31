@@ -295,18 +295,35 @@ class DownloadManager(QWidget):
         self.raise_()
 
     def handle_download(self, item: QWebEngineDownloadRequest) -> None:
-        default_dir = str(Path.home() / "Downloads")
-        os.makedirs(default_dir, exist_ok=True)
+        from config import load_settings
+        settings = load_settings()
+        download_dir = settings.get("download_dir", str(Path.home() / "Downloads"))
+        always_ask = settings.get("always_ask_download_dir", False)
+        os.makedirs(download_dir, exist_ok=True)
 
-        target_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save File",
-            os.path.join(default_dir, item.downloadFileName())
-        )
+        raw_name = item.downloadFileName() or "download"
+        target_path = None
 
-        if not target_path:
-            item.cancel()
-            return
+        if always_ask:
+            parent_win = self.window() if self.window() and self.window().isVisible() else None
+            target_path, _ = QFileDialog.getSaveFileName(
+                parent_win,
+                t("save_file") if hasattr(t, "__call__") and t("save_file") != "save_file" else "Save File",
+                os.path.join(download_dir, raw_name)
+            )
+            if not target_path:
+                item.cancel()
+                return
+        else:
+            base_p = Path(download_dir) / raw_name
+            target_p = base_p
+            stem = base_p.stem
+            suffix = base_p.suffix
+            counter = 1
+            while target_p.exists():
+                target_p = Path(download_dir) / f"{stem} ({counter}){suffix}"
+                counter += 1
+            target_path = str(target_p)
 
         item.setDownloadDirectory(str(Path(target_path).parent))
         item.setDownloadFileName(Path(target_path).name)

@@ -403,12 +403,16 @@ class BrowserWindow(QMainWindow):
             self.btn_tab_orient.setText(t("tabs_vert_short") if orient == "vertical" else t("tabs_horiz_short"))
         if self.ui_mode == "minimal":
             if orient == "horizontal":
-                self.tab_manager.sidebar.hide()
+                if hasattr(self, "tab_manager") and hasattr(self.tab_manager, "sidebar"):
+                    self.tab_manager.sidebar.list_widget.setUpdatesEnabled(False)
+                    self.tab_manager.sidebar.hide()
                 self.horizontal_tab_container.show()
                 self._sync_horizontal_tabs()
             else:
                 self.horizontal_tab_container.hide()
-                self.tab_manager.sidebar.show()
+                if hasattr(self, "tab_manager") and hasattr(self.tab_manager, "sidebar"):
+                    self.tab_manager.sidebar.show()
+                    self.tab_manager.sidebar.list_widget.setUpdatesEnabled(True)
 
     def _on_tabs_updated(self) -> None:
         if self.tab_orientation == "horizontal":
