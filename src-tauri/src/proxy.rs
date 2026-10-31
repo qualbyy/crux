@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use crate::adblock::AdBlocker;
+use crate::storage::Database;
 
 static CURRENT_USER_AGENT: OnceLock<Mutex<String>> = OnceLock::new();
 
@@ -73,11 +74,12 @@ fn parse_query_url(path: &str) -> Option<String> {
     None
 }
 
-pub fn start_proxy(adblocker: Arc<AdBlocker>, port: u16) {
+pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
     let client = match reqwest::blocking::Client::builder()
         .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .timeout(Duration::from_secs(60))
         .redirect(reqwest::redirect::Policy::limited(10))
+        .cookie_store(true)
         .build()
     {
         Ok(c) => Arc::new(c),
@@ -102,15 +104,16 @@ pub fn start_proxy(adblocker: Arc<AdBlocker>, port: u16) {
             if let Ok(stream) = stream {
                 let adb = Arc::clone(&adblocker);
                 let cli = Arc::clone(&client);
+                let d = Arc::clone(&db);
                 std::thread::spawn(move || {
-                    handle_client(stream, adb, cli);
+                    handle_client(stream, adb, cli, d);
                 });
             }
         }
     });
 }
 
-fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<reqwest::blocking::Client>) {
+fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<reqwest::blocking::Client>, db: Arc<Database>) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(12)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(20)));
 
@@ -167,14 +170,31 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
     let mut target_url: Option<String> = parse_query_url(path);
 
+    // Loop prevention & relative path un-mangling:
+    if let Some(ref t) = target_url {
+        if t.starts_with("http://127.0.0.1:39281") || t.starts_with("http://localhost:39281") {
+            // Unloop request pointing to proxy itself
+            if let Some(ref ref_val) = referer {
+                let ref_target = parse_query_url(ref_val).unwrap_or_else(|| ref_val.clone());
+                if let Ok(parsed_ref) = reqwest::Url::parse(&ref_target) {
+                    if let Ok(bad_u) = reqwest::Url::parse(t) {
+                        let rel_path = format!("{}{}", bad_u.path(), bad_u.query().map(|q| format!("?{}", q)).unwrap_or_default());
+                        if let Ok(joined) = parsed_ref.join(&rel_path) {
+                            target_url = Some(joined.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Fallback: If not /proxy?url=..., check if referer was a proxy request
     if target_url.is_none() {
         if let Some(ref ref_val) = referer {
-            if let Some(ref_target) = parse_query_url(ref_val) {
-                if let Ok(parsed_ref) = reqwest::Url::parse(&ref_target) {
-                    if let Ok(joined) = parsed_ref.join(path) {
-                        target_url = Some(joined.to_string());
-                    }
+            let ref_target = parse_query_url(ref_val).unwrap_or_else(|| ref_val.clone());
+            if let Ok(parsed_ref) = reqwest::Url::parse(&ref_target) {
+                if let Ok(joined) = parsed_ref.join(path) {
+                    target_url = Some(joined.to_string());
                 }
             }
         }
@@ -258,6 +278,15 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
             let scheme = target_u.scheme();
             let port_str = target_u.port().map(|p| format!(":{}", p)).unwrap_or_default();
             req_builder = req_builder.header("Origin", format!("{}://{}{}", scheme, host, port_str));
+
+            let host_cookies = db.get_cookies_for_host(host);
+            if !host_cookies.is_empty() {
+                let has_cookie_header = forwarded_headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("cookie"));
+                if !has_cookie_header {
+                    let cookie_str = host_cookies.iter().map(|(n, v)| format!("{}={}", n, v)).collect::<Vec<_>>().join("; ");
+                    req_builder = req_builder.header("Cookie", cookie_str);
+                }
+            }
         }
     }
 
@@ -385,14 +414,35 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
             r#"<base href="{final_url}">
 <script>
 (function() {{
-  function unwrapProxy(u) {{
+  var targetBase = {final_url_json};
+  var targetOrigin = (function() {{
+    try {{ return new URL(targetBase).origin; }} catch(e) {{ return ''; }}
+  }})();
+
+  function resolveTargetUrl(u) {{
     if (!u) return '';
     var idx = u.indexOf('/proxy?url=');
     if (idx !== -1) {{
       var raw = u.substring(idx + 11);
-      try {{ return decodeURIComponent(raw); }} catch(ex) {{ return raw; }}
+      try {{ u = decodeURIComponent(raw); }} catch(ex) {{ u = raw; }}
     }}
-    return u;
+    if (u.startsWith('http://127.0.0.1:39281') || u.startsWith('http://localhost:39281')) {{
+      try {{
+        var parsed = new URL(u);
+        return new URL(parsed.pathname + parsed.search + parsed.hash, targetOrigin).href;
+      }} catch(e) {{
+        return u;
+      }}
+    }}
+    try {{
+      return new URL(u, targetBase).href;
+    }} catch(e) {{
+      return u;
+    }}
+  }}
+
+  function unwrapProxy(u) {{
+    return resolveTargetUrl(u);
   }}
 
   try {{
@@ -574,7 +624,7 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
       if (method === 'get') {{
         if (e.defaultPrevented) return;
         e.preventDefault();
-        var act = unwrapProxy(form.action);
+        var act = resolveTargetUrl(form.getAttribute('action') || form.action);
         var formData = new FormData(form);
         var params = new URLSearchParams(formData).toString();
         var delim = act.indexOf('?') !== -1 ? '&' : '?';

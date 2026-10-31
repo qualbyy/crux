@@ -21,7 +21,7 @@ let currentZoom = 1.0;
 let isMobileMode = false;
 let mobileWidth = 390;
 let mobileHeight = 844;
-let useProxy = false; // Direct connection by default for maximum compatibility (YouTube, GitHub, HTTP/2)
+let useProxy = true; // Embedded CSP & Frame-ancestors bypass proxy enabled by default
 let closedTabsStack = [];
 let currentSettings = {};
 let currentBookmarks = [];
@@ -397,10 +397,13 @@ function applyLanguage(lang) {
   }
 }
 
-// Prepare Internal HTML with Dynamic Accent and Theme
+// Prepare Internal HTML with Dynamic Accent, Theme and Version
 function prepareInternalHtml(html) {
   if (!html) return '';
+  const appVer = window.SONDE_APP_VERSION || 'v2.0.0 // BETA';
   return html
+    .replace(/id="versionBadge">[^<]*</g, `id="versionBadge">${appVer}<`)
+    .replace(/<div class="badge">RUST ALPHA<\/div>/g, `<div class="badge" id="versionBadge">${appVer}</div>`)
     .replace(/--accent:\s*#[a-fA-F0-9]{3,6};/g, `--accent: ${currentAccent};`)
     .replace(/--accent-warm:\s*#[a-fA-F0-9]{3,6};/g, `--accent-warm: ${currentAccent};`)
     .replace(/var\(--accent,\s*#[a-fA-F0-9]{3,6}\)/g, `var(--accent, ${currentAccent})`)
@@ -425,6 +428,9 @@ function syncTabSplitView(tab) {
   if (!tab) return;
   if (tab.is_split) {
     elements.webViewContainer.classList.add('split-mode');
+    if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
+      elements.readerOverlay.classList.add('split-left');
+    }
     if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.remove('hidden');
     if (elements.btnSplitView) elements.btnSplitView.classList.add('active');
 
@@ -454,6 +460,9 @@ function syncTabSplitView(tab) {
     }
   } else {
     elements.webViewContainer.classList.remove('split-mode');
+    if (elements.readerOverlay) {
+      elements.readerOverlay.classList.remove('split-left', 'split-right');
+    }
     if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.add('hidden');
     if (elements.btnSplitView) elements.btnSplitView.classList.remove('active');
     if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.add('hidden');
@@ -1575,18 +1584,23 @@ function openDevTools() {
 }
 
 // Distraction-Free Reader Mode
-function toggleReaderMode() {
+function toggleReaderMode(targetPane = 'left') {
   if (!elements.readerOverlay) return;
   const isHidden = elements.readerOverlay.classList.contains('hidden');
 
   if (isHidden) {
     const active = tabs.find(t => t.is_active);
     if (!active) return;
-    const url = active.url;
+    const url = (targetPane === 'right' && active.split_url) ? active.split_url : active.url;
 
     if (url.startsWith('sonde://') || url.startsWith('crux://') || url === 'about:blank') {
       showToast(currentLanguage === 'ru' ? "Режим чтения недоступен для системных страниц" : "Reader mode unavailable for internal pages");
       return;
+    }
+
+    elements.readerOverlay.classList.remove('split-left', 'split-right');
+    if (active.is_split) {
+      elements.readerOverlay.classList.add(targetPane === 'right' ? 'split-right' : 'split-left');
     }
 
     elements.readerTitle.textContent = active.title || 'Reader View';
@@ -1601,6 +1615,7 @@ function toggleReaderMode() {
     sendIpc('fetch_reader_content', { url });
   } else {
     elements.readerOverlay.classList.add('hidden');
+    elements.readerOverlay.classList.remove('split-left', 'split-right');
   }
 }
 
@@ -2203,7 +2218,34 @@ if (elements.paletteInput) {
 
 if (elements.btnCommandPalette) elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
 
-// Flexible Shortcut Matcher for Custom and Rebound Keys
+const defaultKeybinds = {
+  kb_palette: 'Ctrl + Shift + P',
+  kb_new_tab: 'Ctrl + T',
+  kb_close_tab: 'Ctrl + W',
+  kb_split: 'Ctrl + \\',
+  kb_ai: 'Ctrl + B',
+  kb_orient: 'Ctrl + Alt + T',
+  kb_mode: 'Ctrl + M',
+  kb_settings: 'Ctrl + ,',
+  kb_downloads: 'Ctrl + Shift + D'
+};
+
+const ruToEn = { 'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','х':'[','ъ':']','ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','ж':';','э':'\'','я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.' };
+const enToRu = {};
+for (const [r, en] of Object.entries(ruToEn)) {
+  enToRu[en] = r;
+}
+
+function getEquivKeys(char) {
+  if (!char) return [];
+  const c = char.toLowerCase();
+  const res = [c];
+  if (ruToEn[c]) res.push(ruToEn[c]);
+  if (enToRu[c]) res.push(enToRu[c]);
+  return res;
+}
+
+// Flexible Shortcut Matcher for Custom and Rebound Keys (Full Cyrillic <-> Latin Duplication)
 function matchShortcut(e, shortcutStr) {
   if (!shortcutStr || typeof shortcutStr !== 'string') return false;
   const parts = shortcutStr.split('+').map(s => s.trim().toLowerCase());
@@ -2228,14 +2270,22 @@ function matchShortcut(e, shortcutStr) {
   const k = (e.key || '').toLowerCase();
   const c = (e.code || '').toLowerCase();
 
-  if (keyPart === 'space' && (k === ' ' || c === 'space')) return true;
-  if (keyPart === '\\' && (k === '\\' || c === 'backslash')) return true;
-  if (keyPart === ',' && (k === ',' || c === 'comma' || k === 'б')) return true;
-  if (keyPart === k) return true;
-  if (c === `key${keyPart}` || c === `digit${keyPart}` || c === keyPart) return true;
+  const rawCandidates = keyPart.split(/[\s\/\[\]\(\),]+/).filter(Boolean);
+  const candidates = rawCandidates.length > 0 ? rawCandidates : [keyPart];
 
-  const ruEnMap = { 'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','х':'[','ъ':']','ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','ж':';','э':'\'','я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.' };
-  if (ruEnMap[k] && ruEnMap[k] === keyPart) return true;
+  for (const cand of candidates) {
+    if (cand === 'space' && (k === ' ' || c === 'space')) return true;
+    if (cand === '\\' && (k === '\\' || c === 'backslash')) return true;
+    if (cand === ',' && (k === ',' || c === 'comma' || k === 'б')) return true;
+    if (cand === k) return true;
+    if (c === `key${cand}` || c === `digit${cand}` || c === cand) return true;
+
+    const equivs = getEquivKeys(cand);
+    if (equivs.includes(k)) return true;
+    for (const eq of equivs) {
+      if (c === `key${eq}` || c === `digit${eq}` || c === eq) return true;
+    }
+  }
 
   return false;
 }
@@ -2273,49 +2323,51 @@ function handleGlobalShortcut(e) {
     return;
   }
 
-  // Dynamic user-customized shortcuts from settings
-  if (matchShortcut(e, currentSettings.kb_palette)) {
+  const getKb = (name) => currentSettings[name] || defaultKeybinds[name];
+
+  // Dynamic user-customized shortcuts from settings (or defaults)
+  if (matchShortcut(e, getKb('kb_palette'))) {
     if (e.preventDefault) e.preventDefault();
     toggleCommandPalette();
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_new_tab)) {
+  if (matchShortcut(e, getKb('kb_new_tab'))) {
     if (e.preventDefault) e.preventDefault();
     createTab('sonde://startpage');
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_close_tab)) {
+  if (matchShortcut(e, getKb('kb_close_tab'))) {
     if (e.preventDefault) e.preventDefault();
     const active = tabs.find(t => t.is_active);
     if (active) closeTab(active.id);
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_split)) {
+  if (matchShortcut(e, getKb('kb_split'))) {
     if (e.preventDefault) e.preventDefault();
     toggleSplitView();
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_ai)) {
+  if (matchShortcut(e, getKb('kb_ai'))) {
     if (e.preventDefault) e.preventDefault();
     toggleAiPanel();
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_orient)) {
+  if (matchShortcut(e, getKb('kb_orient'))) {
     if (e.preventDefault) e.preventDefault();
     setTabOrientation(tabOrientation === 'vertical' ? 'horizontal' : 'vertical');
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_mode)) {
+  if (matchShortcut(e, getKb('kb_mode'))) {
     if (e.preventDefault) e.preventDefault();
     setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal');
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_settings)) {
+  if (matchShortcut(e, getKb('kb_settings'))) {
     if (e.preventDefault) e.preventDefault();
     openInternalPage('sonde://settings');
     return;
   }
-  if (matchShortcut(e, currentSettings.kb_downloads)) {
+  if (matchShortcut(e, getKb('kb_downloads'))) {
     if (e.preventDefault) e.preventDefault();
     toggleDownloadsPopup();
     return;
@@ -2893,6 +2945,19 @@ function escapeHtml(str) {
     })[m];
   });
 }
+
+window.onMigrationCompleted = function(data) {
+  if (!data) return;
+  const pCount = data.passwords_migrated || 0;
+  const cCount = data.cookies_migrated || 0;
+  const msg = currentLanguage === 'ru'
+    ? `Миграция завершена: успешно импортировано ${pCount} паролей и ${cCount} cookies`
+    : `Migration completed: successfully imported ${pCount} passwords and ${cCount} cookies`;
+  showToast(msg);
+  if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.onMigrationCompleted) {
+    elements.webFrame.contentWindow.onMigrationCompleted(data);
+  }
+};
 
 // Initial Render and Boot
 checkTopNavOverflow();

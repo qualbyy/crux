@@ -33,6 +33,7 @@ enum UserEvent {
     VaultAuthFailed,
     AutofillData(String),
     ExtensionsLoaded(String),
+    MigrationCompleted(String),
     OpenDevTools,
     ToggleFullscreen,
     CloseWindow,
@@ -126,7 +127,30 @@ fn main() -> wry::Result<()> {
     }
 
     // Start local embedded proxy on 127.0.0.1:39281 to bypass WebKit CSP & frame-ancestors
-    proxy::start_proxy(Arc::clone(&adblocker), 39281);
+    proxy::start_proxy(Arc::clone(&adblocker), Arc::clone(&db), 39281);
+
+    // Auto-migration on first run (passwords & cookies from Chrome/Edge/Firefox)
+    let db_mig = Arc::clone(&db);
+    std::thread::spawn(move || {
+        if db_mig.get_setting("auto_migrated_v1").is_none() {
+            println!("[Sonde Core] Initiating first-time browser passwords and cookies auto-migration...");
+            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            let script_path = PathBuf::from(&home_dir).join(".gemini/antigravity/scratch/zinc-browser/resources/migrate_browser_data.py");
+            if script_path.exists() {
+                let output = std::process::Command::new("python3")
+                    .arg(&script_path)
+                    .output();
+                if let Ok(out) = output {
+                    println!("[Sonde Core] Auto-migration result: {}", String::from_utf8_lossy(&out.stdout));
+                }
+            } else {
+                let _ = std::process::Command::new("python3")
+                    .arg("-c")
+                    .arg(include_str!("../../resources/migrate_browser_data.py"))
+                    .output();
+            }
+        }
+    });
 
     // 3. Initialize Tao Event Loop with UserEvent support
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
@@ -160,7 +184,7 @@ fn main() -> wry::Result<()> {
         .replace(
             r#"<script src="main.js"></script>"#,
             &format!(
-                "<script>\nwindow.SONDE_STARTPAGE_HTML = {};\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.SONDE_SETTINGS_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.SONDE_HISTORY_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.SONDE_DOWNLOADS_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
+                "<script>\nwindow.SONDE_APP_VERSION = \"v2.0.0 // BETA\";\nwindow.SONDE_STARTPAGE_HTML = {};\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.SONDE_SETTINGS_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.SONDE_HISTORY_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.SONDE_DOWNLOADS_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
                 startpage_escaped, startpage_escaped, settings_escaped, settings_escaped, history_escaped, history_escaped, downloads_escaped, downloads_escaped, js_content
             ),
         );
@@ -319,6 +343,31 @@ fn main() -> wry::Result<()> {
                                 let _ = proxy_clone.send_event(UserEvent::VaultUnlocked(json));
                             }
                         }
+                    }
+                    "auto_migrate_browsers" => {
+                        let p_clone = proxy_clone.clone();
+                        let db_m = Arc::clone(&db_clone);
+                        std::thread::spawn(move || {
+                            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+                            let script_path = PathBuf::from(&home_dir).join(".gemini/antigravity/scratch/zinc-browser/resources/migrate_browser_data.py");
+                            let output = if script_path.exists() {
+                                std::process::Command::new("python3").arg(&script_path).output()
+                            } else {
+                                std::process::Command::new("python3").arg("-c").arg(include_str!("../../resources/migrate_browser_data.py")).output()
+                            };
+
+                            let res_json = match output {
+                                Ok(out) => String::from_utf8_lossy(&out.stdout).to_string(),
+                                Err(e) => format!("{{\"status\":\"error\",\"message\":\"{}\"}}", e),
+                            };
+                            println!("[Sonde Core] Manual auto-migration result: {}", res_json);
+                            let _ = p_clone.send_event(UserEvent::MigrationCompleted(res_json));
+
+                            let passwords = db_m.get_passwords().unwrap_or_default();
+                            if let Ok(json) = serde_json::to_string(&passwords) {
+                                let _ = p_clone.send_event(UserEvent::VaultUnlocked(json));
+                            }
+                        });
                     }
                     "get_autofill" => {
                         if let Some(target_url) = v["url"].as_str() {
@@ -626,6 +675,13 @@ fn main() -> wry::Result<()> {
             }
             Event::UserEvent(UserEvent::AutofillData(json_str)) => {
                 let script = format!("if (window.onAutofillData) window.onAutofillData({});", json_str);
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::MigrationCompleted(json_str)) => {
+                let script = format!(
+                    "if (window.onMigrationCompleted) window.onMigrationCompleted({}); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.onMigrationCompleted) document.getElementById('webFrame').contentWindow.onMigrationCompleted({});",
+                    json_str, json_str
+                );
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::ExtensionsLoaded(json_str)) => {

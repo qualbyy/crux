@@ -104,6 +104,20 @@ impl Database {
         )?;
 
         conn.execute(
+            "CREATE TABLE IF NOT EXISTS cookies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                host TEXT NOT NULL,
+                name TEXT NOT NULL,
+                value TEXT NOT NULL,
+                path TEXT DEFAULT '/',
+                is_secure INTEGER DEFAULT 0,
+                expires INTEGER DEFAULT 0,
+                UNIQUE(host, name, path)
+            )",
+            [],
+        )?;
+
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY,
                 url TEXT NOT NULL,
@@ -324,5 +338,31 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM passwords", [])?;
         Ok(())
+    }
+
+    pub fn get_cookies_for_host(&self, host: &str) -> Vec<(String, String)> {
+        let conn = self.conn.lock().unwrap();
+        let mut list = Vec::new();
+        let domain_wildcard = format!("%{}", host);
+        if let Ok(mut stmt) = conn.prepare("SELECT name, value FROM cookies WHERE ?1 LIKE ('%' || host) OR host LIKE ?2") {
+            if let Ok(rows) = stmt.query_map(params![host, domain_wildcard], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            }) {
+                for r in rows.flatten() {
+                    list.push(r);
+                }
+            }
+        }
+        list
+    }
+
+    pub fn get_cookies_count(&self) -> i64 {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row("SELECT count(*) FROM cookies", [], |r| r.get(0)).unwrap_or(0)
+    }
+
+    pub fn get_passwords_count(&self) -> i64 {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row("SELECT count(*) FROM passwords", [], |r| r.get(0)).unwrap_or(0)
     }
 }

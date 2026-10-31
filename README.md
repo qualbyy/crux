@@ -9,7 +9,16 @@
 </p>
 
 <p align="center">
-  <a href="https://t.me/qualbyy"><b>[ TELEGRAM ]</b></a>
+  <a href="https://t.me/qualbyy"><b>[ TELEGRAM ]</b></a> •
+  <a href="https://sonde.pages.dev"><b>[ САЙТ / WEBSITE ]</b></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Language-Rust_2021-b7410e?style=flat-square&logo=rust&logoColor=white" alt="Rust" />
+  <img src="https://img.shields.io/badge/Dependencies-GTK3_%7C_WebKitGTK_4.1-4a154b?style=flat-square&logo=gnome&logoColor=white" alt="Dependencies" />
+  <img src="https://img.shields.io/badge/Architecture-Wry_%2F_Tao-2b5797?style=flat-square" alt="Wry / Tao" />
+  <img src="https://img.shields.io/badge/Platform-Linux_%7C_Windows-555555?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
 </p>
 
 ---

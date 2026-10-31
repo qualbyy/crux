@@ -943,6 +943,18 @@ body, html {
   animation: fadeIn var(--anim-speed) ease;
 }
 
+.reader-overlay.split-left {
+  right: 50% !important;
+  width: 50% !important;
+  border-right: 1px solid var(--border);
+}
+
+.reader-overlay.split-right {
+  left: 50% !important;
+  width: 50% !important;
+  border-left: 1px solid var(--border);
+}
+
 .reader-header {
   display: flex;
   justify-content: space-between;

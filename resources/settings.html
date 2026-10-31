@@ -915,8 +915,9 @@
                             <div class="vault-toolbar">
                                 <input type="text" id="vault-pwd-search" class="vault-search-input" placeholder="Filter passwords by domain or username..." oninput="filterVaultPasswords()" data-i18n="placeholder_filter_pwd">
                                 <div class="vault-actions-group">
+                                    <button type="button" class="btn-action" onclick="triggerAutoMigration()" style="border-color: var(--accent); color: var(--accent); font-weight: bold;" title="Автоматический поиск и миграция паролей и cookies из Chrome, Edge, Chromium, Firefox">[ АВТО-МИГРАЦИЯ ]</button>
                                     <button type="button" class="btn-action" onclick="promptAddPassword()" style="border-color: var(--accent); color: var(--accent);" data-i18n="btn_add_password">+ ДОБАВИТЬ ПАРОЛЬ</button>
-                                    <button type="button" class="btn-action" onclick="triggerPasswordImport()" style="border-color: var(--accent); color: var(--accent);" title="Импорт из Chrome, Firefox, Brave, Edge, Opera, JSON">[ МИГРАЦИЯ ПАРОЛЕЙ ]</button>
+                                    <button type="button" class="btn-action" onclick="triggerPasswordImport()" style="border-color: var(--border-muted); color: var(--text-bright);" title="Импорт из Chrome, Firefox, Brave, Edge, Opera, JSON">[ ИМПОРТ CSV/JSON ]</button>
                                     <button type="button" class="btn-action" onclick="showBrowserProfilesInfo()" title="Справка по экспорту">[ СПРАВКА ]</button>
                                     <button type="button" class="btn-action" onclick="exportPasswordsCSV()" data-i18n="btn_export_csv">EXPORT CSV</button>
                                     <button type="button" class="btn-action" onclick="exportPasswordsJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
@@ -2043,7 +2044,13 @@
         }
         window.resetKeybinds = resetKeybinds;
 
-        // Interactive Click-to-Record Keybind Capture
+        // Interactive Click-to-Record Keybind Capture with Cyrillic & Latin Layout Duplication
+        const ruToEn = { 'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','х':'[','ъ':']','ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','ж':';','э':'\'','я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.' };
+        const enToRu = {};
+        for (const [r, en] of Object.entries(ruToEn)) {
+            enToRu[en] = r;
+        }
+
         let activeKeybindBtn = null;
         let activeKeybindHandler = null;
 
@@ -2076,10 +2083,24 @@
                 if (e.metaKey) parts.push('Super');
 
                 let k = e.key;
-                if (k === ' ') k = 'Space';
-                else if (k.length === 1) k = k.toUpperCase();
-                else if (e.code && e.code.startsWith('Key')) k = e.code.replace('Key', '');
-                else if (e.code && e.code.startsWith('Digit')) k = e.code.replace('Digit', '');
+                if (k === ' ') {
+                    k = 'Space';
+                } else if (k === '\\') {
+                    k = '\\';
+                } else if (k === ',') {
+                    k = ',';
+                } else if (e.code && e.code.startsWith('Key')) {
+                    const latin = e.code.replace('Key', '').toUpperCase();
+                    const ruChar = enToRu[latin.toLowerCase()] ? enToRu[latin.toLowerCase()].toUpperCase() : '';
+                    k = ruChar ? `${latin} / ${ruChar}` : latin;
+                } else if (e.code && e.code.startsWith('Digit')) {
+                    k = e.code.replace('Digit', '');
+                } else if (k.length === 1) {
+                    const low = k.toLowerCase();
+                    const enChar = ruToEn[low] ? ruToEn[low].toUpperCase() : low.toUpperCase();
+                    const ruChar = enToRu[low] ? enToRu[low].toUpperCase() : low.toUpperCase();
+                    k = (enChar !== ruChar) ? `${enChar} / ${ruChar}` : enChar;
+                }
 
                 parts.push(k);
                 const combo = parts.join(' + ');
@@ -2112,6 +2133,32 @@
                 activeKeybindHandler = null;
             }
         }
+
+        // --- AUTOMATIC & FILE PASSWORD/COOKIE MIGRATION ---
+        function triggerAutoMigration() {
+            if (confirm(currentLang === 'ru'
+                ? "Запустить автоматический поиск и миграцию сохранённых паролей и cookies из браузеров (Chrome, Edge, Chromium, Firefox)?"
+                : "Run automatic search and migration of saved passwords and cookies from installed browsers (Chrome, Edge, Chromium, Firefox)?")) {
+                showToast(currentLang === 'ru' ? "Миграция браузерных данных..." : "Migrating browser data...");
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'sonde_ipc', payload: { action: 'auto_migrate_browsers' } }, '*');
+                }
+            }
+        }
+        window.triggerAutoMigration = triggerAutoMigration;
+
+        window.onMigrationCompleted = function(data) {
+            if (!data) return;
+            const pCount = data.passwords_migrated || 0;
+            const cCount = data.cookies_migrated || 0;
+            const msg = currentLang === 'ru'
+                ? `Миграция завершена: импортировано ${pCount} паролей и ${cCount} cookies!`
+                : `Migration completed: imported ${pCount} passwords and ${cCount} cookies!`;
+            showToast(msg);
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'sonde_ipc', payload: { action: 'unlock_vault', master_key: 'sonde' } }, '*');
+            }
+        };
 
         // --- PASSWORD MIGRATION CONTROLLER (CHROME, FIREFOX, EDGE, BRAVE, OPERA) ---
         function triggerPasswordImport() {
