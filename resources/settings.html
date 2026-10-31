@@ -544,7 +544,7 @@
                     [07] KEYBINDS
                 </button>
                 <button class="tab-btn" data-tab="extensions" onclick="switchTab('extensions')" data-i18n="tab_extensions">
-                    [08] EXTENSIONS
+                    [08] ADVANCED / ДЛЯ РАЗРАБОТЧИКОВ
                 </button>
                 <button class="tab-btn" data-tab="containers" onclick="switchTab('containers')" data-i18n="tab_containers">
                     [09] CONTAINERS
@@ -1112,32 +1112,68 @@
                     </div>
                 </div>
 
-                <!-- EXTENSIONS & SCRIPTS -->
+                <!-- ADVANCED & DEVELOPER (EXTENSIONS, USER-AGENT, DEVTOOLS) -->
                 <div id="tab-extensions" class="tab-content">
                     <div class="section-header">
-                        <h2>EXTENSIONS & USERSCRIPTS</h2>
-                        <p>Violentmonkey / Greasemonkey scripts (.user.js) and custom stylesheets (.user.css).</p>
+                        <h2>ADVANCED & DEVELOPER CONFIGURATION // ПРОДВИНУТЫЕ НАСТРОЙКИ</h2>
+                        <p>Настройки User-Agent, инструментов разработчика и пользовательских скриптов/расширений (Extensions / Userscripts).</p>
                     </div>
 
+                    <!-- USER AGENT & PRESETS -->
+                    <div class="form-row" style="align-items: flex-start; padding: 12px 0;">
+                        <div class="label-wrap" style="flex: 1;">
+                            <span class="label-title">User-Agent (Идентификатор браузера)</span>
+                            <span class="label-desc">Выберите готовый пресет или задайте произвольную строку User-Agent для обхода ограничений сайтов.</span>
+                            <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap;">
+                                <select id="setting-ua-preset" style="min-width: 220px;" onchange="onUAPresetChange(this.value)">
+                                    <option value="chrome-linux">Chrome 131 on Linux (По умолчанию)</option>
+                                    <option value="chrome-windows">Chrome 131 on Windows 11</option>
+                                    <option value="chrome-mac">Chrome 131 on macOS (Apple Silicon)</option>
+                                    <option value="firefox-linux">Firefox 133 on Linux x86_64</option>
+                                    <option value="firefox-windows">Firefox 133 on Windows 11</option>
+                                    <option value="safari-mac">Safari 18.1 on macOS</option>
+                                    <option value="iphone-safari">iPhone Safari (iOS 18 Mobile)</option>
+                                    <option value="pixel-chrome">Google Pixel Chrome (Android Mobile)</option>
+                                    <option value="custom">Пользовательский (Ввести вручную)...</option>
+                                </select>
+                                <button type="button" class="btn-action" onclick="resetUserAgent()">СБРОСИТЬ ПО УМОЛЧАНИЮ</button>
+                            </div>
+                            <input type="text" id="setting-user-agent" style="width: 100%; margin-top: 8px; font-size: 11px; background: var(--bg-base);" placeholder="Mozilla/5.0..." oninput="onCustomUAInput(this.value)">
+                        </div>
+                    </div>
+
+                    <!-- DEVTOOLS & INSPECTOR -->
                     <div class="form-row">
                         <div class="label-wrap">
-                            <span class="label-title">Управление файлами расширений</span>
-                            <span class="label-desc">Поместите ваши .user.js и .user.css файлы в системную папку для автоматической инъекции.</span>
+                            <span class="label-title">Инструменты веб-инспектора (DevTools)</span>
+                            <span class="label-desc">Открыть нативный WebKitGTK Developer Inspector для отладки текущей вкладки, DOM и сетевых запросов.</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn-save-top" style="padding: 6px 14px; font-size: 11px;" onclick="openDevToolsFromSettings()">ОТКРЫТЬ DEVTOOLS</button>
+                        </div>
+                    </div>
+
+                    <!-- EXTENSIONS & SCRIPTS FOLDER -->
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Управление файлами расширений и скриптов</span>
+                            <span class="label-desc">Поместите ваши .user.js и .user.css файлы в системную папку для автоматической инъекции на страницах.</span>
                         </div>
                         <div style="display: flex; gap: 8px;">
                             <button type="button" class="btn-action" onclick="openScriptsFolder()">ОТКРЫТЬ ПАПКУ СКРИПТОВ</button>
+                            <button type="button" class="btn-action" onclick="refreshExtensionsList()">ОБНОВИТЬ СПИСОК</button>
                         </div>
                     </div>
 
                     <div style="margin-top: 16px;">
-                        <h3 style="font-size: 12px; color: var(--accent); margin-bottom: 8px;">УСТАНОВЛЕННЫЕ USERSCRIPTS</h3>
+                        <h3 style="font-size: 12px; color: var(--accent); margin-bottom: 8px;">УСТАНОВЛЕННЫЕ USERSCRIPTS (.user.js)</h3>
                         <div id="userscripts-list" style="border: 1px solid var(--border-muted); background: var(--bg-base); padding: 8px; min-height: 60px;">
                             <div style="color: var(--text-muted); font-size: 11px;">Нет установленных .user.js скриптов</div>
                         </div>
                     </div>
 
                     <div style="margin-top: 16px;">
-                        <h3 style="font-size: 12px; color: var(--accent); margin-bottom: 8px;">УСТАНОВЛЕННЫЕ USERSTYLES</h3>
+                        <h3 style="font-size: 12px; color: var(--accent); margin-bottom: 8px;">УСТАНОВЛЕННЫЕ USERSTYLES (.user.css)</h3>
                         <div id="userstyles-list" style="border: 1px solid var(--border-muted); background: var(--bg-base); padding: 8px; min-height: 60px;">
                             <div style="color: var(--text-muted); font-size: 11px;">Нет установленных .user.css стилей</div>
                         </div>
@@ -1232,6 +1268,8 @@
                 if (!isVaultUnlocked) {
                     lockVault();
                 }
+            } else if (tabId === 'extensions') {
+                refreshExtensionsList();
             }
         }
 
@@ -1321,6 +1359,25 @@
             if (s.ai_persona && document.getElementById('setting-ai-persona')) document.getElementById('setting-ai-persona').value = s.ai_persona;
             if (document.getElementById('setting-restore-session') && s.restore_session !== undefined) document.getElementById('setting-restore-session').checked = s.restore_session === 'true';
             if (s.tab_hibernation && document.getElementById('setting-tab-hibernation')) document.getElementById('setting-tab-hibernation').value = s.tab_hibernation;
+            if (s.user_agent && document.getElementById('setting-user-agent')) {
+                const uaVal = s.user_agent;
+                document.getElementById('setting-user-agent').value = uaVal;
+                const select = document.getElementById('setting-ua-preset');
+                if (select) {
+                    let matched = false;
+                    for (let k in UA_PRESETS) {
+                        if (UA_PRESETS[k] === uaVal.trim()) {
+                            select.value = k;
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched) select.value = 'custom';
+                }
+            } else if (document.getElementById('setting-user-agent') && !document.getElementById('setting-user-agent').value) {
+                document.getElementById('setting-user-agent').value = UA_PRESETS['chrome-linux'];
+                if (document.getElementById('setting-ua-preset')) document.getElementById('setting-ua-preset').value = 'chrome-linux';
+            }
         };
 
         window.addEventListener('message', (e) => {
@@ -1421,7 +1478,7 @@
                 tab_vault: "[05] ПАРОЛИ И ХРАНИЛИЩЕ",
                 tab_ai: "[06] AI АССИСТЕНТ",
                 tab_shortcuts: "[07] ГОРЯЧИЕ КЛАВИШИ",
-                tab_extensions: "[08] РАСШИРЕНИЯ",
+                tab_extensions: "[08] ПРОДВИНУТЫЕ / РАЗРАБОТКА",
                 tab_containers: "[09] КОНТЕЙНЕРЫ",
                 tab_about: "[10] О БРАУЗЕРЕ",
                 header_general: "ОБЩАЯ КОНФИГУРАЦИЯ",
@@ -1570,7 +1627,7 @@
                 tab_vault: "[05] PASSWORDS & VAULT",
                 tab_ai: "[06] AI ASSISTANT",
                 tab_shortcuts: "[07] KEYBINDS",
-                tab_extensions: "[08] EXTENSIONS",
+                tab_extensions: "[08] ADVANCED & DEVELOPER",
                 tab_containers: "[09] CONTAINERS",
                 tab_about: "[10] ABOUT",
                 header_general: "GENERAL CONFIGURATION",
@@ -2173,8 +2230,65 @@
             }
         }
 
+        const UA_PRESETS = {
+            'chrome-linux': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'chrome-windows': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'chrome-mac': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'firefox-linux': 'Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0',
+            'firefox-windows': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+            'safari-mac': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+            'iphone-safari': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1',
+            'pixel-chrome': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36'
+        };
+
+        function onUAPresetChange(val) {
+            const input = document.getElementById('setting-user-agent');
+            if (!input) return;
+            if (val === 'custom') {
+                input.focus();
+                return;
+            }
+            if (UA_PRESETS[val]) {
+                input.value = UA_PRESETS[val];
+                applySettingLive('user_agent', UA_PRESETS[val]);
+            }
+        }
+
+        function onCustomUAInput(val) {
+            const select = document.getElementById('setting-ua-preset');
+            if (select) {
+                let matched = false;
+                for (let k in UA_PRESETS) {
+                    if (UA_PRESETS[k] === val.trim()) {
+                        select.value = k;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) select.value = 'custom';
+            }
+            applySettingLive('user_agent', val.trim());
+        }
+
+        function resetUserAgent() {
+            const defUA = UA_PRESETS['chrome-linux'];
+            const input = document.getElementById('setting-user-agent');
+            const select = document.getElementById('setting-ua-preset');
+            if (input) input.value = defUA;
+            if (select) select.value = 'chrome-linux';
+            applySettingLive('user_agent', defUA);
+        }
+
+        function openDevToolsFromSettings() {
+            sendToHost("sonde://action/open-devtools");
+        }
+
+        function refreshExtensionsList() {
+            sendToHost("sonde://action/get-extensions");
+        }
+
         function openScriptsFolder() {
-            sendToHost("crux://action/open-scripts-dir");
+            sendToHost("sonde://action/open-scripts-dir");
         }
 
         function toggleUserscript(name) {
@@ -2224,6 +2338,8 @@
             params.set('restore_session', document.getElementById('setting-restore-session').checked ? 'true' : 'false');
             params.set('tab_hibernation', document.getElementById('setting-tab-hibernation').value);
             params.set('whitelist', currentWhitelist.join(','));
+            const uaInput = document.getElementById('setting-user-agent');
+            if (uaInput) params.set('user_agent', uaInput.value);
 
             const toast = document.getElementById('toastMessage');
             toast.style.display = 'block';

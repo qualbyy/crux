@@ -1,9 +1,30 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use crate::adblock::AdBlocker;
+
+static CURRENT_USER_AGENT: OnceLock<Mutex<String>> = OnceLock::new();
+
+pub fn set_custom_user_agent(ua: &str) {
+    let mutex = CURRENT_USER_AGENT.get_or_init(|| {
+        Mutex::new("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string())
+    });
+    if let Ok(mut lock) = mutex.lock() {
+        *lock = ua.to_string();
+    }
+}
+
+pub fn get_current_user_agent() -> String {
+    let mutex = CURRENT_USER_AGENT.get_or_init(|| {
+        Mutex::new("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string())
+    });
+    mutex.lock().map(|g| g.clone()).unwrap_or_else(|_| {
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string()
+    })
+}
+
 
 fn percent_decode(input: &str) -> String {
     let mut bytes = Vec::new();
@@ -126,7 +147,7 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
             let val = line[colon + 1..].trim();
             let key_lower = key.to_lowercase();
 
-            if key_lower == "host" || key_lower == "connection" {
+            if key_lower == "host" || key_lower == "connection" || key_lower == "accept-encoding" || key_lower == "user-agent" {
                 continue;
             }
             if key_lower == "referer" {
@@ -221,6 +242,9 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
             req_builder = req_builder.header("Origin", format!("{}://{}{}", scheme, host, port_str));
         }
     }
+
+    let active_ua = get_current_user_agent();
+    req_builder = req_builder.header("User-Agent", active_ua);
 
     for (k, v) in forwarded_headers {
         req_builder = req_builder.header(&k, &v);
@@ -548,12 +572,43 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
         );
 
         let mut mod_body = body;
+
+        // Auto-inject installed Userscripts (.user.js) and Userstyles (.user.css)
+        let home_env = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let scripts_dir = PathBuf::from(&home_env).join(".config").join("sonde").join("scripts");
+        let mut extensions_injection = String::new();
+
+        if let Ok(entries) = std::fs::read_dir(&scripts_dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if let Some(ext_name) = p.file_name().and_then(|n| n.to_str()) {
+                    if ext_name.ends_with(".user.css") {
+                        if let Ok(css) = std::fs::read_to_string(&p) {
+                            extensions_injection.push_str(&format!(
+                                "\n<style data-sonde-extension=\"{}\">\n{}\n</style>\n",
+                                ext_name, css
+                            ));
+                        }
+                    } else if ext_name.ends_with(".user.js") {
+                        if let Ok(js) = std::fs::read_to_string(&p) {
+                            extensions_injection.push_str(&format!(
+                                "\n<script data-sonde-extension=\"{}\">\ntry {{\n{}\n}} catch(err) {{ console.error('[Sonde Extension {}]', err); }}\n</script>\n",
+                                ext_name, js, ext_name
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        let full_injection = format!("{}{}", injection, extensions_injection);
+
         if let Some(idx) = mod_body.to_lowercase().find("<head>") {
-            mod_body.insert_str(idx + 6, &injection);
+            mod_body.insert_str(idx + 6, &full_injection);
         } else if let Some(idx) = mod_body.to_lowercase().find("<html>") {
-            mod_body.insert_str(idx + 6, &format!("<head>{}</head>", injection));
+            mod_body.insert_str(idx + 6, &format!("<head>{}</head>", full_injection));
         } else {
-            mod_body.insert_str(0, &injection);
+            mod_body.insert_str(0, &full_injection);
         }
         mod_body
     } else {

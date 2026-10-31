@@ -2454,6 +2454,21 @@ function handleSondeInternalCommand(cmdUrl) {
     return;
   }
 
+  if (cmdUrl === 'sonde://action/open-scripts-dir' || cmdUrl === 'crux://action/open-scripts-dir') {
+    sendIpc('open_scripts_folder');
+    return;
+  }
+
+  if (cmdUrl === 'sonde://action/get-extensions' || cmdUrl === 'crux://action/get-extensions') {
+    sendIpc('get_extensions');
+    return;
+  }
+
+  if (cmdUrl === 'sonde://action/open-devtools' || cmdUrl === 'crux://action/open-devtools') {
+    sendIpc('open_devtools');
+    return;
+  }
+
   if (cmdUrl === 'sonde://action/clear-downloads' || cmdUrl === 'crux://action/clear-downloads') {
     sendIpc('clear_downloads');
     showToast(currentLanguage === 'ru' ? "Список загрузок очищен" : "Downloads cleared");

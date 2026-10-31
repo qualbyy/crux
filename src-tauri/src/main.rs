@@ -32,6 +32,7 @@ enum UserEvent {
     VaultUnlocked(String),
     VaultAuthFailed,
     AutofillData(String),
+    ExtensionsLoaded(String),
     OpenDevTools,
     ToggleFullscreen,
     CloseWindow,
@@ -114,6 +115,13 @@ fn main() -> wry::Result<()> {
     if let Some(ab_saved) = db.get_setting("adblock_enabled") {
         if ab_saved == "false" {
             adblocker.set_enabled(false);
+        }
+    }
+
+    // Restore saved user agent if customized
+    if let Some(ua_saved) = db.get_setting("user_agent") {
+        if !ua_saved.trim().is_empty() {
+            proxy::set_custom_user_agent(&ua_saved);
         }
     }
 
@@ -223,6 +231,9 @@ fn main() -> wry::Result<()> {
                     "save_setting" => {
                         if let (Some(key), Some(value)) = (v["key"].as_str(), v["value"].as_str()) {
                             db_clone.save_setting(key, value).ok();
+                            if key == "user_agent" {
+                                proxy::set_custom_user_agent(value);
+                            }
                             println!("[Sonde Core] Saved setting: {} = {}", key, value);
                         }
                     }
@@ -369,6 +380,49 @@ fn main() -> wry::Result<()> {
                         db_clone.clear_downloads().ok();
                         println!("[Sonde Core] Downloads cleared");
                     }
+                    "open_scripts_folder" => {
+                        let home_env = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+                        let scripts_dir = PathBuf::from(&home_env).join(".config").join("sonde").join("scripts");
+                        std::fs::create_dir_all(&scripts_dir).ok();
+                        std::process::Command::new("xdg-open").arg(&scripts_dir).spawn().ok();
+                        println!("[Sonde Core] Opened scripts directory: {:?}", scripts_dir);
+                    }
+                    "get_extensions" => {
+                        let home_env = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+                        let scripts_dir = PathBuf::from(&home_env).join(".config").join("sonde").join("scripts");
+                        std::fs::create_dir_all(&scripts_dir).ok();
+
+                        let mut userscripts = Vec::new();
+                        let mut userstyles = Vec::new();
+
+                        if let Ok(entries) = std::fs::read_dir(&scripts_dir) {
+                            for entry in entries.flatten() {
+                                let p = entry.path();
+                                if let Some(fname) = p.file_name().and_then(|n| n.to_str()) {
+                                    if fname.ends_with(".user.js") {
+                                        userscripts.push(serde_json::json!({
+                                            "name": fname.replace(".user.js", ""),
+                                            "filename": fname,
+                                            "enabled": true
+                                        }));
+                                    } else if fname.ends_with(".user.css") {
+                                        userstyles.push(serde_json::json!({
+                                            "name": fname.replace(".user.css", ""),
+                                            "filename": fname,
+                                            "enabled": true
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+
+                        let ext_json = serde_json::json!({
+                            "userscripts": userscripts,
+                            "userstyles": userstyles
+                        }).to_string();
+
+                        let _ = proxy_clone.send_event(UserEvent::ExtensionsLoaded(ext_json));
+                    }
                     "open_file" => {
                         if let Some(path) = v["path"].as_str() {
                             std::process::Command::new("xdg-open").arg(path).spawn().ok();
@@ -503,7 +557,8 @@ fn main() -> wry::Result<()> {
             settings.set_enable_media_stream(true);
             settings.set_enable_mediasource(true);
             settings.set_enable_javascript(true);
-            settings.set_user_agent(Some("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"));
+            let active_ua = proxy::get_current_user_agent();
+            settings.set_user_agent(Some(&active_ua));
         }
 
         window.gtk_window().show_all();
@@ -552,6 +607,13 @@ fn main() -> wry::Result<()> {
             }
             Event::UserEvent(UserEvent::AutofillData(json_str)) => {
                 let script = format!("if (window.onAutofillData) window.onAutofillData({});", json_str);
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::ExtensionsLoaded(json_str)) => {
+                let script = format!(
+                    "if (window.onExtensionsLoaded) window.onExtensionsLoaded({}); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.renderExtensions) document.getElementById('webFrame').contentWindow.renderExtensions({});",
+                    json_str, json_str
+                );
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::AiResponse(text)) => {
