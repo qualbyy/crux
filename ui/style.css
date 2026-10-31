@@ -1,5 +1,6 @@
 /* Crux 2.0 — Anthropic Minimal Dark Theme */
 :root {
+  color-scheme: dark;
   --bg-app: #18181b;
   --bg-sidebar: #131315;
   --bg-elevated: #262624;
@@ -376,16 +377,34 @@ body, html {
   font-weight: bold;
 }
 
-.ai-select {
+.ai-select, select {
   flex: 1;
-  background-color: var(--bg-elevated);
-  border: 1px solid var(--border);
-  color: var(--text-main);
+  color-scheme: dark !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-color: var(--bg-elevated) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-main) !important;
   font-family: inherit;
   font-size: 11px;
-  height: 26px;
-  padding: 0 6px;
+  height: 28px;
+  padding: 0 24px 0 8px !important;
   outline: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%23a1a1aa' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 6px center !important;
+}
+
+.ai-select:focus, select:focus {
+  border-color: var(--accent) !important;
+}
+
+.ai-select option, select option {
+  background-color: #262624 !important;
+  color: #f5f5f0 !important;
+  padding: 6px 8px;
 }
 
 .ai-history {
@@ -782,5 +801,159 @@ body, html {
 
 .tab-mute.muted {
   color: #ef4444;
+}
+
+/* Floating Tool Popups (Bookmarks & Downloads) */
+.floating-popup {
+  position: absolute;
+  top: 40px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.85);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  animation: scaleUp var(--anim-speed) var(--anim-ease);
+}
+
+.floating-popup.hidden {
+  display: none !important;
+}
+
+#bookmarksPopup {
+  right: 250px;
+  width: 320px;
+  max-height: 420px;
+}
+
+#downloadsPopup {
+  right: 170px;
+  width: 340px;
+  max-height: 420px;
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+}
+
+.popup-title {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.8px;
+  color: var(--text-main);
+}
+
+.btn-popup-action {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all var(--anim-speed) ease;
+}
+
+.btn-popup-action:hover {
+  background-color: var(--accent);
+  color: #ffffff;
+}
+
+.popup-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  cursor: pointer;
+  gap: 8px;
+  transition: background-color var(--anim-speed) ease;
+}
+
+.popup-item:hover {
+  background-color: var(--bg-active);
+}
+
+.popup-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.popup-item-title {
+  font-size: 12px;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.popup-item-url {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.popup-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.popup-item-delete:hover {
+  color: #ef4444;
+}
+
+.popup-footer {
+  padding: 6px 8px;
+  border-top: 1px solid var(--border-muted);
+  background-color: var(--bg-sidebar);
+}
+
+.btn-popup-footer {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 6px;
+  cursor: pointer;
+  transition: all var(--anim-speed) ease;
+}
+
+.btn-popup-footer:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.popup-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 

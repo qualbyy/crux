@@ -6,6 +6,7 @@
     <title>crux://settings</title>
     <style>
         :root, :root[data-theme="dark"] {
+            color-scheme: dark;
             --bg-base: #18181b;
             --bg-surface: #262624;
             --bg-elevated: #2d2d2a;
@@ -1197,12 +1198,70 @@
         // Host IPC mechanism (immune to navigation cancellation / about:blank#blocked)
         function sendToHost(url) {
             try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'crux_cmd', url: url }, '*');
+                }
+            } catch (e) {}
+            try {
                 try { window.prompt("CRUX_CMD:" + url); } catch(e) { window.prompt("ZEPHYRIUM_CMD:" + url); }
             } catch (e) {
                 console.log("CRUX_IPC:" + url);
             }
         }
         window.sendToHost = sendToHost;
+
+        window.populateSettings = function(s) {
+            if (!s) return;
+            if (s.language && document.getElementById('setting-language')) {
+                document.getElementById('setting-language').value = s.language;
+                applyLanguage(s.language);
+            }
+            if (s.homepage && document.getElementById('setting-homepage')) document.getElementById('setting-homepage').value = s.homepage;
+            if (s.new_tab_url && document.getElementById('setting-new-tab-url')) document.getElementById('setting-new-tab-url').value = s.new_tab_url;
+            if (s.search_engine && document.getElementById('setting-search-engine')) document.getElementById('setting-search-engine').value = s.search_engine;
+            if (s.theme && document.getElementById('setting-theme')) {
+                document.getElementById('setting-theme').value = s.theme;
+                applyPreviewTheme(s.theme);
+            }
+            if (s.website_theme && document.getElementById('setting-website-theme')) document.getElementById('setting-website-theme').value = s.website_theme;
+            if (s.accent_color && document.getElementById('setting-accent')) {
+                selectAccent(s.accent_color);
+            }
+            if (s.ui_mode && document.getElementById('setting-ui-mode')) document.getElementById('setting-ui-mode').value = s.ui_mode;
+            if (s.tab_orientation && document.getElementById('setting-tab-orientation')) document.getElementById('setting-tab-orientation').value = s.tab_orientation;
+            if (s.sidebar_width && document.getElementById('setting-sidebar-width')) document.getElementById('setting-sidebar-width').value = s.sidebar_width;
+            if (document.getElementById('setting-adblock-enabled') && s.adblock_enabled !== undefined) document.getElementById('setting-adblock-enabled').checked = s.adblock_enabled !== 'false';
+            if (document.getElementById('setting-clean-urls') && s.clean_urls !== undefined) document.getElementById('setting-clean-urls').checked = s.clean_urls !== 'false';
+            if (document.getElementById('setting-send-dnt') && s.send_dnt !== undefined) document.getElementById('setting-send-dnt').checked = s.send_dnt !== 'false';
+            if (document.getElementById('setting-prevent-webrtc') && s.prevent_webrtc !== undefined) document.getElementById('setting-prevent-webrtc').checked = s.prevent_webrtc !== 'false';
+            if (s.download_dir && document.getElementById('setting-download-dir')) document.getElementById('setting-download-dir').value = s.download_dir;
+            if (document.getElementById('setting-always-ask-download-dir') && s.always_ask_download_dir !== undefined) document.getElementById('setting-always-ask-download-dir').checked = s.always_ask_download_dir === 'true';
+            if (s.ai_provider && document.getElementById('setting-ai-provider')) {
+                document.getElementById('setting-ai-provider').value = s.ai_provider;
+                toggleAIProviderUI();
+            }
+            if (s.gemini_api_key && document.getElementById('setting-gemini-key')) document.getElementById('setting-gemini-key').value = s.gemini_api_key;
+            if (s.ai_model && document.getElementById('setting-ai-model')) document.getElementById('setting-ai-model').value = s.ai_model;
+            if (s.ollama_url && document.getElementById('setting-ollama-url')) document.getElementById('setting-ollama-url').value = s.ollama_url;
+            if (s.ollama_model && document.getElementById('setting-ollama-model')) document.getElementById('setting-ollama-model').value = s.ollama_model;
+            if (s.ai_persona && document.getElementById('setting-ai-persona')) document.getElementById('setting-ai-persona').value = s.ai_persona;
+            if (document.getElementById('setting-restore-session') && s.restore_session !== undefined) document.getElementById('setting-restore-session').checked = s.restore_session === 'true';
+            if (s.tab_hibernation && document.getElementById('setting-tab-hibernation')) document.getElementById('setting-tab-hibernation').value = s.tab_hibernation;
+        };
+
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'init_settings') {
+                window.populateSettings(e.data.settings);
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            const a = e.target.closest('a');
+            if (a && a.href && !a.href.startsWith('javascript:')) {
+                e.preventDefault();
+                sendToHost(a.href);
+            }
+        });
 
         // Live Setting Application to Qt backend
         function applySettingLive(key, value) {

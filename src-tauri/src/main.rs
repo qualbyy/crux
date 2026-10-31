@@ -24,6 +24,7 @@ enum UserEvent {
     DownloadDirSelected(PathBuf),
     BookmarksLoaded(String),
     HistoryLoaded(String),
+    DownloadsLoaded(String),
     SettingsLoaded(String),
     CloseWindow,
     MinimizeWindow,
@@ -58,20 +59,30 @@ fn main() -> wry::Result<()> {
         .build(&event_loop)
         .unwrap();
 
-    // 4. Embed UI HTML/CSS/JS Assets
+    // 4. Embed UI HTML/CSS/JS Assets and Original Crux Pages
     let html_content = include_str!("../../ui/index.html");
     let css_content = include_str!("../../ui/style.css");
     let js_content = include_str!("../../ui/main.js");
     let startpage_content = include_str!("../../ui/startpage.html");
+    let settings_content = include_str!("../../resources/settings.html");
+    let history_content = include_str!("../../resources/history.html");
+    let downloads_content = include_str!("../../resources/downloads.html");
 
     // Escape '<' as '\\u003c' to prevent premature </script> closing by HTML tokenizer
-    let startpage_escaped = serde_json::to_string(&startpage_content)
-        .unwrap_or_default()
-        .replace('<', "\\u003c");
+    let startpage_escaped = serde_json::to_string(&startpage_content).unwrap_or_default().replace('<', "\\u003c");
+    let settings_escaped = serde_json::to_string(&settings_content).unwrap_or_default().replace('<', "\\u003c");
+    let history_escaped = serde_json::to_string(&history_content).unwrap_or_default().replace('<', "\\u003c");
+    let downloads_escaped = serde_json::to_string(&downloads_content).unwrap_or_default().replace('<', "\\u003c");
 
     let embedded_page = html_content
         .replace(r#"<link rel="stylesheet" href="style.css">"#, &format!("<style>{}</style>", css_content))
-        .replace(r#"<script src="main.js"></script>"#, &format!("<script>window.CRUX_STARTPAGE_HTML = {};\n{}</script>", startpage_escaped, js_content));
+        .replace(
+            r#"<script src="main.js"></script>"#,
+            &format!(
+                "<script>\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
+                startpage_escaped, settings_escaped, history_escaped, downloads_escaped, js_content
+            ),
+        );
 
     let tm_clone = Arc::clone(&tab_manager);
     let db_clone = Arc::clone(&db);
@@ -102,7 +113,7 @@ fn main() -> wry::Result<()> {
                         }
                     }
                     "create_tab" => {
-                        let url = v["url"].as_str().unwrap_or("https://duckduckgo.com");
+                        let url = v["url"].as_str().unwrap_or("crux://startpage");
                         let container = v["container"].as_str().unwrap_or("default");
                         let mut tm = tm_clone.lock().unwrap();
                         let tab = tm.create_tab(url.to_string(), container.to_string());
@@ -154,6 +165,12 @@ fn main() -> wry::Result<()> {
                         db_clone.add_bookmark(url, title).ok();
                         println!("[Rust Core] Added bookmark: {}", url);
                     }
+                    "delete_bookmark" => {
+                        if let Some(url) = v["url"].as_str() {
+                            db_clone.delete_bookmark(url).ok();
+                            println!("[Rust Core] Deleted bookmark: {}", url);
+                        }
+                    }
                     "get_bookmarks" => {
                         if let Ok(list) = db_clone.get_bookmarks() {
                             if let Ok(json) = serde_json::to_string(&list) {
@@ -162,15 +179,44 @@ fn main() -> wry::Result<()> {
                         }
                     }
                     "get_history" => {
-                        if let Ok(list) = db_clone.get_history(50) {
+                        if let Ok(list) = db_clone.get_history(200) {
                             if let Ok(json) = serde_json::to_string(&list) {
                                 let _ = proxy_clone.send_event(UserEvent::HistoryLoaded(json));
                             }
                         }
                     }
+                    "delete_history" => {
+                        if let Some(url) = v["url"].as_str() {
+                            db_clone.delete_history(url).ok();
+                            println!("[Rust Core] Deleted history item: {}", url);
+                        }
+                    }
                     "clear_history" => {
                         db_clone.clear_history().ok();
                         println!("[Rust Core] History cleared");
+                    }
+                    "get_downloads" => {
+                        if let Ok(list) = db_clone.get_downloads(50) {
+                            if let Ok(json) = serde_json::to_string(&list) {
+                                let _ = proxy_clone.send_event(UserEvent::DownloadsLoaded(json));
+                            }
+                        }
+                    }
+                    "clear_downloads" => {
+                        db_clone.clear_downloads().ok();
+                        println!("[Rust Core] Downloads cleared");
+                    }
+                    "open_file" => {
+                        if let Some(path) = v["path"].as_str() {
+                            std::process::Command::new("xdg-open").arg(path).spawn().ok();
+                            println!("[Rust Core] Opened file: {}", path);
+                        }
+                    }
+                    "open_downloads_folder" => {
+                        let home_env = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+                        let dl_dir = db_clone.get_setting("download_dir").unwrap_or_else(|| format!("{}/Downloads", home_env));
+                        std::process::Command::new("xdg-open").arg(dl_dir).spawn().ok();
+                        println!("[Rust Core] Opened downloads directory via xdg-open");
                     }
                     "choose_download_dir" => {
                         let p_clone = proxy_clone.clone();
@@ -287,7 +333,7 @@ fn main() -> wry::Result<()> {
                 db_for_events.save_setting("download_dir", &path_str).ok();
                 let escaped = serde_json::to_string(&path_str).unwrap_or_default();
                 let script = format!(
-                    "if (window.onDownloadDirSelected) window.onDownloadDirSelected({}); if (typeof appendAiMessage === 'function') appendAiMessage('system', 'Default download directory saved: ' + {});",
+                    "if (window.onDownloadDirSelected) window.onDownloadDirSelected({}); if (typeof showToast === 'function') showToast('Default download directory saved: ' + {});",
                     escaped, escaped
                 );
                 let _ = webview.evaluate_script(&script);
@@ -298,6 +344,10 @@ fn main() -> wry::Result<()> {
             }
             Event::UserEvent(UserEvent::HistoryLoaded(json_str)) => {
                 let script = format!("if (window.onHistoryLoaded) window.onHistoryLoaded({});", json_str);
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::DownloadsLoaded(json_str)) => {
+                let script = format!("if (window.onDownloadsLoaded) window.onDownloadsLoaded({});", json_str);
                 let _ = webview.evaluate_script(&script);
             }
             Event::WindowEvent {

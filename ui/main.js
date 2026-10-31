@@ -12,6 +12,10 @@ function sendIpc(cmd, data = {}) {
 
 let searchEngine = "duckduckgo";
 let isSplitView = false;
+let currentSettings = {};
+let currentBookmarks = [];
+let currentDownloads = [];
+let currentHistory = [];
 
 let tabs = [
   {
@@ -49,15 +53,15 @@ const elements = {
   readerContent: document.getElementById('readerContent'),
   btnMenu: document.getElementById('btnMenu'),
   appMenu: document.getElementById('appMenu'),
-  settingsModal: document.getElementById('settingsModal'),
-  btnCloseSettings: document.getElementById('btnCloseSettings'),
-  btnSaveSettings: document.getElementById('btnSaveSettings'),
-  btnBrowseDownload: document.getElementById('btnBrowseDownload'),
-  searchEngineSelect: document.getElementById('searchEngineSelect'),
-  adblockToggle: document.getElementById('adblockToggle'),
-  txtDownloadDir: document.getElementById('txtDownloadDir'),
-  txtAiApiKey: document.getElementById('txtAiApiKey'),
   btnBookmark: document.getElementById('btnBookmark'),
+  bookmarksPopup: document.getElementById('bookmarksPopup'),
+  bookmarksListPopup: document.getElementById('bookmarksListPopup'),
+  btnAddCurrentBookmark: document.getElementById('btnAddCurrentBookmark'),
+  btnDownloads: document.getElementById('btnDownloads'),
+  downloadsPopup: document.getElementById('downloadsPopup'),
+  downloadsListPopup: document.getElementById('downloadsListPopup'),
+  btnOpenDownloadsFolder: document.getElementById('btnOpenDownloadsFolder'),
+  btnViewAllDownloads: document.getElementById('btnViewAllDownloads'),
   btnToggleAi: document.getElementById('btnToggleAi'),
   aiPanel: document.getElementById('aiPanel'),
   btnCloseAi: document.getElementById('btnCloseAi'),
@@ -110,14 +114,38 @@ function updateNavButtons() {
 
 function loadTabContent(tab) {
   if (!tab || !elements.webFrame) return;
-  if (tab.url === 'crux://startpage' || !tab.url || tab.url === 'about:blank') {
+
+  const url = tab.url || 'crux://startpage';
+
+  if (url === 'crux://startpage' || url === 'about:blank') {
     elements.webFrame.removeAttribute('src');
     elements.webFrame.srcdoc = window.CRUX_STARTPAGE_HTML || '<!DOCTYPE html><html><body style="background:#18181b;color:#f5f5f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><h1>Crux Startpage</h1></body></html>';
     if (elements.urlInput) elements.urlInput.value = '';
+  } else if (url.startsWith('crux://settings')) {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = window.CRUX_SETTINGS_HTML || '<!DOCTYPE html><html><body style="background:#18181b;color:#f5f5f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><h1>Crux Settings</h1></body></html>';
+    if (elements.urlInput) elements.urlInput.value = url;
+    setTimeout(() => {
+      sendIpc('get_settings');
+    }, 60);
+  } else if (url.startsWith('crux://history')) {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = window.CRUX_HISTORY_HTML || '<!DOCTYPE html><html><body style="background:#18181b;color:#f5f5f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><h1>Crux History</h1></body></html>';
+    if (elements.urlInput) elements.urlInput.value = url;
+    setTimeout(() => {
+      sendIpc('get_history');
+    }, 60);
+  } else if (url.startsWith('crux://downloads')) {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = window.CRUX_DOWNLOADS_HTML || '<!DOCTYPE html><html><body style="background:#18181b;color:#f5f5f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><h1>Crux Downloads</h1></body></html>';
+    if (elements.urlInput) elements.urlInput.value = url;
+    setTimeout(() => {
+      sendIpc('get_downloads');
+    }, 60);
   } else {
     elements.webFrame.removeAttribute('srcdoc');
-    elements.webFrame.src = tab.url;
-    if (elements.urlInput) elements.urlInput.value = tab.url;
+    elements.webFrame.src = url;
+    if (elements.urlInput) elements.urlInput.value = url;
   }
 }
 
@@ -190,7 +218,9 @@ function navigateActiveTab(input) {
   let url = (input || "").trim();
   if (!url) {
     url = 'crux://startpage';
-  } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('crux://')) {
+  } else if (url.startsWith('crux://')) {
+    // Keep internal crux:// URLs as-is
+  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
     if (url.includes('.') && !url.includes(' ')) {
       url = 'https://' + url;
     } else {
@@ -201,6 +231,12 @@ function navigateActiveTab(input) {
   active.url = url;
   if (url === 'crux://startpage') {
     active.title = 'Crux Startpage';
+  } else if (url.startsWith('crux://settings')) {
+    active.title = 'Crux Settings';
+  } else if (url.startsWith('crux://history')) {
+    active.title = 'Crux History';
+  } else if (url.startsWith('crux://downloads')) {
+    active.title = 'Crux Downloads';
   } else {
     try {
       const u = new URL(url);
@@ -225,9 +261,16 @@ function navigateActiveTab(input) {
 function createTab(url = 'crux://startpage') {
   const newId = (tabs.length ? Math.max(...tabs.map(t => t.id)) : 0) + 1;
   tabs.forEach(t => t.is_active = false);
+
+  let title = 'New Tab';
+  if (url === 'crux://startpage') title = 'Crux Startpage';
+  else if (url.startsWith('crux://settings')) title = 'Crux Settings';
+  else if (url.startsWith('crux://history')) title = 'Crux History';
+  else if (url.startsWith('crux://downloads')) title = 'Crux Downloads';
+
   const tab = {
     id: newId,
-    title: url === 'crux://startpage' ? 'Crux Startpage' : 'New Tab',
+    title,
     url,
     history: [url],
     historyIndex: 0,
@@ -240,6 +283,15 @@ function createTab(url = 'crux://startpage') {
   renderTabs();
   activateTab(newId);
   sendIpc('create_tab', { url, container: 'default' });
+}
+
+function openInternalPage(url) {
+  const existing = tabs.find(t => t.url.startsWith(url));
+  if (existing) {
+    activateTab(existing.id);
+  } else {
+    createTab(url);
+  }
 }
 
 function closeTab(id) {
@@ -262,7 +314,6 @@ function closeTab(id) {
   }
 }
 
-// Search Engine Formatting
 function getSearchUrl(query) {
   switch (searchEngine) {
     case 'google':
@@ -275,13 +326,6 @@ function getSearchUrl(query) {
       return `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
   }
 }
-
-// Listen to messages from startpage iframe
-window.addEventListener('message', (e) => {
-  if (e.data && e.data.type === 'navigate' && e.data.url) {
-    navigateActiveTab(e.data.url);
-  }
-});
 
 // Navigation Buttons Handlers
 if (elements.btnBack) {
@@ -337,16 +381,200 @@ if (elements.urlInput) {
   });
 }
 
-// Top Bar Bookmark Button
+// Bookmarks Popup Logic
+function toggleBookmarksPopup() {
+  if (!elements.bookmarksPopup) return;
+  const isOpening = elements.bookmarksPopup.classList.contains('hidden');
+  closeDownloadsPopup();
+  closeAppMenu();
+  if (isOpening) {
+    sendIpc('get_bookmarks');
+    elements.bookmarksPopup.classList.remove('hidden');
+  } else {
+    elements.bookmarksPopup.classList.add('hidden');
+  }
+}
+
+function closeBookmarksPopup() {
+  if (elements.bookmarksPopup) elements.bookmarksPopup.classList.add('hidden');
+}
+
 if (elements.btnBookmark) {
-  elements.btnBookmark.addEventListener('click', () => {
+  elements.btnBookmark.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleBookmarksPopup();
+  });
+}
+
+if (elements.btnAddCurrentBookmark) {
+  elements.btnAddCurrentBookmark.addEventListener('click', () => {
     const active = tabs.find(t => t.is_active);
     if (active) {
       sendIpc('add_bookmark', { url: active.url, title: active.title });
-      showToast(`★ Bookmarked: ${active.title || active.url}`);
+      showToast(`★ Added bookmark: ${active.title || active.url}`);
+      setTimeout(() => sendIpc('get_bookmarks'), 60);
     }
   });
 }
+
+function renderBookmarksList(bookmarks) {
+  if (!elements.bookmarksListPopup) return;
+  elements.bookmarksListPopup.innerHTML = '';
+  if (!bookmarks || !bookmarks.length) {
+    elements.bookmarksListPopup.innerHTML = '<div class="popup-empty">No bookmarks saved yet.</div>';
+    return;
+  }
+  bookmarks.forEach(bm => {
+    const item = document.createElement('div');
+    item.className = 'popup-item';
+    item.innerHTML = `
+      <div class="popup-item-info">
+        <span class="popup-item-title">${escapeHtml(bm.title || bm.url)}</span>
+        <span class="popup-item-url">${escapeHtml(bm.url)}</span>
+      </div>
+      <button class="popup-item-delete" title="Delete Bookmark">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+    item.onclick = (e) => {
+      if (e.target.closest('.popup-item-delete')) {
+        e.stopPropagation();
+        sendIpc('delete_bookmark', { url: bm.url });
+        showToast("Bookmark deleted");
+        setTimeout(() => sendIpc('get_bookmarks'), 60);
+        return;
+      }
+      closeBookmarksPopup();
+      navigateActiveTab(bm.url);
+    };
+    elements.bookmarksListPopup.appendChild(item);
+  });
+}
+
+// Downloads Popup Logic
+function toggleDownloadsPopup() {
+  if (!elements.downloadsPopup) return;
+  const isOpening = elements.downloadsPopup.classList.contains('hidden');
+  closeBookmarksPopup();
+  closeAppMenu();
+  if (isOpening) {
+    sendIpc('get_downloads');
+    elements.downloadsPopup.classList.remove('hidden');
+  } else {
+    elements.downloadsPopup.classList.add('hidden');
+  }
+}
+
+function closeDownloadsPopup() {
+  if (elements.downloadsPopup) elements.downloadsPopup.classList.add('hidden');
+}
+
+if (elements.btnDownloads) {
+  elements.btnDownloads.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDownloadsPopup();
+  });
+}
+
+if (elements.btnOpenDownloadsFolder) {
+  elements.btnOpenDownloadsFolder.addEventListener('click', () => {
+    sendIpc('open_downloads_folder');
+  });
+}
+
+if (elements.btnViewAllDownloads) {
+  elements.btnViewAllDownloads.addEventListener('click', () => {
+    closeDownloadsPopup();
+    openInternalPage('crux://downloads');
+  });
+}
+
+function renderDownloadsList(downloads) {
+  if (!elements.downloadsListPopup) return;
+  elements.downloadsListPopup.innerHTML = '';
+  if (!downloads || !downloads.length) {
+    elements.downloadsListPopup.innerHTML = '<div class="popup-empty">No active or recent downloads.</div>';
+    return;
+  }
+  downloads.forEach(dl => {
+    const item = document.createElement('div');
+    item.className = 'popup-item';
+    item.innerHTML = `
+      <div class="popup-item-info">
+        <span class="popup-item-title">${escapeHtml(dl.filename || 'File')}</span>
+        <span class="popup-item-url">${escapeHtml(dl.path || dl.url || '')}</span>
+      </div>
+    `;
+    item.onclick = () => {
+      if (dl.path) {
+        sendIpc('open_file', { path: dl.path });
+      }
+    };
+    elements.downloadsListPopup.appendChild(item);
+  });
+}
+
+// App Dropdown Menu (Anchored to Top Right)
+function toggleAppMenu() {
+  if (!elements.appMenu) return;
+  const isOpening = elements.appMenu.classList.contains('hidden');
+  closeBookmarksPopup();
+  closeDownloadsPopup();
+  if (isOpening) {
+    elements.appMenu.classList.remove('hidden');
+  } else {
+    elements.appMenu.classList.add('hidden');
+  }
+}
+
+function closeAppMenu() {
+  if (elements.appMenu) elements.appMenu.classList.add('hidden');
+}
+
+if (elements.btnMenu) {
+  elements.btnMenu.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleAppMenu();
+  });
+}
+
+// Menu Items Click Handlers
+const menuActions = {
+  menuNewTab: () => createTab('crux://startpage'),
+  menuSplit: toggleSplitView,
+  menuReader: toggleReaderMode,
+  menuPalette: () => toggleCommandPalette(),
+  menuDevTools: () => showToast("Developer Tools enabled (F12)"),
+  menuBookmarks: toggleBookmarksPopup,
+  menuHistory: () => openInternalPage('crux://history'),
+  menuDownloads: toggleDownloadsPopup,
+  menuAi: () => toggleAiPanel(),
+  menuAdBlock: () => showToast("Shield: Ad & Tracker Blocker is ACTIVE [ON]"),
+  menuSettings: () => openInternalPage('crux://settings')
+};
+
+Object.entries(menuActions).forEach(([id, action]) => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('click', () => {
+      closeAppMenu();
+      action();
+    });
+  }
+});
+
+// Close all popups on click outside
+document.addEventListener('click', (e) => {
+  if (elements.appMenu && !elements.appMenu.contains(e.target) && e.target !== elements.btnMenu && !elements.btnMenu.contains(e.target)) {
+    closeAppMenu();
+  }
+  if (elements.bookmarksPopup && !elements.bookmarksPopup.contains(e.target) && e.target !== elements.btnBookmark && !elements.btnBookmark.contains(e.target)) {
+    closeBookmarksPopup();
+  }
+  if (elements.downloadsPopup && !elements.downloadsPopup.contains(e.target) && e.target !== elements.btnDownloads && !elements.btnDownloads.contains(e.target)) {
+    closeDownloadsPopup();
+  }
+});
 
 // Split View
 function toggleSplitView() {
@@ -390,93 +618,6 @@ function toggleReaderMode() {
 
 if (elements.btnReaderMode) elements.btnReaderMode.addEventListener('click', toggleReaderMode);
 if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => elements.readerOverlay.classList.add('hidden'));
-
-// Settings Modal
-function toggleSettingsModal() {
-  if (!elements.settingsModal) return;
-  const isHidden = elements.settingsModal.classList.contains('hidden');
-  if (isHidden) {
-    sendIpc('get_settings');
-    elements.settingsModal.classList.remove('hidden');
-  } else {
-    elements.settingsModal.classList.add('hidden');
-  }
-}
-
-if (elements.btnCloseSettings) elements.btnCloseSettings.addEventListener('click', toggleSettingsModal);
-
-if (elements.btnBrowseDownload) {
-  elements.btnBrowseDownload.addEventListener('click', () => {
-    sendIpc('choose_download_dir');
-  });
-}
-
-if (elements.btnSaveSettings) {
-  elements.btnSaveSettings.addEventListener('click', () => {
-    if (elements.searchEngineSelect) {
-      searchEngine = elements.searchEngineSelect.value;
-      sendIpc('save_setting', { key: 'search_engine', value: searchEngine });
-    }
-    if (elements.adblockToggle) {
-      sendIpc('save_setting', { key: 'adblock_enabled', value: elements.adblockToggle.checked ? 'true' : 'false' });
-    }
-    if (elements.txtAiApiKey && elements.txtAiApiKey.value) {
-      sendIpc('save_setting', { key: 'ai_api_key', value: elements.txtAiApiKey.value.trim() });
-    }
-    toggleSettingsModal();
-    showToast("Settings saved to SQLite");
-  });
-}
-
-// App Dropdown Menu (Anchored to Top Right)
-function toggleAppMenu() {
-  if (!elements.appMenu) return;
-  elements.appMenu.classList.toggle('hidden');
-}
-
-function closeAppMenu() {
-  if (elements.appMenu && !elements.appMenu.classList.contains('hidden')) {
-    elements.appMenu.classList.add('hidden');
-  }
-}
-
-if (elements.btnMenu) {
-  elements.btnMenu.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleAppMenu();
-  });
-}
-
-// Menu Items Click Handlers
-const menuActions = {
-  menuNewTab: () => createTab('crux://startpage'),
-  menuSplit: toggleSplitView,
-  menuReader: toggleReaderMode,
-  menuPalette: () => toggleCommandPalette(),
-  menuDevTools: () => showToast("Developer Tools toggled (F12)"),
-  menuDownloads: () => sendIpc('choose_download_dir'),
-  menuHistory: () => sendIpc('get_history'),
-  menuBookmarks: () => sendIpc('get_bookmarks'),
-  menuAi: () => toggleAiPanel(),
-  menuAdBlock: () => showToast("Shield: AdBlocker is active"),
-  menuSettings: () => toggleSettingsModal()
-};
-
-Object.entries(menuActions).forEach(([id, action]) => {
-  const el = document.getElementById(id);
-  if (el) {
-    el.addEventListener('click', () => {
-      closeAppMenu();
-      action();
-    });
-  }
-});
-
-document.addEventListener('click', (e) => {
-  if (elements.appMenu && !elements.appMenu.contains(e.target) && e.target !== elements.btnMenu && !elements.btnMenu.contains(e.target)) {
-    closeAppMenu();
-  }
-});
 
 // Window Controls (Frameless Top Bar)
 if (elements.btnWinMin) elements.btnWinMin.addEventListener('click', () => sendIpc('window_minimize'));
@@ -575,26 +716,24 @@ function toggleCommandPalette() {
 
 const commands = [
   { name: 'New Tab', action: () => createTab('crux://startpage') },
+  { name: 'Open Preferences & Settings', action: () => openInternalPage('crux://settings') },
+  { name: 'Open Browsing History', action: () => openInternalPage('crux://history') },
+  { name: 'Open Downloads Manager', action: () => openInternalPage('crux://downloads') },
+  { name: 'Toggle Bookmarks Popup', action: toggleBookmarksPopup },
+  { name: 'Toggle Downloads Popup', action: toggleDownloadsPopup },
   { name: 'Toggle Compact Sidebar', action: () => elements.sidebar.classList.toggle('compact') },
   { name: 'Toggle Split View (Side-by-side)', action: toggleSplitView },
   { name: 'Toggle Reading Mode', action: toggleReaderMode },
-  { name: 'Open Settings', action: toggleSettingsModal },
   { name: 'Toggle Crux AI Panel', action: toggleAiPanel },
-  { name: 'Bookmark Current Page', action: () => elements.btnBookmark && elements.btnBookmark.click() },
-  { name: 'Show SQLite Bookmarks', action: () => sendIpc('get_bookmarks') },
-  { name: 'Show SQLite History', action: () => sendIpc('get_history') },
-  { name: 'Choose Default Download Directory (Rust RFD)', action: () => sendIpc('choose_download_dir') },
-  { name: 'Pin / Unpin Current Tab', action: () => {
-    const active = tabs.find(t => t.is_active);
-    if (active) {
-      active.is_pinned = !active.is_pinned;
-      renderTabs();
-      sendIpc('toggle_pin', { id: active.id });
-    }
-  }},
+  { name: 'Open Downloads Folder', action: () => sendIpc('open_downloads_folder') },
+  { name: 'Choose Default Download Directory', action: () => sendIpc('choose_download_dir') },
   { name: 'Clear SQLite History', action: () => {
     sendIpc('clear_history');
     showToast("History cleared");
+  }},
+  { name: 'Clear SQLite Downloads', action: () => {
+    sendIpc('clear_downloads');
+    showToast("Downloads cleared");
   }}
 ];
 
@@ -624,6 +763,7 @@ if (elements.btnCommandPalette) {
   elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
 }
 
+// Global Hotkeys
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
@@ -631,21 +771,123 @@ window.addEventListener('keydown', (e) => {
   } else if (e.ctrlKey && e.key.toLowerCase() === 't') {
     e.preventDefault();
     createTab('crux://startpage');
+  } else if (e.ctrlKey && e.key.toLowerCase() === 'h') {
+    e.preventDefault();
+    openInternalPage('crux://history');
+  } else if (e.ctrlKey && e.key.toLowerCase() === 'j') {
+    e.preventDefault();
+    toggleDownloadsPopup();
+  } else if (e.ctrlKey && e.key === ',') {
+    e.preventDefault();
+    openInternalPage('crux://settings');
   } else if (e.ctrlKey && e.key.toLowerCase() === 'w') {
     e.preventDefault();
     const active = tabs.find(t => t.is_active);
     if (active) closeTab(active.id);
   } else if (e.key === 'Escape') {
     closeAppMenu();
+    closeBookmarksPopup();
+    closeDownloadsPopup();
     if (elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
       elements.commandPalette.classList.add('hidden');
-    }
-    if (elements.settingsModal && !elements.settingsModal.classList.contains('hidden')) {
-      elements.settingsModal.classList.add('hidden');
     }
     if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
       elements.readerOverlay.classList.add('hidden');
     }
+  }
+});
+
+// Internal Page Communication Bridge
+function handleCruxInternalCommand(cmdUrl) {
+  if (!cmdUrl) return;
+
+  if (cmdUrl.startsWith('crux://apply-settings?')) {
+    const qs = cmdUrl.substring('crux://apply-settings?'.length);
+    const params = new URLSearchParams(qs);
+    for (const [key, value] of params.entries()) {
+      sendIpc('save_setting', { key, value });
+      currentSettings[key] = value;
+      if (key === 'search_engine') searchEngine = value;
+      if (key === 'accent_color') document.documentElement.style.setProperty('--accent', value);
+    }
+    showToast("Settings saved to SQLite");
+    return;
+  }
+
+  if (cmdUrl.startsWith('crux://live-setting?')) {
+    const qs = cmdUrl.substring('crux://live-setting?'.length);
+    const params = new URLSearchParams(qs);
+    const key = params.get('key');
+    const value = params.get('value');
+    if (key && value !== null) {
+      sendIpc('save_setting', { key, value });
+      currentSettings[key] = value;
+      if (key === 'search_engine') searchEngine = value;
+      if (key === 'accent_color') document.documentElement.style.setProperty('--accent', value);
+    }
+    return;
+  }
+
+  if (cmdUrl.startsWith('crux://action/delete-history?')) {
+    const qs = cmdUrl.substring('crux://action/delete-history?'.length);
+    const params = new URLSearchParams(qs);
+    const url = params.get('url');
+    if (url) {
+      sendIpc('delete_history', { url });
+      showToast("History item deleted");
+      setTimeout(() => sendIpc('get_history'), 50);
+    }
+    return;
+  }
+
+  if (cmdUrl === 'crux://action/clear-history') {
+    sendIpc('clear_history');
+    showToast("History completely cleared");
+    setTimeout(() => sendIpc('get_history'), 50);
+    return;
+  }
+
+  if (cmdUrl === 'crux://action/open-downloads-folder') {
+    sendIpc('open_downloads_folder');
+    return;
+  }
+
+  if (cmdUrl === 'crux://action/clear-downloads') {
+    sendIpc('clear_downloads');
+    showToast("Downloads list cleared");
+    setTimeout(() => sendIpc('get_downloads'), 50);
+    return;
+  }
+
+  if (cmdUrl.startsWith('crux://action/open-file?')) {
+    const qs = cmdUrl.substring('crux://action/open-file?'.length);
+    const params = new URLSearchParams(qs);
+    const path = params.get('path');
+    if (path) sendIpc('open_file', { path });
+    return;
+  }
+
+  if (cmdUrl.startsWith('crux://new-tab?')) {
+    const qs = cmdUrl.substring('crux://new-tab?'.length);
+    const params = new URLSearchParams(qs);
+    const targetUrl = params.get('url') || 'crux://startpage';
+    createTab(targetUrl);
+    return;
+  }
+
+  if (cmdUrl.startsWith('crux://') || cmdUrl.startsWith('http://') || cmdUrl.startsWith('https://')) {
+    navigateActiveTab(cmdUrl);
+    return;
+  }
+}
+
+// Listen to messages from internal page iframes (startpage, settings, history, downloads)
+window.addEventListener('message', (e) => {
+  if (!e.data) return;
+  if (e.data.type === 'navigate' && e.data.url) {
+    navigateActiveTab(e.data.url);
+  } else if (e.data.type === 'crux_cmd' && e.data.url) {
+    handleCruxInternalCommand(e.data.url);
   }
 });
 
@@ -655,52 +897,56 @@ window.onAiResponse = function(text, success) {
 };
 
 window.onBookmarksLoaded = function(bookmarks) {
-  if (!bookmarks || !bookmarks.length) {
-    showToast("No bookmarks saved in SQLite yet");
-    return;
-  }
-  const lines = bookmarks.map(b => `• ${b.title || b.url} (${b.url})`);
-  appendAiMessage("system", `Saved Bookmarks (${bookmarks.length}):\n` + lines.join("\n"));
-  if (elements.aiPanel && elements.aiPanel.classList.contains('hidden')) {
-    toggleAiPanel();
-  }
+  currentBookmarks = bookmarks || [];
+  renderBookmarksList(currentBookmarks);
 };
 
 window.onHistoryLoaded = function(history) {
-  if (!history || !history.length) {
-    showToast("History is empty");
-    return;
+  currentHistory = history || [];
+  if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.renderHistory) {
+    elements.webFrame.contentWindow.renderHistory(currentHistory);
   }
-  const lines = history.slice(0, 10).map(h => `• ${h.title || h.url} [${h.visited_at}]`);
-  appendAiMessage("system", `Recent SQLite History (${history.length}):\n` + lines.join("\n"));
-  if (elements.aiPanel && elements.aiPanel.classList.contains('hidden')) {
-    toggleAiPanel();
+};
+
+window.onDownloadsLoaded = function(downloads) {
+  currentDownloads = downloads || [];
+  renderDownloadsList(currentDownloads);
+  if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.renderDownloads) {
+    elements.webFrame.contentWindow.renderDownloads(currentDownloads);
   }
 };
 
 window.onSettingsLoaded = function(settings) {
   if (!settings) return;
-  if (elements.searchEngineSelect && settings.search_engine) {
-    elements.searchEngineSelect.value = settings.search_engine;
-    searchEngine = settings.search_engine;
-  }
-  if (elements.adblockToggle && settings.adblock_enabled !== undefined) {
-    elements.adblockToggle.checked = settings.adblock_enabled !== 'false';
-  }
-  if (elements.txtDownloadDir && settings.download_dir) {
-    elements.txtDownloadDir.value = settings.download_dir;
-  }
-  if (elements.txtAiApiKey && settings.ai_api_key) {
-    elements.txtAiApiKey.value = settings.ai_api_key;
+  currentSettings = settings;
+  if (settings.search_engine) searchEngine = settings.search_engine;
+  if (settings.accent_color) document.documentElement.style.setProperty('--accent', settings.accent_color);
+
+  if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.populateSettings) {
+    elements.webFrame.contentWindow.populateSettings(settings);
   }
 };
 
 window.onDownloadDirSelected = function(path) {
-  if (elements.txtDownloadDir) {
-    elements.txtDownloadDir.value = path;
+  showToast(`Default download folder: ${path}`);
+  if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.populateSettings) {
+    currentSettings.download_dir = path;
+    elements.webFrame.contentWindow.populateSettings(currentSettings);
   }
-  showToast(`Download folder set to: ${path}`);
 };
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, function(m) {
+    return ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[m];
+  });
+}
 
 // Initial Render
 renderTabs();
@@ -708,4 +954,5 @@ const initialTab = tabs.find(t => t.is_active);
 if (initialTab) {
   loadTabContent(initialTab);
 }
-console.log("Crux 2.0 Rust Architecture initialized with original startpage.");
+sendIpc('get_settings');
+console.log("Crux 2.0 Rust Architecture initialized with full original parity.");

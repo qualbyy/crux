@@ -9,6 +9,7 @@ pub struct HistoryEntry {
     pub url: String,
     pub title: String,
     pub visited_at: String,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,6 +18,17 @@ pub struct BookmarkEntry {
     pub url: String,
     pub title: String,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadItem {
+    pub id: i64,
+    pub filename: String,
+    pub url: String,
+    pub path: String,
+    pub size: i64,
+    pub state: String,
+    pub timestamp: i64,
 }
 
 pub struct Database {
@@ -59,6 +71,19 @@ impl Database {
         )?;
 
         conn.execute(
+            "CREATE TABLE IF NOT EXISTS downloads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT NOT NULL,
+                url TEXT,
+                path TEXT,
+                size INTEGER DEFAULT 0,
+                state TEXT DEFAULT 'completed',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+            [],
+        )?;
+
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY,
                 url TEXT NOT NULL,
@@ -87,14 +112,21 @@ impl Database {
     pub fn get_history(&self, limit: u32) -> Result<Vec<HistoryEntry>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, url, COALESCE(title, ''), visited_at FROM history ORDER BY id DESC LIMIT ?1"
+            "SELECT id, url, COALESCE(title, ''), visited_at, COALESCE(strftime('%s', visited_at), 0) FROM history ORDER BY id DESC LIMIT ?1"
         )?;
         let rows = stmt.query_map(params![limit], |row| {
+            let ts_str: rusqlite::types::Value = row.get(4)?;
+            let ts = match ts_str {
+                rusqlite::types::Value::Integer(i) => i,
+                rusqlite::types::Value::Text(s) => s.parse::<i64>().unwrap_or(0),
+                _ => 0,
+            };
             Ok(HistoryEntry {
                 id: row.get(0)?,
                 url: row.get(1)?,
                 title: row.get(2)?,
                 visited_at: row.get(3)?,
+                timestamp: ts,
             })
         })?;
 
@@ -107,9 +139,68 @@ impl Database {
         Ok(res)
     }
 
+    pub fn add_download(&self, filename: &str, url: &str, path: &str, size: i64, state: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO downloads (filename, url, path, size, state) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![filename, url, path, size, state],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_downloads(&self, limit: u32) -> Result<Vec<DownloadItem>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, filename, COALESCE(url, ''), COALESCE(path, ''), size, state, COALESCE(strftime('%s', created_at), 0) FROM downloads ORDER BY id DESC LIMIT ?1"
+        )?;
+        let rows = stmt.query_map(params![limit], |row| {
+            let ts_str: rusqlite::types::Value = row.get(6)?;
+            let ts = match ts_str {
+                rusqlite::types::Value::Integer(i) => i,
+                rusqlite::types::Value::Text(s) => s.parse::<i64>().unwrap_or(0),
+                _ => 0,
+            };
+            Ok(DownloadItem {
+                id: row.get(0)?,
+                filename: row.get(1)?,
+                url: row.get(2)?,
+                path: row.get(3)?,
+                size: row.get(4)?,
+                state: row.get(5)?,
+                timestamp: ts,
+            })
+        })?;
+
+        let mut res = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                res.push(item);
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn clear_downloads(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM downloads", [])?;
+        Ok(())
+    }
+
     pub fn clear_history(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM history", [])?;
+        Ok(())
+    }
+
+    pub fn delete_history(&self, url: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM history WHERE url = ?1", params![url])?;
+        Ok(())
+    }
+
+    pub fn delete_bookmark(&self, url: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM bookmarks WHERE url = ?1", params![url])?;
         Ok(())
     }
 
