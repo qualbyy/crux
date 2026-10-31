@@ -113,7 +113,7 @@ pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
     });
 }
 
-fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<reqwest::blocking::Client>, db: Arc<Database>) {
+fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<reqwest::blocking::Client>, _db: Arc<Database>) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(12)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(20)));
 
@@ -275,17 +275,10 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
     if let Ok(target_u) = reqwest::Url::parse(&target) {
         if let Some(host) = target_u.host_str() {
-            let scheme = target_u.scheme();
-            let port_str = target_u.port().map(|p| format!(":{}", p)).unwrap_or_default();
-            req_builder = req_builder.header("Origin", format!("{}://{}{}", scheme, host, port_str));
-
-            let host_cookies = db.get_cookies_for_host(host);
-            if !host_cookies.is_empty() {
-                let has_cookie_header = forwarded_headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("cookie"));
-                if !has_cookie_header {
-                    let cookie_str = host_cookies.iter().map(|(n, v)| format!("{}={}", n, v)).collect::<Vec<_>>().join("; ");
-                    req_builder = req_builder.header("Cookie", cookie_str);
-                }
+            if method != "GET" && method != "HEAD" {
+                let scheme = target_u.scheme();
+                let port_str = target_u.port().map(|p| format!(":{}", p)).unwrap_or_default();
+                req_builder = req_builder.header("Origin", format!("{}://{}{}", scheme, host, port_str));
             }
         }
     }
@@ -294,7 +287,9 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     req_builder = req_builder.header("User-Agent", active_ua);
 
     for (k, v) in forwarded_headers {
-        req_builder = req_builder.header(&k, &v);
+        if let Ok(val) = reqwest::header::HeaderValue::from_str(&v) {
+            req_builder = req_builder.header(&k, val);
+        }
     }
 
     let resp = match req_builder.send() {

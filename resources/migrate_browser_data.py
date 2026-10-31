@@ -105,7 +105,7 @@ def migrate_chromium_profile(profile_dir, key, iv, sonde_conn):
                     if not host or not cname:
                         continue
                     val = decrypt_val(val_enc, key, iv)
-                    if val:
+                    if val and all(32 <= ord(ch) <= 126 for ch in val):
                         s_cur.execute(
                             "INSERT OR REPLACE INTO cookies (host, name, value, path, is_secure, expires) VALUES (?, ?, ?, ?, ?, ?)",
                             (host, cname, val, path or "/", 1 if secure else 0, exp or 0)
