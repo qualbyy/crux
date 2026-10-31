@@ -24,6 +24,11 @@ enum UserEvent {
     DownloadDirSelected(PathBuf),
     BookmarksLoaded(String),
     HistoryLoaded(String),
+    SettingsLoaded(String),
+    CloseWindow,
+    MinimizeWindow,
+    MaximizeWindow,
+    DragWindow,
 }
 
 fn main() -> wry::Result<()> {
@@ -49,6 +54,7 @@ fn main() -> wry::Result<()> {
         .with_title("Crux 2.0 (Rust Alpha)")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(LogicalSize::new(800.0, 500.0))
+        .with_decorations(false) // Removes OS title bar completely (Anthropic Minimal Dark)
         .build(&event_loop)
         .unwrap();
 
@@ -130,6 +136,12 @@ fn main() -> wry::Result<()> {
                             println!("[Rust Core] Saved setting: {} = {}", key, value);
                         }
                     }
+                    "get_settings" => {
+                        let settings = db_clone.get_all_settings();
+                        if let Ok(json) = serde_json::to_string(&settings) {
+                            let _ = proxy_clone.send_event(UserEvent::SettingsLoaded(json));
+                        }
+                    }
                     "add_bookmark" => {
                         let url = v["url"].as_str().unwrap_or("");
                         let title = v["title"].as_str().unwrap_or("Bookmark");
@@ -190,6 +202,18 @@ fn main() -> wry::Result<()> {
                             let _ = p_clone.send_event(UserEvent::AiResponse(text));
                         });
                     }
+                    "window_close" => {
+                        let _ = proxy_clone.send_event(UserEvent::CloseWindow);
+                    }
+                    "window_minimize" => {
+                        let _ = proxy_clone.send_event(UserEvent::MinimizeWindow);
+                    }
+                    "window_maximize" => {
+                        let _ = proxy_clone.send_event(UserEvent::MaximizeWindow);
+                    }
+                    "window_drag" => {
+                        let _ = proxy_clone.send_event(UserEvent::DragWindow);
+                    }
                     _ => {}
                 }
             }
@@ -237,16 +261,29 @@ fn main() -> wry::Result<()> {
 
         match event {
             Event::NewEvents(StartCause::Init) => println!("Crux 2.0 Rust Alpha running..."),
+            Event::UserEvent(UserEvent::CloseWindow) => *control_flow = ControlFlow::Exit,
+            Event::UserEvent(UserEvent::MinimizeWindow) => window.set_minimized(true),
+            Event::UserEvent(UserEvent::MaximizeWindow) => window.set_maximized(!window.is_maximized()),
+            Event::UserEvent(UserEvent::DragWindow) => {
+                let _ = window.drag_window();
+            }
+            Event::UserEvent(UserEvent::SettingsLoaded(json_str)) => {
+                let script = format!("if (window.onSettingsLoaded) window.onSettingsLoaded({});", json_str);
+                let _ = webview.evaluate_script(&script);
+            }
             Event::UserEvent(UserEvent::AiResponse(text)) => {
                 let escaped = serde_json::to_string(&text).unwrap_or_else(|_| "\"\"".to_string());
                 let script = format!("if (window.onAiResponse) window.onAiResponse({}, true);", escaped);
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::DownloadDirSelected(path)) => {
-                let path_str = path.to_string_lossy();
+                let path_str = path.to_string_lossy().to_string();
                 db_for_events.save_setting("download_dir", &path_str).ok();
                 let escaped = serde_json::to_string(&path_str).unwrap_or_default();
-                let script = format!("if (typeof appendAiMessage === 'function') appendAiMessage('system', 'Default download directory saved: ' + {});", escaped);
+                let script = format!(
+                    "if (window.onDownloadDirSelected) window.onDownloadDirSelected({}); if (typeof appendAiMessage === 'function') appendAiMessage('system', 'Default download directory saved: ' + {});",
+                    escaped, escaped
+                );
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::BookmarksLoaded(json_str)) => {

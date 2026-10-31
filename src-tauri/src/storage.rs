@@ -157,4 +157,19 @@ impl Database {
         let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1").ok()?;
         stmt.query_row(params![key], |r| r.get(0)).ok()
     }
+
+    pub fn get_all_settings(&self) -> std::collections::HashMap<String, String> {
+        let conn = self.conn.lock().unwrap();
+        let mut map = std::collections::HashMap::new();
+        if let Ok(mut stmt) = conn.prepare("SELECT key, value FROM settings") {
+            if let Ok(rows) = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            }) {
+                for r in rows.flatten() {
+                    map.insert(r.0, r.1);
+                }
+            }
+        }
+        map
+    }
 }

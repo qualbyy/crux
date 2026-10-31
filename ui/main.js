@@ -14,7 +14,17 @@ let searchEngine = "duckduckgo";
 let isSplitView = false;
 
 let tabs = [
-  { id: 1, title: 'Crux Startpage', url: 'https://duckduckgo.com', container: 'default', is_pinned: false, is_muted: false, is_active: true }
+  {
+    id: 1,
+    title: 'Crux Startpage',
+    url: 'https://duckduckgo.com',
+    history: ['https://duckduckgo.com'],
+    historyIndex: 0,
+    container: 'default',
+    is_pinned: false,
+    is_muted: false,
+    is_active: true
+  }
 ];
 
 const elements = {
@@ -59,8 +69,44 @@ const elements = {
   btnAiExplain: document.getElementById('btnAiExplain'),
   btnBack: document.getElementById('btnBack'),
   btnForward: document.getElementById('btnForward'),
-  btnReload: document.getElementById('btnReload')
+  btnReload: document.getElementById('btnReload'),
+  btnWinMin: document.getElementById('btnWinMin'),
+  btnWinMax: document.getElementById('btnWinMax'),
+  btnWinClose: document.getElementById('btnWinClose'),
+  dragRegion: document.getElementById('dragRegion'),
+  toastNotification: document.getElementById('toastNotification')
 };
+
+// SVG Icon Helpers
+const ICONS = {
+  volume: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
+  volumeMuted: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`,
+  close: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  pin: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`
+};
+
+function showToast(message) {
+  if (!elements.toastNotification) return;
+  elements.toastNotification.textContent = message;
+  elements.toastNotification.classList.remove('hidden');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => {
+    elements.toastNotification.classList.add('hidden');
+  }, 2200);
+}
+
+function updateNavButtons() {
+  const active = tabs.find(t => t.is_active);
+  if (!active) return;
+  if (elements.btnBack) {
+    elements.btnBack.style.opacity = active.historyIndex > 0 ? "1" : "0.35";
+    elements.btnBack.style.cursor = active.historyIndex > 0 ? "pointer" : "default";
+  }
+  if (elements.btnForward) {
+    elements.btnForward.style.opacity = active.historyIndex < active.history.length - 1 ? "1" : "0.35";
+    elements.btnForward.style.cursor = active.historyIndex < active.history.length - 1 ? "pointer" : "default";
+  }
+}
 
 function renderTabs() {
   if (!elements.tabsList) return;
@@ -72,7 +118,8 @@ function renderTabs() {
     if (tab.is_pinned) {
       const pin = document.createElement('span');
       pin.className = 'tab-pin-badge';
-      pin.textContent = 'PIN';
+      pin.innerHTML = ICONS.pin;
+      pin.title = "Pinned Tab";
       el.appendChild(pin);
     }
 
@@ -81,10 +128,10 @@ function renderTabs() {
     title.textContent = tab.title || 'New Tab';
     el.appendChild(title);
 
-    // Audio Mute indicator & toggle
+    // Audio Mute toggle button with SVG icons
     const muteBtn = document.createElement('button');
     muteBtn.className = `tab-mute ${tab.is_muted ? 'muted' : ''}`;
-    muteBtn.textContent = tab.is_muted ? '🔇' : '🔊';
+    muteBtn.innerHTML = tab.is_muted ? ICONS.volumeMuted : ICONS.volume;
     muteBtn.title = tab.is_muted ? 'Unmute Tab' : 'Mute Tab';
     muteBtn.onclick = (e) => {
       e.stopPropagation();
@@ -97,7 +144,8 @@ function renderTabs() {
     if (!tab.is_pinned) {
       const close = document.createElement('button');
       close.className = 'tab-close';
-      close.innerHTML = '&times;';
+      close.innerHTML = ICONS.close;
+      close.title = "Close Tab";
       close.onclick = (e) => {
         e.stopPropagation();
         closeTab(tab.id);
@@ -108,6 +156,7 @@ function renderTabs() {
     el.onclick = () => activateTab(tab.id);
     elements.tabsList.appendChild(el);
   });
+  updateNavButtons();
 }
 
 function activateTab(id) {
@@ -117,8 +166,24 @@ function activateTab(id) {
   if (current) {
     if (elements.urlInput) elements.urlInput.value = current.url;
     if (elements.webFrame) elements.webFrame.src = current.url;
+    updateNavButtons();
     sendIpc('activate_tab', { id });
   }
+}
+
+function navigateActiveTab(url) {
+  const active = tabs.find(t => t.is_active);
+  if (!active) return;
+  if (active.history[active.historyIndex] !== url) {
+    active.history = active.history.slice(0, active.historyIndex + 1);
+    active.history.push(url);
+    active.historyIndex = active.history.length - 1;
+  }
+  active.url = url;
+  if (elements.urlInput) elements.urlInput.value = url;
+  if (elements.webFrame) elements.webFrame.src = url;
+  updateNavButtons();
+  sendIpc('navigate', { url });
 }
 
 function createTab(url = 'https://duckduckgo.com') {
@@ -128,6 +193,8 @@ function createTab(url = 'https://duckduckgo.com') {
     id: newId,
     title: 'New Tab',
     url,
+    history: [url],
+    historyIndex: 0,
     container: 'default',
     is_pinned: false,
     is_muted: false,
@@ -145,7 +212,11 @@ function closeTab(id) {
     const wasActive = tabs[idx].is_active;
     tabs.splice(idx, 1);
     sendIpc('close_tab', { id });
-    if (wasActive && tabs.length > 0) {
+    if (tabs.length === 0) {
+      createTab();
+      return;
+    }
+    if (wasActive) {
       const nextIdx = Math.min(idx, tabs.length - 1);
       tabs[nextIdx].is_active = true;
       activateTab(tabs[nextIdx].id);
@@ -155,7 +226,7 @@ function closeTab(id) {
   }
 }
 
-// Navigation & Search Engines
+// Search Engine Formatting
 function getSearchUrl(query) {
   switch (searchEngine) {
     case 'google':
@@ -167,6 +238,47 @@ function getSearchUrl(query) {
     default:
       return `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
   }
+}
+
+// Navigation Buttons Handlers
+if (elements.btnBack) {
+  elements.btnBack.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    if (active && active.historyIndex > 0) {
+      active.historyIndex--;
+      const targetUrl = active.history[active.historyIndex];
+      active.url = targetUrl;
+      if (elements.urlInput) elements.urlInput.value = targetUrl;
+      if (elements.webFrame) elements.webFrame.src = targetUrl;
+      updateNavButtons();
+      sendIpc('navigate', { url: targetUrl });
+    }
+  });
+}
+
+if (elements.btnForward) {
+  elements.btnForward.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    if (active && active.historyIndex < active.history.length - 1) {
+      active.historyIndex++;
+      const targetUrl = active.history[active.historyIndex];
+      active.url = targetUrl;
+      if (elements.urlInput) elements.urlInput.value = targetUrl;
+      if (elements.webFrame) elements.webFrame.src = targetUrl;
+      updateNavButtons();
+      sendIpc('navigate', { url: targetUrl });
+    }
+  });
+}
+
+if (elements.btnReload) {
+  elements.btnReload.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    if (active && elements.webFrame) {
+      elements.webFrame.src = active.url;
+      showToast("Reloading page...");
+    }
+  });
 }
 
 if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab());
@@ -185,19 +297,8 @@ if (elements.urlInput) {
           input = getSearchUrl(input);
         }
       }
-      const active = tabs.find(t => t.is_active);
-      if (active) {
-        active.url = input;
-        if (elements.webFrame) elements.webFrame.src = input;
-        sendIpc('navigate', { url: input });
-      }
+      navigateActiveTab(input);
     }
-  });
-}
-
-if (elements.btnReload) {
-  elements.btnReload.addEventListener('click', () => {
-    if (elements.webFrame) elements.webFrame.src = elements.webFrame.src;
   });
 }
 
@@ -206,7 +307,7 @@ if (elements.btnBookmark) {
     const active = tabs.find(t => t.is_active);
     if (active) {
       sendIpc('add_bookmark', { url: active.url, title: active.title });
-      appendAiMessage("system", `Bookmarked: ${active.url}`);
+      showToast(`Bookmarked: ${active.url}`);
     }
   });
 }
@@ -219,10 +320,12 @@ function toggleSplitView() {
     elements.webFrameSplit.classList.remove('hidden');
     elements.webFrameSplit.src = 'https://duckduckgo.com';
     elements.btnSplitView.classList.add('active');
+    showToast("Split view enabled");
   } else {
     elements.webViewContainer.classList.remove('split-mode');
     elements.webFrameSplit.classList.add('hidden');
     elements.btnSplitView.classList.remove('active');
+    showToast("Split view disabled");
   }
 }
 
@@ -234,7 +337,15 @@ function toggleReaderMode() {
   const isHidden = elements.readerOverlay.classList.contains('hidden');
   if (isHidden) {
     const active = tabs.find(t => t.is_active);
-    elements.readerTitle.textContent = active ? (active.title || active.url) : 'Distraction-Free Reading';
+    const url = active ? active.url : "";
+    elements.readerTitle.textContent = active ? (active.title || active.url) : 'Reading Mode';
+    elements.readerContent.innerHTML = `
+      <h2 style="font-size: 24px; margin-bottom: 8px;">${active ? (active.title || 'Reader View') : 'Article'}</h2>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">Source: ${url}</p>
+      <div style="font-size: 16px; line-height: 1.8; color: #f5f5f0;">
+        Distraction-free reading view enabled for Crux 2.0. Clean typography eliminates banners, popups, and intrusive telemetry for focused article consumption.
+      </div>
+    `;
     elements.readerOverlay.classList.remove('hidden');
   } else {
     elements.readerOverlay.classList.add('hidden');
@@ -247,7 +358,13 @@ if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', (
 // Settings Modal
 function toggleSettingsModal() {
   if (!elements.settingsModal) return;
-  elements.settingsModal.classList.toggle('hidden');
+  const isHidden = elements.settingsModal.classList.contains('hidden');
+  if (isHidden) {
+    sendIpc('get_settings');
+    elements.settingsModal.classList.remove('hidden');
+  } else {
+    elements.settingsModal.classList.add('hidden');
+  }
 }
 
 if (elements.btnSettings) elements.btnSettings.addEventListener('click', toggleSettingsModal);
@@ -265,11 +382,35 @@ if (elements.btnSaveSettings) {
       searchEngine = elements.searchEngineSelect.value;
       sendIpc('save_setting', { key: 'search_engine', value: searchEngine });
     }
+    if (elements.adblockToggle) {
+      sendIpc('save_setting', { key: 'adblock_enabled', value: elements.adblockToggle.checked ? 'true' : 'false' });
+    }
     if (elements.txtAiApiKey && elements.txtAiApiKey.value) {
       sendIpc('save_setting', { key: 'ai_api_key', value: elements.txtAiApiKey.value.trim() });
     }
     toggleSettingsModal();
-    appendAiMessage("system", "Settings saved successfully.");
+    showToast("Settings saved to SQLite");
+  });
+}
+
+// Window Controls (Frameless Top Bar)
+if (elements.btnWinMin) elements.btnWinMin.addEventListener('click', () => sendIpc('window_minimize'));
+if (elements.btnWinMax) elements.btnWinMax.addEventListener('click', () => sendIpc('window_maximize'));
+if (elements.btnWinClose) elements.btnWinClose.addEventListener('click', () => sendIpc('window_close'));
+
+if (elements.dragRegion) {
+  elements.dragRegion.addEventListener('mousedown', (e) => {
+    // Only drag when clicking the empty region between buttons/inputs
+    if (e.button === 0 && (e.target === elements.dragRegion || e.target.classList.contains('url-bar-container'))) {
+      if (e.target.id !== 'urlInput') {
+        sendIpc('window_drag');
+      }
+    }
+  });
+  elements.dragRegion.addEventListener('dblclick', (e) => {
+    if (e.target === elements.dragRegion) {
+      sendIpc('window_maximize');
+    }
   });
 }
 
@@ -368,7 +509,10 @@ const commands = [
       sendIpc('toggle_pin', { id: active.id });
     }
   }},
-  { name: 'Clear SQLite History', action: () => sendIpc('clear_history') }
+  { name: 'Clear SQLite History', action: () => {
+    sendIpc('clear_history');
+    showToast("History cleared");
+  }}
 ];
 
 function renderCommands(query) {
@@ -401,6 +545,13 @@ window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
     toggleCommandPalette();
+  } else if (e.ctrlKey && e.key.toLowerCase() === 't') {
+    e.preventDefault();
+    createTab();
+  } else if (e.ctrlKey && e.key.toLowerCase() === 'w') {
+    e.preventDefault();
+    const active = tabs.find(t => t.is_active);
+    if (active) closeTab(active.id);
   } else if (e.key === 'Escape') {
     if (elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
       elements.commandPalette.classList.add('hidden');
@@ -421,7 +572,7 @@ window.onAiResponse = function(text, success) {
 
 window.onBookmarksLoaded = function(bookmarks) {
   if (!bookmarks || !bookmarks.length) {
-    appendAiMessage("system", "No bookmarks saved in SQLite yet.");
+    showToast("No bookmarks saved in SQLite yet");
     return;
   }
   const lines = bookmarks.map(b => `• ${b.title || b.url} (${b.url})`);
@@ -433,7 +584,7 @@ window.onBookmarksLoaded = function(bookmarks) {
 
 window.onHistoryLoaded = function(history) {
   if (!history || !history.length) {
-    appendAiMessage("system", "History is empty.");
+    showToast("History is empty");
     return;
   }
   const lines = history.slice(0, 10).map(h => `• ${h.title || h.url} [${h.visited_at}]`);
@@ -441,6 +592,30 @@ window.onHistoryLoaded = function(history) {
   if (elements.aiPanel && elements.aiPanel.classList.contains('hidden')) {
     toggleAiPanel();
   }
+};
+
+window.onSettingsLoaded = function(settings) {
+  if (!settings) return;
+  if (elements.searchEngineSelect && settings.search_engine) {
+    elements.searchEngineSelect.value = settings.search_engine;
+    searchEngine = settings.search_engine;
+  }
+  if (elements.adblockToggle && settings.adblock_enabled !== undefined) {
+    elements.adblockToggle.checked = settings.adblock_enabled !== 'false';
+  }
+  if (elements.txtDownloadDir && settings.download_dir) {
+    elements.txtDownloadDir.value = settings.download_dir;
+  }
+  if (elements.txtAiApiKey && settings.ai_api_key) {
+    elements.txtAiApiKey.value = settings.ai_api_key;
+  }
+};
+
+window.onDownloadDirSelected = function(path) {
+  if (elements.txtDownloadDir) {
+    elements.txtDownloadDir.value = path;
+  }
+  showToast(`Download folder set to: ${path}`);
 };
 
 // Initial Render
