@@ -76,6 +76,10 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 3-3 3 3 3"/><path d="m6 9 3 3-3 3"/><path d="M21 15h-6"/><path d="M9 15H3"/></svg>
             <span data-i18n="cmd_btn">КОМАНДЫ</span>
           </button>
+          <!-- Overflow Actions Button for Narrow Windows -->
+          <button id="btnNavOverflow" class="btn-nav hidden" title="Действия панели">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>
+          </button>
           <!-- Settings / Menu Button on Far Right Edge -->
           <button id="btnMenu" class="btn-nav" title="Sonde Menu & Settings">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
@@ -105,6 +109,30 @@
         <button id="btnFindClose" class="btn-find" title="Close (Esc)">✕</button>
       </div>
 
+      <!-- Password Save Prompt Modal (Anchored Floating Banner) -->
+      <div id="passwordSavePrompt" class="password-save-prompt hidden">
+        <div class="pwd-prompt-header">
+          <span class="pwd-prompt-title">СОХРАНИТЬ ПАРОЛЬ?</span>
+          <button type="button" class="btn-prompt-close" id="btnClosePwdPrompt" title="Закрыть">✕</button>
+        </div>
+        <div class="pwd-prompt-site" id="pwdPromptSite">example.com</div>
+        <div class="pwd-prompt-inputs">
+          <div class="pwd-prompt-field">
+            <label class="pwd-lbl">ЛОГИН:</label>
+            <input type="text" id="txtPromptUser" class="prompt-input" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="pwd-prompt-field">
+            <label class="pwd-lbl">ПАРОЛЬ:</label>
+            <input type="password" id="txtPromptPass" class="prompt-input">
+          </div>
+        </div>
+        <div class="pwd-prompt-actions">
+          <button type="button" class="btn-pwd-save" id="btnSavePromptYes">СОХРАНИТЬ</button>
+          <button type="button" class="btn-pwd-secondary" id="btnSavePromptNo">НЕ СЕЙЧАС</button>
+          <button type="button" class="btn-pwd-never" id="btnSavePromptNever">НИКОГДА ДЛЯ САЙТА</button>
+        </div>
+      </div>
+
       <!-- Horizontal Tab Bar (Displayed when Tab Layout is Horizontal) -->
       <div id="horizontalTabBar" class="horizontal-tab-bar hidden">
         <div id="horizontalTabsList" class="horizontal-tabs-list"></div>
@@ -123,9 +151,9 @@
           <option value="1920x1080">Desktop FHD (1920 x 1080)</option>
         </select>
         <span class="viewport-label">W:</span>
-        <input type="number" id="vpWidthInput" class="viewport-input" value="390" min="200" max="3840">
+        <input type="text" id="vpWidthInput" class="viewport-input" value="390" placeholder="390" inputmode="numeric" spellcheck="false" autocomplete="off">
         <span class="viewport-label">H:</span>
-        <input type="number" id="vpHeightInput" class="viewport-input" value="844" min="200" max="2160">
+        <input type="text" id="vpHeightInput" class="viewport-input" value="844" placeholder="844" inputmode="numeric" spellcheck="false" autocomplete="off">
         <button id="btnVpRotate" class="btn-viewport" title="Rotate orientation">⟲</button>
         <button id="btnVpClose" class="btn-viewport" title="Close mobile viewport">✕</button>
       </div>
@@ -223,9 +251,66 @@
             <div class="progress-bar-fill" id="statusBarProgressFill"></div>
           </div>
           <span id="statusBarZoom" class="status-bar-zoom" title="Zoom">100%</span>
-          <span id="statusBarSecurity" class="status-bar-badge" title="Security">🔒 SECURE</span>
+          <button type="button" id="statusBarSecurity" class="status-bar-badge-btn" title="Статус безопасности подключения">[ЗАЩИЩЕНО]</button>
         </div>
       </footer>
+
+      <!-- Connection Security & Permissions Dropdown Popup -->
+      <div id="securityPopup" class="security-dropdown-popup hidden">
+        <div class="sec-popup-header">
+          <div class="sec-status-dot" id="secStatusDot"></div>
+          <div class="sec-popup-title" id="secPopupTitle">БЕЗОПАСНОСТЬ ПОДКЛЮЧЕНИЯ</div>
+          <button type="button" class="btn-popup-close" id="btnCloseSecurityPopup" title="Закрыть">✕</button>
+        </div>
+
+        <div class="sec-popup-body">
+          <div class="sec-info-card">
+            <div class="sec-host-row">
+              <span class="sec-lbl">ХОСТ:</span>
+              <span class="sec-val sec-host" id="secHostVal">example.com</span>
+            </div>
+            <div class="sec-detail-row">
+              <span class="sec-lbl">ПРОТОКОЛ:</span>
+              <span class="sec-val" id="secProtocolVal">TLS 1.3 / HTTPS</span>
+            </div>
+            <div class="sec-detail-row">
+              <span class="sec-lbl">ШИФРОВАНИЕ:</span>
+              <span class="sec-val" id="secCipherVal">AES-256-GCM</span>
+            </div>
+            <div class="sec-detail-row">
+              <span class="sec-lbl">СЕРТИФИКАТ:</span>
+              <span class="sec-val sec-cert-valid" id="secCertVal">Действителен (доверенный CA)</span>
+            </div>
+            <div class="sec-desc-text" id="secDescVal">
+              Подключение к этому сайту защищено. Пароли, платежные данные и персональная информация шифруются при передаче.
+            </div>
+          </div>
+
+          <div class="sec-permissions-box">
+            <div class="sec-section-title">РАЗРЕШЕНИЯ И КОНТРОЛЬ САЙТА</div>
+            <div class="sec-perm-item">
+              <span class="sec-perm-lbl">JavaScript:</span>
+              <span class="sec-perm-val enabled">[РАЗРЕШЕНО]</span>
+            </div>
+            <div class="sec-perm-item">
+              <span class="sec-perm-lbl">Куки и хранилище:</span>
+              <span class="sec-perm-val enabled">[РАЗРЕШЕНО]</span>
+            </div>
+            <div class="sec-perm-item">
+              <span class="sec-perm-lbl">Блокировщик рекламы:</span>
+              <button type="button" class="btn-sec-toggle" id="btnSecAdblockToggle">[АКТИВЕН]</button>
+            </div>
+            <div class="sec-perm-item">
+              <span class="sec-perm-lbl">Контейнер вкладки:</span>
+              <span class="sec-perm-val" id="secContainerVal">[DEFAULT]</span>
+            </div>
+          </div>
+
+          <div class="sec-actions-row">
+            <button type="button" class="btn-sec-action" id="btnClearSiteData">ОЧИСТИТЬ КУКИ САЙТА</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Anchored Bookmarks Popup -->
@@ -255,15 +340,32 @@
 
     <!-- Anchored Crux Menu Dropdown (Exact Parity with Original Crux) -->
     <div id="appMenu" class="dropdown-menu hidden">
-      <!-- 1. Zoom Controls Row -->
-      <div class="menu-zoom-row">
-        <span class="menu-zoom-lbl" data-i18n="zoom_label">Масштаб:</span>
-        <button id="btnZoomOut" class="btn-zoom" title="Zoom Out">-</button>
-        <span id="zoomLevelLbl" style="font-size: 11px; min-width: 38px; text-align: center;">100%</span>
-        <button id="btnZoomIn" class="btn-zoom" title="Zoom In">+</button>
-        <button id="btnZoomReset" class="btn-zoom" title="Reset Zoom">100%</button>
-        <button id="btnFullscreen" class="btn-zoom" title="Toggle Fullscreen">⛶</button>
+      <!-- 0. Account & Cloudflare Sync Field [СКОРО] -->
+      <div class="menu-account-box">
+        <div class="menu-account-header">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="menu-account-title" data-i18n="account_title">АККАУНТ SONDE</span>
+          <span class="menu-badge-soon">[СКОРО]</span>
+        </div>
+        <div class="menu-account-row">
+          <input type="text" id="menuAccountInput" class="menu-account-input" placeholder="user@sonde.net" spellcheck="false" value="offline@sonde.local" readonly>
+          <button type="button" id="btnMenuSync" class="btn-menu-sync" title="Синхронизация Cloudflare Workers [В РАЗРАБОТКЕ]">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>СИНХР</span>
+          </button>
+        </div>
       </div>
+
+      <!-- Update Checker Section -->
+      <div class="menu-update-box">
+        <div class="menu-update-info">
+          <span class="menu-update-label" id="menuUpdateLabel">SONDE v2.0.0-alpha.1</span>
+          <button type="button" id="btnCheckUpdate" class="btn-check-update">[ПРОВЕРИТЬ]</button>
+        </div>
+        <div id="updateResultBanner" class="update-result-banner hidden"></div>
+      </div>
+
+      <div class="menu-separator"></div>
 
       <div class="menu-item" id="menuMobileMode">
         <span class="menu-label" data-i18n="mobile_mode">Мобильный режим:</span>
@@ -280,6 +382,10 @@
       <div class="menu-item" id="menuPip">
         <span class="menu-label" data-i18n="pip_mode">Картинка в картинке / PiP</span>
         <span class="menu-shortcut">Ctrl+Alt+P</span>
+      </div>
+      <div class="menu-item" id="menuForceDark">
+        <span class="menu-label" data-i18n="force_dark">[ЭКСПЕРИМЕНТ] Тёмная тема сайтов</span>
+        <span id="forceDarkStatusTag" class="menu-tag">[ВЫКЛ]</span>
       </div>
       <div class="menu-item menu-has-submenu" id="menuTabOrientation">
         <span class="menu-label" data-i18n="tab_layout">Расположение вкладок</span>
@@ -366,6 +472,18 @@
 
       <div class="menu-separator"></div>
 
+      <!-- Zoom Controls Row (Moved between DevTools & Downloads) -->
+      <div class="menu-zoom-row">
+        <span class="menu-zoom-lbl" data-i18n="zoom_label">Масштаб:</span>
+        <button id="btnZoomOut" class="btn-zoom" title="Zoom Out">-</button>
+        <span id="zoomLevelLbl" style="font-size: 11px; min-width: 38px; text-align: center;">100%</span>
+        <button id="btnZoomIn" class="btn-zoom" title="Zoom In">+</button>
+        <button id="btnZoomReset" class="btn-zoom" title="Reset Zoom">100%</button>
+        <button id="btnFullscreen" class="btn-zoom" title="Toggle Fullscreen">⛶</button>
+      </div>
+
+      <div class="menu-separator"></div>
+
       <!-- 5. Data & Panels -->
       <div class="menu-item" id="menuDownloads">
         <span class="menu-label" data-i18n="downloads">Загрузки</span>
@@ -394,6 +512,34 @@
       <div class="menu-item" id="menuSettings">
         <span class="menu-label" data-i18n="settings">Настройки браузера</span>
         <span class="menu-shortcut">Ctrl+,</span>
+      </div>
+    </div>
+
+    <!-- Nav Actions Overflow Dropdown (Anchored for Narrow Windows) -->
+    <div id="navOverflowPopup" class="dropdown-menu nav-overflow-popup hidden">
+      <div class="menu-item" id="ovfBookmark">
+        <span class="menu-label" data-i18n="bookmarks">Закладки</span>
+        <span class="menu-shortcut">Ctrl+Shift+O</span>
+      </div>
+      <div class="menu-item" id="ovfDownloads">
+        <span class="menu-label" data-i18n="downloads">Загрузки</span>
+        <span class="menu-shortcut">Ctrl+Shift+D</span>
+      </div>
+      <div class="menu-item" id="ovfSplit">
+        <span class="menu-label" data-i18n="split_view">Разделить экран</span>
+        <span class="menu-shortcut">Ctrl+\</span>
+      </div>
+      <div class="menu-item" id="ovfReader">
+        <span class="menu-label" data-i18n="reader_mode">Режим чтения</span>
+        <span class="menu-shortcut">Ctrl+Alt+R</span>
+      </div>
+      <div class="menu-item" id="ovfAi">
+        <span class="menu-label" data-i18n="ai_assistant">AI-ассистент</span>
+        <span class="menu-shortcut">Ctrl+B</span>
+      </div>
+      <div class="menu-item" id="ovfCommandPalette">
+        <span class="menu-label" data-i18n="commands">Палитра команд</span>
+        <span class="menu-shortcut">Ctrl+Shift+P</span>
       </div>
     </div>
 
@@ -546,6 +692,46 @@
           <div class="onboarding-row">
             <button type="button" class="onboarding-btn-choice active" id="onbModeMinimal" onclick="setOnbMode('minimal')">Минималистичный</button>
             <button type="button" class="onboarding-btn-choice" id="onbModeVim" onclick="setOnbMode('vim')">Vim-режим</button>
+          </div>
+        </div>
+
+        <!-- Advanced Settings Toggle & Section -->
+        <div class="onboarding-advanced-toggle">
+          <button type="button" class="btn-onb-advanced" id="btnToggleOnbAdvanced" onclick="toggleOnbAdvanced()">
+            <span id="onbAdvToggleLabel">[+] ПРОДВИНУТЫЕ НАСТРОЙКИ // ADVANCED SETTINGS</span>
+          </button>
+        </div>
+
+        <div id="onbAdvancedContainer" class="onboarding-advanced-container hidden">
+          <div class="onboarding-section">
+            <div class="onboarding-section-title">ПРИВАТНОСТЬ И БЕЗОПАСНОСТЬ</div>
+            <div class="onb-toggle-row">
+              <label class="onb-toggle-lbl">
+                <input type="checkbox" id="onbChkAdblock" checked onchange="setOnbAdblock(this.checked)">
+                <span>Блокировщик рекламы и трекеров (AdBlock)</span>
+              </label>
+            </div>
+            <div class="onb-toggle-row">
+              <label class="onb-toggle-lbl">
+                <input type="checkbox" id="onbChkForceDark" onchange="setOnbForceDark(this.checked)">
+                <span>[ЭКСПЕРИМЕНТАЛЬНО] Тёмная тема для всех сайтов (Force Dark)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="onboarding-section">
+            <div class="onboarding-section-title">ОРИЕНТАЦИЯ ВКЛАДОК</div>
+            <div class="onboarding-row">
+              <button type="button" class="onboarding-btn-choice active" id="onbTabVert" onclick="setOnbTabOrientation('vertical')">ВЕРТИКАЛЬНЫЕ (СЛЕВА)</button>
+              <button type="button" class="onboarding-btn-choice" id="onbTabHoriz" onclick="setOnbTabOrientation('horizontal')">ГОРИЗОНТАЛЬНЫЕ (СВЕРХУ)</button>
+            </div>
+          </div>
+
+          <div class="onboarding-section">
+            <div class="onboarding-section-title">ПАПКА ЗАГРУЗОК</div>
+            <div class="onb-input-row">
+              <input type="text" id="onbTxtDownloadDir" class="onb-text-input" placeholder="~/Downloads">
+            </div>
           </div>
         </div>
 

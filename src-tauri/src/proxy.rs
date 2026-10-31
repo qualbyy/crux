@@ -32,12 +32,21 @@ fn percent_decode(input: &str) -> String {
 
 fn parse_query_url(path: &str) -> Option<String> {
     if let Some(pos) = path.find("url=") {
-        let after = &path[pos + 4..];
-        let end = after.find('&').unwrap_or(after.len());
-        let raw = &after[..end];
-        let decoded = percent_decode(raw);
-        if !decoded.trim().is_empty() {
-            return Some(decoded.trim().to_string());
+        let raw = &path[pos + 4..];
+        let mut decoded = percent_decode(raw);
+        // Recursively unwrap any nested /proxy?url=
+        while let Some(inner_pos) = decoded.find("url=") {
+            let inner_raw = &decoded[inner_pos + 4..];
+            let inner_dec = percent_decode(inner_raw);
+            if inner_dec.starts_with("http://") || inner_dec.starts_with("https://") {
+                decoded = inner_dec;
+            } else {
+                break;
+            }
+        }
+        let trimmed = decoded.trim().to_string();
+        if !trimmed.is_empty() {
+            return Some(trimmed);
         }
     }
     None
@@ -45,8 +54,8 @@ fn parse_query_url(path: &str) -> Option<String> {
 
 pub fn start_proxy(adblocker: Arc<AdBlocker>, port: u16) {
     let client = match reqwest::blocking::Client::builder()
-        .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Sonde/2.0")
-        .timeout(Duration::from_secs(15))
+        .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .timeout(Duration::from_secs(60))
         .redirect(reqwest::redirect::Policy::limited(10))
         .build()
     {
@@ -101,29 +110,37 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     let method = parts.next().unwrap_or("GET");
     let path = parts.next().unwrap_or("/");
 
+    if method == "OPTIONS" {
+        let resp = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Max-Age: 86400\r\nConnection: close\r\n\r\n";
+        let _ = stream.write_all(resp.as_bytes());
+        return;
+    }
+
+    let mut forwarded_headers: Vec<(String, String)> = Vec::new();
     let mut referer: Option<String> = None;
-    let mut accept_header: Option<String> = None;
-    let mut cookie_header: Option<String> = None;
-    let mut x_requested_with: Option<String> = None;
-    let mut turbo_frame: Option<String> = None;
     let mut content_length: usize = 0;
 
     for line in lines {
-        let lower = line.to_lowercase();
-        if lower.starts_with("referer:") {
-            referer = Some(line[8..].trim().to_string());
-        } else if lower.starts_with("accept:") {
-            accept_header = Some(line[7..].trim().to_string());
-        } else if lower.starts_with("cookie:") {
-            cookie_header = Some(line[7..].trim().to_string());
-        } else if lower.starts_with("x-requested-with:") {
-            x_requested_with = Some(line[17..].trim().to_string());
-        } else if lower.starts_with("turbo-frame:") {
-            turbo_frame = Some(line[12..].trim().to_string());
-        } else if lower.starts_with("content-length:") {
-            if let Ok(cl) = line[15..].trim().parse::<usize>() {
-                content_length = cl;
+        if let Some(colon) = line.find(':') {
+            let key = line[..colon].trim();
+            let val = line[colon + 1..].trim();
+            let key_lower = key.to_lowercase();
+
+            if key_lower == "host" || key_lower == "connection" {
+                continue;
             }
+            if key_lower == "referer" {
+                referer = Some(val.to_string());
+                let unproxied = parse_query_url(val).unwrap_or_else(|| val.to_string());
+                forwarded_headers.push(("Referer".to_string(), unproxied));
+                continue;
+            }
+            if key_lower == "content-length" {
+                if let Ok(cl) = val.parse::<usize>() {
+                    content_length = cl;
+                }
+            }
+            forwarded_headers.push((key.to_string(), val.to_string()));
         }
     }
 
@@ -170,8 +187,18 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
         return;
     }
 
-    // Build forwarded request with appropriate client headers
-    let mut req_builder = if method == "POST" && content_length > 0 {
+    let req_method = match method {
+        "POST" => reqwest::Method::POST,
+        "PUT" => reqwest::Method::PUT,
+        "DELETE" => reqwest::Method::DELETE,
+        "PATCH" => reqwest::Method::PATCH,
+        "HEAD" => reqwest::Method::HEAD,
+        _ => reqwest::Method::GET,
+    };
+
+    let mut req_builder = client.request(req_method, &target);
+
+    if (method == "POST" || method == "PUT" || method == "PATCH") && content_length > 0 {
         let header_end = req_str.find("\r\n\r\n").map(|i| i + 4).unwrap_or(n);
         let body_in_buf = &buf[header_end..n];
         let mut post_body = body_in_buf.to_vec();
@@ -184,22 +211,19 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
                 _ => break,
             }
         }
-        client.post(&target).body(post_body)
-    } else {
-        client.get(&target)
-    };
+        req_builder = req_builder.body(post_body);
+    }
 
-    if let Some(ref acc) = accept_header {
-        req_builder = req_builder.header("Accept", acc);
+    if let Ok(target_u) = reqwest::Url::parse(&target) {
+        if let Some(host) = target_u.host_str() {
+            let scheme = target_u.scheme();
+            let port_str = target_u.port().map(|p| format!(":{}", p)).unwrap_or_default();
+            req_builder = req_builder.header("Origin", format!("{}://{}{}", scheme, host, port_str));
+        }
     }
-    if let Some(ref cook) = cookie_header {
-        req_builder = req_builder.header("Cookie", cook);
-    }
-    if let Some(ref xrw) = x_requested_with {
-        req_builder = req_builder.header("X-Requested-With", xrw);
-    }
-    if let Some(ref tf) = turbo_frame {
-        req_builder = req_builder.header("Turbo-Frame", tf);
+
+    for (k, v) in forwarded_headers {
+        req_builder = req_builder.header(&k, &v);
     }
 
     let resp = match req_builder.send() {
@@ -211,15 +235,15 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     };
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
+    let resp_headers = resp.headers().clone();
+
+    let content_type = resp_headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("text/html")
         .to_string();
 
-    let content_disp = resp
-        .headers()
+    let content_disp = resp_headers
         .get("content-disposition")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
@@ -272,25 +296,97 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
     let is_html = content_type.to_lowercase().contains("text/html");
 
-    if is_html {
-        let final_url = resp.url().to_string();
-        let body = match resp.text() {
-            Ok(t) => t,
-            Err(_) => String::new(),
-        };
+    if !is_html {
+        // Stream media / video / binary responses with Range & 206 Partial Content support
+        let mut header = format!(
+            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("OK"),
+            content_type
+        );
+        if let Some(cr) = resp_headers.get("content-range").and_then(|v| v.to_str().ok()) {
+            header.push_str(&format!("Content-Range: {}\r\n", cr));
+        }
+        if let Some(ar) = resp_headers.get("accept-ranges").and_then(|v| v.to_str().ok()) {
+            header.push_str(&format!("Accept-Ranges: {}\r\n", ar));
+        } else {
+            header.push_str("Accept-Ranges: bytes\r\n");
+        }
+        if let Some(cl) = resp_headers.get("content-length").and_then(|v| v.to_str().ok()) {
+            header.push_str(&format!("Content-Length: {}\r\n", cl));
+        }
+        header.push_str("\r\n");
 
-        let body_lower = body.to_lowercase();
-        let is_full_document = body_lower.contains("<head") || body_lower.contains("<html");
+        let _ = stream.write_all(header.as_bytes());
 
-        let modified_body = if is_full_document {
-            // Injected script for link interception, key forwarding & frame communication
-            let injection = format!(
-                r#"<base href="{final_url}">
+        let mut reader = resp;
+        let mut chunk = [0u8; 16384];
+        while let Ok(read_n) = reader.read(&mut chunk) {
+            if read_n == 0 { break; }
+            if stream.write_all(&chunk[..read_n]).is_err() { break; }
+        }
+        return;
+    }
+
+    let final_url = resp.url().to_string();
+    let body = match resp.text() {
+        Ok(t) => t,
+        Err(_) => String::new(),
+    };
+
+    let body_lower = body.to_lowercase();
+    let is_full_document = body_lower.contains("<head") || body_lower.contains("<html");
+
+    let modified_body = if is_full_document {
+        // Injected script for link interception, SPA pushState tracking, key forwarding, password autofill
+        let injection = format!(
+            r#"<base href="{final_url}">
 <script>
 (function() {{
+  function unwrapProxy(u) {{
+    if (!u) return '';
+    var idx = u.indexOf('/proxy?url=');
+    if (idx !== -1) {{
+      var raw = u.substring(idx + 11);
+      try {{ return decodeURIComponent(raw); }} catch(ex) {{ return raw; }}
+    }}
+    return u;
+  }}
+
   try {{
     window.top.postMessage({{ type: 'sonde_navigated', url: {final_url_json} }}, '*');
     window.top.postMessage({{ type: 'crux_navigated', url: {final_url_json} }}, '*');
+  }} catch(e) {{}}
+
+  // SPA Route Change Tracking (YouTube, GitHub, Twitter)
+  try {{
+    var origPush = history.pushState;
+    history.pushState = function(state, title, url) {{
+      var res = origPush.apply(this, arguments);
+      if (url) {{
+        try {{
+          var full = new URL(url, window.location.href).href;
+          window.top.postMessage({{ type: 'sonde_navigated', url: full }}, '*');
+        }} catch(e) {{}}
+      }}
+      return res;
+    }};
+    var origReplace = history.replaceState;
+    history.replaceState = function(state, title, url) {{
+      var res = origReplace.apply(this, arguments);
+      if (url) {{
+        try {{
+          var full = new URL(url, window.location.href).href;
+          window.top.postMessage({{ type: 'sonde_navigated', url: full }}, '*');
+        }} catch(e) {{}}
+      }}
+      return res;
+    }};
+    window.addEventListener('popstate', function() {{
+      try {{
+        window.top.postMessage({{ type: 'sonde_navigated', url: window.location.href }}, '*');
+      }} catch(e) {{}}
+    }});
   }} catch(e) {{}}
 
   // Forward keyboard events to Sonde host
@@ -319,13 +415,7 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
   document.addEventListener('mouseover', function(e) {{
     var a = e.target.closest('a');
     if (a && a.href) {{
-      var targetUrl = a.href;
-      if (targetUrl.indexOf('/proxy?url=') !== -1) {{
-        try {{
-          var u = new URL(targetUrl);
-          targetUrl = decodeURIComponent(u.searchParams.get('url') || targetUrl);
-        }} catch(ex) {{}}
-      }}
+      var targetUrl = unwrapProxy(a.href);
       try {{
         window.top.postMessage({{ type: 'sonde_link_hover', url: targetUrl }}, '*');
       }} catch(ex) {{}}
@@ -341,95 +431,146 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     }}
   }}, true);
 
-  // Listen for smooth scroll messages from Vim mode
+  // Password Detection & Save Prompt
+  function findCredentials(form) {{
+    var pwdInput = form ? form.querySelector('input[type="password"]') : document.querySelector('input[type="password"]');
+    if (!pwdInput || !pwdInput.value) return null;
+    var userInput = null;
+    if (form) {{
+      userInput = form.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="login"], input[name*="email"], input[autocomplete="username"]');
+    }}
+    if (!userInput) {{
+      var allInputs = Array.from(document.querySelectorAll('input'));
+      var pIdx = allInputs.indexOf(pwdInput);
+      if (pIdx > 0) userInput = allInputs[pIdx - 1];
+    }}
+    return {{
+      username: userInput ? userInput.value.trim() : '',
+      password: pwdInput.value
+    }};
+  }}
+
+  document.addEventListener('submit', function(e) {{
+    try {{
+      var creds = findCredentials(e.target);
+      if (creds && creds.password) {{
+        window.top.postMessage({{
+          type: 'sonde_save_password_prompt',
+          url: window.location.href,
+          username: creds.username,
+          password: creds.password
+        }}, '*');
+      }}
+    }} catch(ex) {{}}
+  }}, true);
+
+  // Listen for messages from host (autofill, smooth scroll, dark mode)
   window.addEventListener('message', function(e) {{
-    if (e.data && e.data.type === 'sonde_scroll' && typeof e.data.dy === 'number') {{
+    if (!e.data) return;
+    if (e.data.type === 'sonde_scroll' && typeof e.data.dy === 'number') {{
       window.scrollBy({{ top: e.data.dy, behavior: 'smooth' }});
+    }} else if (e.data.type === 'sonde_autofill_data') {{
+      try {{
+        var pwd = document.querySelector('input[type="password"]');
+        if (pwd && !pwd.value) {{
+          pwd.value = e.data.password || '';
+          pwd.dispatchEvent(new Event('input', {{ bubbles: true }}));
+          pwd.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        }}
+        var usr = document.querySelector('input[type="text"], input[type="email"], input[autocomplete="username"]');
+        if (usr && !usr.value) {{
+          usr.value = e.data.username || '';
+          usr.dispatchEvent(new Event('input', {{ bubbles: true }}));
+          usr.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        }}
+      }} catch(ex) {{}}
+    }} else if (e.data.type === 'sonde_toggle_dark') {{
+      toggleDarkMode(e.data.enabled);
     }}
   }});
 
-  // Intercept anchor clicks to route through proxy, ignoring in-page anchors
+  function toggleDarkMode(enable) {{
+    var el = document.getElementById('sonde-dark-injected');
+    if (enable) {{
+      if (!el) {{
+        el = document.createElement('style');
+        el.id = 'sonde-dark-injected';
+        el.textContent = 'html {{ filter: invert(90%) hue-rotate(180deg) !important; background-color: #121212 !important; }} img, video, iframe, canvas, svg, [style*="background-image"] {{ filter: invert(100%) hue-rotate(180deg) !important; }}';
+        (document.head || document.documentElement).appendChild(el);
+      }}
+    }} else if (el) {{
+      el.remove();
+    }}
+  }}
+
+  // Intercept anchor clicks to route through proxy without breaking SPAs
   document.addEventListener('click', function(e) {{
     var a = e.target.closest('a');
     if (!a) return;
     var rawHref = a.getAttribute('href') || '';
-    if (rawHref.startsWith('#') || rawHref.startsWith('javascript:')) {{
-      return; // Smooth in-page anchor jump
-    }}
-    if (a.hash && a.origin === window.location.origin && a.pathname === window.location.pathname && a.search === window.location.search) {{
-      return; // In-page anchor jump
-    }}
-    if (a.href && !a.href.startsWith('javascript:')) {{
-      e.preventDefault();
-      window.location.href = 'http://127.0.0.1:39281/proxy?url=' + encodeURIComponent(a.href);
-    }}
-  }}, true);
+    if (rawHref.startsWith('#') || rawHref.startsWith('javascript:')) return;
+    if (a.hash && a.origin === window.location.origin && a.pathname === window.location.pathname && a.search === window.location.search) return;
 
-  // Intercept GET form submissions
+    if (a.getAttribute('role') === 'button' || a.closest('ytd-compact-video-renderer, ytd-rich-item-renderer, ytd-video-renderer, [data-turbo]')) {{
+      return;
+    }}
+
+    var dest = unwrapProxy(a.href);
+    if (dest && (dest.startsWith('http://') || dest.startsWith('https://'))) {{
+      if (!e.defaultPrevented && a.target !== '_blank') {{
+        e.preventDefault();
+        window.location.href = 'http://127.0.0.1:39281/proxy?url=' + encodeURIComponent(dest);
+      }}
+    }}
+  }}, false);
+
+  // Form submissions
   document.addEventListener('submit', function(e) {{
     var form = e.target;
     if (form && form.action) {{
       var method = (form.method || 'get').toLowerCase();
       if (method === 'get') {{
+        if (e.defaultPrevented) return;
         e.preventDefault();
+        var act = unwrapProxy(form.action);
         var formData = new FormData(form);
         var params = new URLSearchParams(formData).toString();
-        var delim = form.action.indexOf('?') !== -1 ? '&' : '?';
-        var target = form.action + delim + params;
-        window.location.href = 'http://127.0.0.1:39281/proxy?url=' + encodeURIComponent(target);
+        var delim = act.indexOf('?') !== -1 ? '&' : '?';
+        var finalTarget = act + (params ? delim + params : '');
+        window.location.href = 'http://127.0.0.1:39281/proxy?url=' + encodeURIComponent(finalTarget);
       }}
     }}
-  }}, true);
+  }}, false);
 }})();
 </script>"#,
-                final_url = final_url,
-                final_url_json = serde_json::to_string(&final_url).unwrap_or_else(|_| "\"\"".to_string())
-            );
+            final_url = final_url,
+            final_url_json = serde_json::to_string(&final_url).unwrap_or_else(|_| "\"\"".to_string())
+        );
 
-            let mut mod_body = body;
-            if let Some(idx) = mod_body.to_lowercase().find("<head>") {
-                mod_body.insert_str(idx + 6, &injection);
-            } else if let Some(idx) = mod_body.to_lowercase().find("<html>") {
-                mod_body.insert_str(idx + 6, &format!("<head>{}</head>", injection));
-            } else {
-                mod_body.insert_str(0, &injection);
-            }
-            mod_body
+        let mut mod_body = body;
+        if let Some(idx) = mod_body.to_lowercase().find("<head>") {
+            mod_body.insert_str(idx + 6, &injection);
+        } else if let Some(idx) = mod_body.to_lowercase().find("<html>") {
+            mod_body.insert_str(idx + 6, &format!("<head>{}</head>", injection));
         } else {
-            // Partial fragment (e.g. GitHub PJAX / Turbo Frame / contributors / releases):
-            // Return raw HTML without injecting full HTML base/scripts which corrupts fragment DOM!
-            body
-        };
-
-        let body_bytes = modified_body.as_bytes();
-        let header = format!(
-            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n",
-            status.as_u16(),
-            status.canonical_reason().unwrap_or("OK"),
-            content_type,
-            body_bytes.len()
-        );
-
-        let _ = stream.write_all(header.as_bytes());
-        let _ = stream.write_all(body_bytes);
+            mod_body.insert_str(0, &injection);
+        }
+        mod_body
     } else {
-        // Binary / media / asset content: pass bytes directly
-        let bytes = match resp.bytes() {
-            Ok(b) => b,
-            Err(_) => return,
-        };
+        body
+    };
 
-        let header = format!(
-            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n",
-            status.as_u16(),
-            status.canonical_reason().unwrap_or("OK"),
-            content_type,
-            bytes.len()
-        );
+    let body_bytes = modified_body.as_bytes();
+    let header = format!(
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n\r\n",
+        status.as_u16(),
+        status.canonical_reason().unwrap_or("OK"),
+        content_type,
+        body_bytes.len()
+    );
 
-        let _ = stream.write_all(header.as_bytes());
-        let _ = stream.write_all(&bytes);
-    }
+    let _ = stream.write_all(header.as_bytes());
+    let _ = stream.write_all(body_bytes);
 }
 
 fn extract_filename(url: &str, content_disp: &str) -> String {

@@ -563,6 +563,30 @@
                         <p data-i18n="desc_general">Core browser localization, startup behavior, and search engine.</p>
                     </div>
 
+                    <!-- ACCOUNT & CLOUDFLARE SYNC (COMING SOON) -->
+                    <div class="form-row" style="background: var(--bg-surface); padding: 12px; border: 1px solid var(--border-muted);">
+                        <div class="label-wrap">
+                            <span class="label-title">Синхронизация и аккаунт Sonde <span style="font-size: 10px; color: var(--accent); border: 1px solid var(--accent); padding: 1px 4px; margin-left: 6px;">[СКОРО В v2.1.0]</span></span>
+                            <span class="label-desc">Сквозная синхронизация истории, паролей, вкладок и настроек на базе распределённой сети Cloudflare Workers & D1.</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="text" id="setting-account" value="offline@sonde.local" readonly style="width: 170px; background: var(--bg-base); font-size: 11px;">
+                            <button type="button" class="btn-save-top" style="padding: 4px 10px; font-size: 11px;" onclick="showToast(currentLang === 'ru' ? 'Синхронизация Cloudflare Workers: [СКОРО в v2.1.0]' : 'Cloudflare Workers Sync: [COMING SOON in v2.1.0]')">СИНХР</button>
+                        </div>
+                    </div>
+
+                    <!-- GITHUB RELEASE UPDATE CHECKER -->
+                    <div class="form-row" style="background: var(--bg-surface); padding: 12px; border: 1px solid var(--border-muted);">
+                        <div class="label-wrap">
+                            <span class="label-title">Проверка обновлений (GitHub Releases)</span>
+                            <span class="label-desc" id="settings-update-desc">Текущая версия: Sonde v2.0.0-alpha.1. Проверка последних релизов на github.com/qualbyy/sonde.</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" id="btnSettingsCheckUpdate" class="btn-save-top" style="padding: 4px 12px; font-size: 11px;" onclick="checkSettingsUpdates()">ПРОВЕРИТЬ</button>
+                            <button type="button" id="btnSettingsUpdateNow" class="btn-save-top hidden" style="padding: 4px 12px; font-size: 11px; background: #10b981; border-color: #10b981; color: #000;" onclick="window.open('https://github.com/qualbyy/sonde/releases/latest', '_blank')">ОБНОВИТЬ</button>
+                        </div>
+                    </div>
+
                     <div class="form-row">
                         <div class="label-wrap">
                             <span class="label-title" data-i18n="lbl_language">Display Language</span>
@@ -656,6 +680,17 @@
                             <option value="dark" data-i18n="opt_ws_dark">Dark Mode</option>
                             <option value="system" data-i18n="opt_ws_system">Follow System</option>
                         </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title" data-i18n="lbl_force_dark">[ЭКСПЕРИМЕНТАЛЬНО] Тёмная тема для всех сайтов</span>
+                            <span class="label-desc" data-i18n="desc_force_dark">Принудительно инвертирует фон светлых страниц с сохранением медиа и картинок (Force Dark Mode).</span>
+                        </div>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="setting-force-dark-mode" onchange="applySettingLive('force_dark_mode', this.checked ? 'true' : 'false')">
+                            <span class="label-title" data-i18n="lbl_active">Active</span>
+                        </label>
                     </div>
 
                     <div class="form-row">
@@ -1213,6 +1248,41 @@
         }
         window.sendToHost = sendToHost;
 
+        async function checkSettingsUpdates() {
+            const btn = document.getElementById('btnSettingsCheckUpdate');
+            const btnUpdate = document.getElementById('btnSettingsUpdateNow');
+            const desc = document.getElementById('settings-update-desc');
+            if (btn) btn.innerText = '...';
+            try {
+                const res = await fetch('https://api.github.com/repos/qualbyy/sonde/releases/latest');
+                if (!res.ok) throw new Error('Status ' + res.status);
+                const data = await res.json();
+                const latestTag = data.tag_name ? data.tag_name.replace(/^v/, '') : '';
+                if (btn) btn.innerText = currentLang === 'ru' ? 'ПРОВЕРЕНО' : 'CHECKED';
+
+                const p1 = latestTag.split('.').map(x => parseInt(x, 10) || 0);
+                const p2 = '2.0.0-alpha.1'.replace(/^v/, '').split('.').map(x => parseInt(x, 10) || 0);
+                let isNewer = false;
+                for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+                    const a = p1[i] || 0;
+                    const b = p2[i] || 0;
+                    if (a > b) { isNewer = true; break; }
+                    if (a < b) { break; }
+                }
+
+                if (isNewer) {
+                    if (desc) desc.innerHTML = `<span style="color: #10b981; font-weight: bold;">Доступна новая версия: v${latestTag}!</span> (Текущая: v2.0.0-alpha.1)`;
+                    if (btnUpdate) btnUpdate.classList.remove('hidden');
+                } else {
+                    if (desc) desc.innerText = currentLang === 'ru' ? 'У вас установлена самая актуальная версия Sonde v2.0.0-alpha.1.' : 'Sonde v2.0.0-alpha.1 is up to date.';
+                }
+            } catch (e) {
+                if (btn) btn.innerText = currentLang === 'ru' ? 'ПРОВЕРИТЬ' : 'CHECK';
+                if (desc) desc.innerText = currentLang === 'ru' ? 'Проверьте релизы вручную на github.com/qualbyy/sonde/releases' : 'Check releases at github.com/qualbyy/sonde/releases';
+            }
+        }
+        window.checkSettingsUpdates = checkSettingsUpdates;
+
         window.populateSettings = function(s) {
             if (!s) return;
             if (s.language && document.getElementById('setting-language')) {
@@ -1227,6 +1297,7 @@
                 applyPreviewTheme(s.theme);
             }
             if (s.website_theme && document.getElementById('setting-website-theme')) document.getElementById('setting-website-theme').value = s.website_theme;
+            if (document.getElementById('setting-force-dark-mode') && s.force_dark_mode !== undefined) document.getElementById('setting-force-dark-mode').checked = s.force_dark_mode === 'true';
             if (s.accent_color && document.getElementById('setting-accent')) {
                 selectAccent(s.accent_color);
             }
@@ -1378,6 +1449,8 @@
                 opt_ws_light: "Светлая (по умолчанию)",
                 opt_ws_dark: "Темная тема",
                 opt_ws_system: "Системная",
+                lbl_force_dark: "[ЭКСПЕРИМЕНТАЛЬНО] Тёмная тема для всех сайтов",
+                desc_force_dark: "Принудительно инвертирует фон светлых страниц с сохранением медиа и картинок (Force Dark Mode).",
                 lbl_accent: "Ключевой акцентный цвет",
                 desc_accent: "Основной цвет подсветки активных элементов, вкладок и рамок.",
                 lbl_ui_mode: "Режим интерфейса",
@@ -1525,6 +1598,8 @@
                 opt_ws_light: "Clean Light (Default)",
                 opt_ws_dark: "Dark Mode",
                 opt_ws_system: "Follow System",
+                lbl_force_dark: "[EXPERIMENTAL] Force Dark Mode for all sites",
+                desc_force_dark: "Inverts background of bright pages while preserving images and videos.",
                 lbl_accent: "Primary Accent Color",
                 desc_accent: "Highlight color for active tabs, borders, and focused elements.",
                 lbl_ui_mode: "UI Layout Mode",
@@ -2129,6 +2204,7 @@
             params.set('new_tab_url', document.getElementById('setting-new-tab-url').value);
             params.set('theme', theme);
             params.set('website_theme', document.getElementById('setting-website-theme').value);
+            params.set('force_dark_mode', document.getElementById('setting-force-dark-mode')?.checked ? 'true' : 'false');
             params.set('accent_color', accent);
             params.set('ui_mode', document.getElementById('setting-ui-mode').value);
             params.set('tab_orientation', document.getElementById('setting-tab-orientation').value);

@@ -31,6 +31,7 @@ enum UserEvent {
     AdBlockStateChanged(bool),
     VaultUnlocked(String),
     VaultAuthFailed,
+    AutofillData(String),
     OpenDevTools,
     ToggleFullscreen,
     CloseWindow,
@@ -289,6 +290,28 @@ fn main() -> wry::Result<()> {
                             }
                         }
                     }
+                    "get_autofill" => {
+                        if let Some(target_url) = v["url"].as_str() {
+                            let domain = if let Ok(u) = reqwest::Url::parse(target_url) {
+                                u.host_str().unwrap_or("").replace("www.", "")
+                            } else {
+                                target_url.replace("https://", "").replace("http://", "")
+                            };
+                            if !domain.is_empty() {
+                                let passwords = db_clone.get_passwords().unwrap_or_default();
+                                for entry in passwords {
+                                    if !entry.url.is_empty() && (entry.url.to_lowercase().contains(&domain.to_lowercase()) || domain.to_lowercase().contains(&entry.url.to_lowercase())) {
+                                        let json = serde_json::json!({
+                                            "username": entry.username,
+                                            "password": entry.password
+                                        }).to_string();
+                                        let _ = proxy_clone.send_event(UserEvent::AutofillData(json));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     "add_bookmark" => {
                         let url = v["url"].as_str().unwrap_or("");
                         let title = v["title"].as_str().unwrap_or("Bookmark");
@@ -403,7 +426,7 @@ fn main() -> wry::Result<()> {
                             let p_clone = proxy_clone.clone();
                             std::thread::spawn(move || {
                                 let client = reqwest::blocking::Client::builder()
-                                    .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+                                    .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
                                     .timeout(std::time::Duration::from_secs(8))
                                     .build();
                                 if let Ok(c) = client {
@@ -480,7 +503,7 @@ fn main() -> wry::Result<()> {
             settings.set_enable_media_stream(true);
             settings.set_enable_mediasource(true);
             settings.set_enable_javascript(true);
-            settings.set_user_agent(Some("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Sonde/2.0"));
+            settings.set_user_agent(Some("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"));
         }
 
         window.gtk_window().show_all();
@@ -525,6 +548,10 @@ fn main() -> wry::Result<()> {
             }
             Event::UserEvent(UserEvent::VaultAuthFailed) => {
                 let script = "if (window.onVaultAuthFailed) window.onVaultAuthFailed(); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.onVaultAuthFailed) document.getElementById('webFrame').contentWindow.onVaultAuthFailed();";
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::AutofillData(json_str)) => {
+                let script = format!("if (window.onAutofillData) window.onAutofillData({});", json_str);
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::AiResponse(text)) => {

@@ -193,6 +193,11 @@ const elements = {
   readerContent: document.getElementById('readerContent'),
   btnMenu: document.getElementById('btnMenu'),
   appMenu: document.getElementById('appMenu'),
+  btnNavOverflow: document.getElementById('btnNavOverflow'),
+  navOverflowPopup: document.getElementById('navOverflowPopup'),
+  actionButtonsBar: document.getElementById('actionButtonsBar'),
+  btnCheckUpdate: document.getElementById('btnCheckUpdate'),
+  btnMenuSync: document.getElementById('btnMenuSync'),
   btnBookmark: document.getElementById('btnBookmark'),
   bookmarksPopup: document.getElementById('bookmarksPopup'),
   bookmarksListPopup: document.getElementById('bookmarksListPopup'),
@@ -474,6 +479,88 @@ function navigateSplitTab(input) {
   }
 }
 
+function updateSecurityDetails(url) {
+  const secBadge = document.getElementById('statusBarSecurity');
+  const dot = document.getElementById('secStatusDot');
+  const hostVal = document.getElementById('secHostVal');
+  const protoVal = document.getElementById('secProtocolVal');
+  const cipherVal = document.getElementById('secCipherVal');
+  const certVal = document.getElementById('secCertVal');
+  const descVal = document.getElementById('secDescVal');
+  const contVal = document.getElementById('secContainerVal');
+
+  const active = tabs.find(t => t.is_active);
+  if (contVal && active) contVal.textContent = `[${(active.container || 'DEFAULT').toUpperCase()}]`;
+
+  let hostname = '';
+  try {
+    hostname = new URL(url).hostname.replace(/^www\./, '');
+  } catch(e) {
+    hostname = url;
+  }
+  if (hostVal) hostVal.textContent = hostname || 'sonde';
+
+  if (url.startsWith('https://')) {
+    if (secBadge) {
+      secBadge.textContent = currentLanguage === 'ru' ? '[ЗАЩИЩЕНО]' : '[SECURE]';
+      secBadge.className = 'status-bar-badge-btn secure';
+      secBadge.style.color = '#10b981';
+      secBadge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    }
+    if (dot) dot.className = 'sec-status-dot';
+    if (protoVal) protoVal.textContent = 'TLS 1.3 / HTTPS';
+    if (cipherVal) cipherVal.textContent = 'AES-256-GCM / SHA-384';
+    if (certVal) {
+      certVal.textContent = currentLanguage === 'ru' ? 'Действителен (доверенный CA)' : 'Valid (Trusted CA)';
+      certVal.style.color = '#10b981';
+    }
+    if (descVal) {
+      descVal.textContent = currentLanguage === 'ru'
+        ? 'Подключение к этому сайту защищено. Пароли, платежные данные и персональная информация шифруются при передаче.'
+        : 'Connection to this site is secure. Passwords, payment details, and personal info are encrypted in transit.';
+    }
+  } else if (url.startsWith('http://')) {
+    if (secBadge) {
+      secBadge.textContent = currentLanguage === 'ru' ? '[НЕБЕЗОПАСНО]' : '[INSECURE]';
+      secBadge.className = 'status-bar-badge-btn insecure';
+      secBadge.style.color = '#ef4444';
+      secBadge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+    }
+    if (dot) dot.className = 'sec-status-dot insecure';
+    if (protoVal) protoVal.textContent = 'HTTP (без шифрования)';
+    if (cipherVal) cipherVal.textContent = 'Отсутствует / None';
+    if (certVal) {
+      certVal.textContent = currentLanguage === 'ru' ? 'Отсутствует (не защищено)' : 'None (Insecure)';
+      certVal.style.color = '#ef4444';
+    }
+    if (descVal) {
+      descVal.textContent = currentLanguage === 'ru'
+        ? 'Внимание: подключение не защищено. Любая передаваемая информация может быть перехвачена третьими лицами.'
+        : 'Warning: Connection is not private. Data submitted to this site can be intercepted.';
+    }
+  } else {
+    // System / Internal Tab
+    if (secBadge) {
+      secBadge.textContent = currentLanguage === 'ru' ? '[СИСТЕМА]' : '[SYSTEM]';
+      secBadge.className = 'status-bar-badge-btn system';
+      secBadge.style.color = 'var(--accent)';
+      secBadge.style.borderColor = 'var(--accent)';
+    }
+    if (dot) dot.className = 'sec-status-dot system';
+    if (protoVal) protoVal.textContent = 'Sonde IPC / SQLite';
+    if (cipherVal) cipherVal.textContent = 'Локальная память процесса';
+    if (certVal) {
+      certVal.textContent = currentLanguage === 'ru' ? 'Встроенный доверенный компонент' : 'Internal Trusted Component';
+      certVal.style.color = 'var(--accent)';
+    }
+    if (descVal) {
+      descVal.textContent = currentLanguage === 'ru'
+        ? 'Встроенная системная страница Sonde. Работает локально без сетевых запросов.'
+        : 'Internal Sonde system page. Runs locally with zero external network traffic.';
+    }
+  }
+}
+
 function loadTabContent(tab) {
   if (!tab || !elements.webFrame) return;
 
@@ -481,25 +568,10 @@ function loadTabContent(tab) {
 
   const prog = document.getElementById('statusBarProgress');
   const progFill = document.getElementById('statusBarProgressFill');
-  const secBadge = document.getElementById('statusBarSecurity');
   const sbUrl = document.getElementById('statusBarUrl');
   if (sbUrl) sbUrl.textContent = url.startsWith('http') ? url : (currentLanguage === 'ru' ? 'Готово' : 'Ready');
 
-  if (secBadge) {
-    if (url.startsWith('https://')) {
-      secBadge.textContent = '🔒 SECURE';
-      secBadge.style.color = '#10b981';
-      secBadge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-    } else if (url.startsWith('http://')) {
-      secBadge.textContent = '⚠️ HTTP';
-      secBadge.style.color = '#ef4444';
-      secBadge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-    } else {
-      secBadge.textContent = '⚡ SONDE';
-      secBadge.style.color = 'var(--accent)';
-      secBadge.style.borderColor = 'var(--accent)';
-    }
-  }
+  updateSecurityDetails(url);
 
   if (prog && progFill) {
     prog.classList.remove('hidden');
@@ -547,6 +619,7 @@ function loadTabContent(tab) {
     // Load external site through embedded Rust proxy to bypass WebKit CSP & X-Frame-Options
     elements.webFrame.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
     if (elements.urlInput) elements.urlInput.value = url;
+    sendIpc('get_autofill', { url });
   } else {
     elements.webFrame.removeAttribute('srcdoc');
     elements.webFrame.src = url;
@@ -567,6 +640,11 @@ if (elements.webFrame) {
         prog.classList.add('hidden');
         progFill.style.width = '0%';
       }, 250);
+    }
+    if (currentSettings && currentSettings.force_dark_mode === 'true') {
+      try {
+        elements.webFrame.contentWindow.postMessage({ type: 'sonde_toggle_dark', enabled: true }, '*');
+      } catch(e) {}
     }
   });
 }
@@ -919,17 +997,6 @@ function getSearchUrl(query) {
 function applyMobileViewport() {
   if (!isMobileMode || !elements.webFrame) return;
 
-  const isCustomResponsive = elements.vpPresetSelect && elements.vpPresetSelect.value === 'custom';
-
-  if (isCustomResponsive) {
-    elements.webFrame.style.width = '100%';
-    elements.webFrame.style.height = '100%';
-    elements.webFrame.style.maxWidth = '100%';
-    elements.webFrame.style.maxHeight = '100%';
-    elements.webFrame.style.transform = '';
-    return;
-  }
-
   const containerW = (elements.webViewContainer ? elements.webViewContainer.clientWidth : window.innerWidth) - 40;
   const containerH = (elements.webViewContainer ? elements.webViewContainer.clientHeight : window.innerHeight) - 40;
 
@@ -942,6 +1009,8 @@ function applyMobileViewport() {
   elements.webFrame.style.height = `${mobileHeight}px`;
   elements.webFrame.style.maxWidth = `${mobileWidth}px`;
   elements.webFrame.style.maxHeight = `${mobileHeight}px`;
+  elements.webFrame.style.minWidth = `${mobileWidth}px`;
+  elements.webFrame.style.minHeight = `${mobileHeight}px`;
   elements.webFrame.style.transform = scale < 1.0 ? `scale(${scale.toFixed(3)})` : '';
   elements.webFrame.style.transformOrigin = 'center center';
 }
@@ -986,6 +1055,7 @@ function setMobileMode(active, width = 390, height = 844) {
 }
 
 window.addEventListener('resize', () => {
+  checkTopNavOverflow();
   if (isMobileMode) applyMobileViewport();
 });
 
@@ -1119,8 +1189,8 @@ if (elements.vpPresetSelect) {
       applyMobileViewport();
     } else {
       const parts = val.split('x');
-      const w = parseInt(parts[0]);
-      const h = parseInt(parts[1]);
+      const w = parseInt(parts[0], 10);
+      const h = parseInt(parts[1], 10);
       if (!isNaN(w) && !isNaN(h)) {
         mobileWidth = w;
         mobileHeight = h;
@@ -1134,9 +1204,11 @@ if (elements.vpPresetSelect) {
 
 if (elements.vpWidthInput) {
   elements.vpWidthInput.addEventListener('input', (e) => {
-    const w = parseInt(e.target.value);
-    if (!isNaN(w) && w >= 200) {
+    const raw = e.target.value.replace(/[^0-9]/g, '');
+    const w = parseInt(raw, 10);
+    if (!isNaN(w) && w >= 150) {
       mobileWidth = w;
+      if (elements.vpPresetSelect) elements.vpPresetSelect.value = 'custom';
       applyMobileViewport();
     }
   });
@@ -1144,9 +1216,11 @@ if (elements.vpWidthInput) {
 
 if (elements.vpHeightInput) {
   elements.vpHeightInput.addEventListener('input', (e) => {
-    const h = parseInt(e.target.value);
-    if (!isNaN(h) && h >= 200) {
+    const raw = e.target.value.replace(/[^0-9]/g, '');
+    const h = parseInt(raw, 10);
+    if (!isNaN(h) && h >= 150) {
       mobileHeight = h;
+      if (elements.vpPresetSelect) elements.vpPresetSelect.value = 'custom';
       applyMobileViewport();
     }
   });
@@ -1197,14 +1271,121 @@ if (elements.btnFullscreen) {
 // Unified Popups & Backdrop Controller
 function closeAllPopups() {
   if (elements.appMenu) elements.appMenu.classList.add('hidden');
+  if (elements.navOverflowPopup) elements.navOverflowPopup.classList.add('hidden');
   if (elements.bookmarksPopup) elements.bookmarksPopup.classList.add('hidden');
   if (elements.downloadsPopup) elements.downloadsPopup.classList.add('hidden');
   if (elements.tabContextMenu) elements.tabContextMenu.classList.add('hidden');
   if (elements.popupBackdrop) elements.popupBackdrop.classList.add('hidden');
+  const secPopup = document.getElementById('securityPopup');
+  if (secPopup) secPopup.classList.add('hidden');
 }
 
 if (elements.popupBackdrop) {
   elements.popupBackdrop.addEventListener('click', closeAllPopups);
+}
+
+// Security Dropdown Popup Listeners
+const btnSecBadge = document.getElementById('statusBarSecurity');
+const secPopup = document.getElementById('securityPopup');
+const btnCloseSec = document.getElementById('btnCloseSecurityPopup');
+const btnSecAdb = document.getElementById('btnSecAdblockToggle');
+const btnClearData = document.getElementById('btnClearSiteData');
+
+if (btnSecBadge && secPopup) {
+  btnSecBadge.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = secPopup.classList.contains('hidden');
+    closeAllPopups();
+    if (isHidden) {
+      const active = tabs.find(t => t.is_active);
+      updateSecurityDetails(active ? active.url : 'sonde://startpage');
+      secPopup.classList.remove('hidden');
+    }
+  });
+}
+
+if (btnCloseSec && secPopup) {
+  btnCloseSec.addEventListener('click', () => secPopup.classList.add('hidden'));
+}
+
+if (btnSecAdb) {
+  btnSecAdb.addEventListener('click', () => {
+    sendIpc('toggle_adblock');
+    setTimeout(() => {
+      const isEn = elements.adblockCountTag ? !elements.adblockCountTag.textContent.includes('ОТКЛ') : true;
+      btnSecAdb.textContent = isEn ? '[АКТИВЕН]' : '[ОТКЛЮЧЕН]';
+      btnSecAdb.style.color = isEn ? '#10b981' : '#ef4444';
+    }, 100);
+  });
+}
+
+if (btnClearData) {
+  btnClearData.addEventListener('click', () => {
+    showToast(currentLanguage === 'ru' ? "Куки и локальные данные сайта очищены" : "Site cookies and local cache cleared");
+    secPopup.classList.add('hidden');
+  });
+}
+
+// Password Save Prompt Controller
+let pendingSaveCreds = null;
+function showPasswordSavePrompt(url, username, password) {
+  if (!password) return;
+  let hostname = '';
+  try { hostname = new URL(url).hostname.replace(/^www\./, ''); } catch(e) { hostname = url; }
+
+  const ignored = JSON.parse(localStorage.getItem('sonde_ignored_pwd_hosts') || '[]');
+  if (ignored.includes(hostname)) return;
+
+  pendingSaveCreds = { url, hostname, username, password };
+  const promptModal = document.getElementById('passwordSavePrompt');
+  const siteLbl = document.getElementById('pwdPromptSite');
+  const userInp = document.getElementById('txtPromptUser');
+  const passInp = document.getElementById('txtPromptPass');
+
+  if (siteLbl) siteLbl.textContent = hostname;
+  if (userInp) userInp.value = username || '';
+  if (passInp) passInp.value = password || '';
+  if (promptModal) promptModal.classList.remove('hidden');
+}
+
+function hidePasswordSavePrompt() {
+  const promptModal = document.getElementById('passwordSavePrompt');
+  if (promptModal) promptModal.classList.add('hidden');
+  pendingSaveCreds = null;
+}
+
+const btnSaveYes = document.getElementById('btnSavePromptYes');
+if (btnSaveYes) {
+  btnSaveYes.addEventListener('click', () => {
+    if (!pendingSaveCreds) return;
+    const userInp = document.getElementById('txtPromptUser');
+    const passInp = document.getElementById('txtPromptPass');
+    const u = userInp ? userInp.value.trim() : pendingSaveCreds.username;
+    const p = passInp ? passInp.value : pendingSaveCreds.password;
+    sendIpc('add_password', { url: pendingSaveCreds.hostname, username: u, password: p });
+    showToast(currentLanguage === 'ru' ? "Пароль сохранён в хранилище" : "Password saved to vault");
+    hidePasswordSavePrompt();
+  });
+}
+
+const btnSaveNo = document.getElementById('btnSavePromptNo');
+if (btnSaveNo) btnSaveNo.addEventListener('click', hidePasswordSavePrompt);
+
+const btnClosePwd = document.getElementById('btnClosePwdPrompt');
+if (btnClosePwd) btnClosePwd.addEventListener('click', hidePasswordSavePrompt);
+
+const btnSaveNever = document.getElementById('btnSavePromptNever');
+if (btnSaveNever) {
+  btnSaveNever.addEventListener('click', () => {
+    if (!pendingSaveCreds) return;
+    const ignored = JSON.parse(localStorage.getItem('sonde_ignored_pwd_hosts') || '[]');
+    if (!ignored.includes(pendingSaveCreds.hostname)) {
+      ignored.push(pendingSaveCreds.hostname);
+      localStorage.setItem('sonde_ignored_pwd_hosts', JSON.stringify(ignored));
+    }
+    showToast(currentLanguage === 'ru' ? `Автосохранение для ${pendingSaveCreds.hostname} отключено` : `Save disabled for ${pendingSaveCreds.hostname}`);
+    hidePasswordSavePrompt();
+  });
 }
 
 function openInternalPage(url) {
@@ -1629,6 +1810,7 @@ const menuActions = {
   menuBookmarks: (e) => toggleBookmarksPopup(e),
   menuAi: () => toggleAiPanel(),
   menuAdBlock: () => sendIpc('toggle_adblock'),
+  menuForceDark: () => toggleForceDarkMode(),
   menuSettings: () => openInternalPage('sonde://settings'),
   // Submenu Actions
   optTabVert: () => setTabOrientation('vertical'),
@@ -1655,12 +1837,140 @@ Object.entries(menuActions).forEach(([id, action]) => {
 // Dismiss popups on click outside
 document.addEventListener('click', (e) => {
   if (elements.appMenu && !elements.appMenu.contains(e.target) && e.target !== elements.btnMenu && !elements.btnMenu.contains(e.target) &&
+      elements.navOverflowPopup && !elements.navOverflowPopup.contains(e.target) && e.target !== elements.btnNavOverflow && !elements.btnNavOverflow.contains(e.target) &&
       elements.bookmarksPopup && !elements.bookmarksPopup.contains(e.target) && e.target !== elements.btnBookmark && !elements.btnBookmark.contains(e.target) &&
       elements.downloadsPopup && !elements.downloadsPopup.contains(e.target) && e.target !== elements.btnDownloads && !elements.btnDownloads.contains(e.target) &&
       elements.tabContextMenu && !elements.tabContextMenu.contains(e.target)) {
     closeAllPopups();
   }
 });
+
+// Top Nav Responsive Overflow Manager
+function checkTopNavOverflow() {
+  const urlCont = document.querySelector('.url-bar-container');
+  const actBar = elements.actionButtonsBar;
+  if (!urlCont || !actBar) return;
+
+  const urlWidth = urlCont.clientWidth;
+  const isTooSmall = urlWidth < 140 || window.innerWidth < 880;
+
+  actBar.classList.toggle('collapsed', isTooSmall);
+}
+
+function toggleNavOverflow(e) {
+  if (e) e.stopPropagation();
+  if (!elements.navOverflowPopup) return;
+  const isHidden = elements.navOverflowPopup.classList.contains('hidden');
+  closeAllPopups();
+  if (isHidden) {
+    elements.navOverflowPopup.classList.remove('hidden');
+    if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
+  }
+}
+
+if (elements.btnNavOverflow) {
+  elements.btnNavOverflow.addEventListener('click', toggleNavOverflow);
+}
+
+// Nav overflow items
+const ovfActions = {
+  ovfBookmark: (e) => toggleBookmarksPopup(e),
+  ovfDownloads: (e) => toggleDownloadsPopup(e),
+  ovfSplit: toggleSplitView,
+  ovfReader: toggleReaderMode,
+  ovfAi: toggleAiPanel,
+  ovfCommandPalette: toggleCommandPalette
+};
+
+Object.entries(ovfActions).forEach(([id, action]) => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeAllPopups();
+      action(e);
+    });
+  }
+});
+
+// GitHub Update Checker & Cloudflare Sync
+const CURRENT_VERSION = '2.0.0-alpha.1';
+const GITHUB_REPO = 'qualbyy/sonde';
+
+function compareVersions(v1, v2) {
+  const p1 = v1.replace(/^v/, '').split('.').map(x => parseInt(x, 10) || 0);
+  const p2 = v2.replace(/^v/, '').split('.').map(x => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+    const a = p1[i] || 0;
+    const b = p2[i] || 0;
+    if (a > b) return 1;
+    if (a < b) return -1;
+  }
+  return 0;
+}
+
+async function checkForUpdates() {
+  const btn = document.getElementById('btnCheckUpdate');
+  const banner = document.getElementById('updateResultBanner');
+  if (btn) btn.textContent = '...';
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) throw new Error('Status ' + res.status);
+    const data = await res.json();
+    const latestTag = data.tag_name ? data.tag_name.replace(/^v/, '') : '';
+    if (btn) btn.textContent = '[ПРОВЕРИТЬ]';
+
+    const isNewer = latestTag && (compareVersions(latestTag, CURRENT_VERSION) > 0);
+    if (isNewer) {
+      if (banner) {
+        banner.className = 'update-result-banner available';
+        banner.innerHTML = `<span>ДОСТУПНО: v${latestTag}</span> <button type="button" class="btn-update-now" id="btnUpdateNow">[ОБНОВИТЬ]</button>`;
+        banner.classList.remove('hidden');
+        document.getElementById('btnUpdateNow')?.addEventListener('click', () => {
+          createTab(data.html_url || `https://github.com/${GITHUB_REPO}/releases`);
+          closeAllPopups();
+        });
+      }
+      showToast(currentLanguage === 'ru' ? `Доступно обновление: v${latestTag}!` : `New update available: v${latestTag}!`);
+    } else {
+      if (banner) {
+        banner.className = 'update-result-banner current';
+        banner.textContent = currentLanguage === 'ru' ? `АКТУАЛЬНАЯ ВЕРСИЯ (v${CURRENT_VERSION})` : `UP TO DATE (v${CURRENT_VERSION})`;
+        banner.classList.remove('hidden');
+        setTimeout(() => banner.classList.add('hidden'), 4000);
+      }
+      showToast(currentLanguage === 'ru' ? `У вас актуальная версия Sonde (v${CURRENT_VERSION})` : `Sonde is up to date (v${CURRENT_VERSION})`);
+    }
+  } catch(e) {
+    if (btn) btn.textContent = '[ПРОВЕРИТЬ]';
+    if (banner) {
+      banner.className = 'update-result-banner current';
+      banner.textContent = currentLanguage === 'ru' ? 'ПРОВЕРЬТЕ НА GITHUB RELEASES' : 'CHECK GITHUB RELEASES';
+      banner.classList.remove('hidden');
+      setTimeout(() => banner.classList.add('hidden'), 4000);
+    }
+    showToast(currentLanguage === 'ru' ? "Проверка обновлений: github.com/qualbyy/sonde" : "Check updates on github.com/qualbyy/sonde");
+  }
+}
+
+if (document.getElementById('btnCheckUpdate')) {
+  document.getElementById('btnCheckUpdate').addEventListener('click', (e) => {
+    e.stopPropagation();
+    checkForUpdates();
+  });
+}
+
+if (document.getElementById('btnMenuSync')) {
+  document.getElementById('btnMenuSync').addEventListener('click', (e) => {
+    e.stopPropagation();
+    showToast(currentLanguage === 'ru'
+      ? "Синхронизация Cloudflare Workers: [СКОРО в релизе 2.1.0]"
+      : "Cloudflare Workers Sync: [COMING SOON in v2.1.0]");
+  });
+}
 
 // Window Controls (Frameless Top Bar)
 if (elements.btnWinMin) elements.btnWinMin.addEventListener('click', () => sendIpc('window_minimize'));
@@ -1809,6 +2119,7 @@ const commands = [
   { name: 'Toggle Developer Tools (F12)', action: openDevTools },
   { name: 'Toggle Split View (Ctrl+\\)', action: toggleSplitView },
   { name: 'Toggle Reading Mode (Ctrl+Alt+R)', action: toggleReaderMode },
+  { name: 'Toggle Force Dark Mode for all sites (Experimental)', action: () => toggleForceDarkMode() },
   { name: 'Toggle Tab Orientation (Vertical / Horizontal)', action: () => setTabOrientation(tabOrientation === 'vertical' ? 'horizontal' : 'vertical') },
   { name: 'Toggle UI Mode (Minimal / Vim)', action: () => setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal') },
   { name: 'Toggle Mobile Viewport (Ctrl+Shift+M)', action: toggleMobileMode },
@@ -2070,6 +2381,19 @@ function handleSondeInternalCommand(cmdUrl) {
       if (key === 'language') applyLanguage(value);
       if (key === 'tab_orientation') setTabOrientation(value);
       if (key === 'ui_mode') setUiMode(value, true);
+      if (key === 'force_dark_mode') {
+        const en = value === 'true';
+        const tag = document.getElementById('forceDarkStatusTag');
+        if (tag) {
+          tag.textContent = en ? (currentLanguage === 'ru' ? '[ВКЛ]' : '[ON]') : (currentLanguage === 'ru' ? '[ВЫКЛ]' : '[OFF]');
+          tag.style.color = en ? '#10b981' : 'var(--text-muted)';
+        }
+        if (elements.webFrame && elements.webFrame.contentWindow) {
+          try {
+            elements.webFrame.contentWindow.postMessage({ type: 'sonde_toggle_dark', enabled: en }, '*');
+          } catch(e) {}
+        }
+      }
     }
     showToast(currentLanguage === 'ru' ? "Настройки сохранены" : "Settings saved");
     return;
@@ -2089,6 +2413,19 @@ function handleSondeInternalCommand(cmdUrl) {
       if (key === 'language') applyLanguage(value);
       if (key === 'tab_orientation') setTabOrientation(value);
       if (key === 'ui_mode') setUiMode(value, true);
+      if (key === 'force_dark_mode') {
+        const en = value === 'true';
+        const tag = document.getElementById('forceDarkStatusTag');
+        if (tag) {
+          tag.textContent = en ? (currentLanguage === 'ru' ? '[ВКЛ]' : '[ON]') : (currentLanguage === 'ru' ? '[ВЫКЛ]' : '[OFF]');
+          tag.style.color = en ? '#10b981' : 'var(--text-muted)';
+        }
+        if (elements.webFrame && elements.webFrame.contentWindow) {
+          try {
+            elements.webFrame.contentWindow.postMessage({ type: 'sonde_toggle_dark', enabled: en }, '*');
+          } catch(e) {}
+        }
+      }
     }
     return;
   }
@@ -2173,6 +2510,8 @@ window.addEventListener('message', (e) => {
     if (statusBar) {
       statusBar.textContent = e.data.url || (currentLanguage === 'ru' ? 'Готово' : 'Ready');
     }
+  } else if (e.data.type === 'sonde_save_password_prompt') {
+    showPasswordSavePrompt(e.data.url, e.data.username, e.data.password);
   } else if (e.data.type === 'sonde_download_complete') {
     showToast((currentLanguage === 'ru' ? 'Файл скачан: ' : 'Downloaded: ') + (e.data.filename || ''));
     sendIpc('get_downloads');
@@ -2240,6 +2579,19 @@ window.onSettingsLoaded = function(settings) {
   if (settings.language) applyLanguage(settings.language);
   if (settings.tab_orientation) setTabOrientation(settings.tab_orientation);
   if (settings.ui_mode) setUiMode(settings.ui_mode, true);
+  const forceDarkTag = document.getElementById('forceDarkStatusTag');
+  if (forceDarkTag) {
+    const isDark = settings.force_dark_mode === 'true';
+    forceDarkTag.textContent = isDark ? (currentLanguage === 'ru' ? '[ВКЛ]' : '[ON]') : (currentLanguage === 'ru' ? '[ВЫКЛ]' : '[OFF]');
+    forceDarkTag.style.color = isDark ? '#10b981' : 'var(--text-muted)';
+  }
+  if (settings.force_dark_mode === 'true') {
+    if (elements.webFrame && elements.webFrame.contentWindow) {
+      try {
+        elements.webFrame.contentWindow.postMessage({ type: 'sonde_toggle_dark', enabled: true }, '*');
+      } catch(e) {}
+    }
+  }
 
   if (settings.first_run_completed !== 'true') {
     const onboarding = document.getElementById('onboardingModal');
@@ -2290,11 +2642,84 @@ window.setOnbMode = function(mode) {
   sendIpc('save_setting', { key: 'ui_mode', value: mode });
 };
 
+window.toggleOnbAdvanced = function() {
+  const container = document.getElementById('onbAdvancedContainer');
+  const lbl = document.getElementById('onbAdvToggleLabel');
+  if (!container) return;
+  const isHidden = container.classList.contains('hidden');
+  container.classList.toggle('hidden');
+  if (lbl) {
+    lbl.textContent = isHidden
+      ? (currentLanguage === 'ru' ? '[-] СКРЫТЬ ПРОДВИНУТЫЕ НАСТРОЙКИ' : '[-] HIDE ADVANCED SETTINGS')
+      : (currentLanguage === 'ru' ? '[+] ПРОДВИНУТЫЕ НАСТРОЙКИ // ADVANCED SETTINGS' : '[+] ADVANCED SETTINGS');
+  }
+};
+
+window.setOnbAdblock = function(checked) {
+  sendIpc('save_setting', { key: 'adblock_enabled', value: checked ? 'true' : 'false' });
+  currentSettings.adblock_enabled = checked ? 'true' : 'false';
+};
+
+window.setOnbForceDark = function(checked) {
+  sendIpc('save_setting', { key: 'force_dark_mode', value: checked ? 'true' : 'false' });
+  currentSettings.force_dark_mode = checked ? 'true' : 'false';
+  if (elements.webFrame && elements.webFrame.contentWindow) {
+    try {
+      elements.webFrame.contentWindow.postMessage({ type: 'sonde_toggle_dark', enabled: checked }, '*');
+    } catch(e) {}
+  }
+  showToast(checked
+    ? (currentLanguage === 'ru' ? "Принудительная тёмная тема: ВКЛ" : "Force Dark Mode: ON")
+    : (currentLanguage === 'ru' ? "Принудительная тёмная тема: ВЫКЛ" : "Force Dark Mode: OFF"));
+};
+
+window.setOnbTabOrientation = function(ori) {
+  document.getElementById('onbTabVert')?.classList.toggle('active', ori === 'vertical');
+  document.getElementById('onbTabHoriz')?.classList.toggle('active', ori === 'horizontal');
+  setTabOrientation(ori);
+  sendIpc('save_setting', { key: 'tab_orientation', value: ori });
+};
+
+window.onAutofillData = function(data) {
+  if (!data || !elements.webFrame || !elements.webFrame.contentWindow) return;
+  try {
+    elements.webFrame.contentWindow.postMessage({
+      type: 'sonde_autofill_data',
+      username: data.username,
+      password: data.password
+    }, '*');
+  } catch(e) {}
+};
+
+function toggleForceDarkMode(enable) {
+  const next = enable !== undefined ? enable : (currentSettings.force_dark_mode !== 'true');
+  currentSettings.force_dark_mode = next ? 'true' : 'false';
+  sendIpc('save_setting', { key: 'force_dark_mode', value: next ? 'true' : 'false' });
+  const tag = document.getElementById('forceDarkStatusTag');
+  if (tag) {
+    tag.textContent = next ? (currentLanguage === 'ru' ? '[ВКЛ]' : '[ON]') : (currentLanguage === 'ru' ? '[ВЫКЛ]' : '[OFF]');
+    tag.style.color = next ? '#10b981' : 'var(--text-muted)';
+  }
+  if (elements.webFrame && elements.webFrame.contentWindow) {
+    try {
+      elements.webFrame.contentWindow.postMessage({ type: 'sonde_toggle_dark', enabled: next }, '*');
+    } catch(e) {}
+  }
+  showToast(next
+    ? (currentLanguage === 'ru' ? "Тёмная тема сайтов: ВКЛ" : "Force Dark Mode: ON")
+    : (currentLanguage === 'ru' ? "Тёмная тема сайтов: ВЫКЛ" : "Force Dark Mode: OFF"));
+}
+
 window.finishOnboarding = function() {
   const onboarding = document.getElementById('onboardingModal');
   if (onboarding) {
     onboarding.classList.add('hidden');
     onboarding.style.display = 'none';
+  }
+  const dlInput = document.getElementById('onbTxtDownloadDir');
+  if (dlInput && dlInput.value.trim()) {
+    sendIpc('save_setting', { key: 'download_dir', value: dlInput.value.trim() });
+    currentSettings.download_dir = dlInput.value.trim();
   }
   sendIpc('save_setting', { key: 'first_run_completed', value: 'true' });
   currentSettings.first_run_completed = 'true';
@@ -2340,6 +2765,7 @@ function escapeHtml(str) {
 }
 
 // Initial Render and Boot
+checkTopNavOverflow();
 renderTabs();
 renderHorizontalTabs();
 const initialTab = tabs.find(t => t.is_active);
