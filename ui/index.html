@@ -90,17 +90,46 @@
         </div>
       </header>
 
+      <!-- Horizontal Tab Bar (Displayed when Tab Layout is Horizontal) -->
+      <div id="horizontalTabBar" class="horizontal-tab-bar hidden">
+        <div id="horizontalTabsList" class="horizontal-tabs-list"></div>
+        <button id="btnNewTabHoriz" class="btn-new-tab-horiz" title="New Tab">+</button>
+      </div>
+
+      <!-- Responsive Mobile Viewport Controls Bar -->
+      <div id="viewportBar" class="viewport-bar hidden">
+        <span class="viewport-title" data-i18n="mobile_mode">Viewport:</span>
+        <select id="vpPresetSelect" class="viewport-select">
+          <option value="custom">Responsive (100%)</option>
+          <option value="390x844" selected>iPhone 15/16 (390 x 844)</option>
+          <option value="412x915">Google Pixel 8 (412 x 915)</option>
+          <option value="834x1194">iPad Pro 11" (834 x 1194)</option>
+          <option value="1366x768">Laptop (1366 x 768)</option>
+          <option value="1920x1080">Desktop FHD (1920 x 1080)</option>
+        </select>
+        <span class="viewport-label">W:</span>
+        <input type="number" id="vpWidthInput" class="viewport-input" value="390" min="200" max="3840">
+        <span class="viewport-label">H:</span>
+        <input type="number" id="vpHeightInput" class="viewport-input" value="844" min="200" max="2160">
+        <button id="btnVpRotate" class="btn-viewport" title="Rotate orientation">⟲</button>
+        <button id="btnVpClose" class="btn-viewport" title="Close mobile viewport">✕</button>
+      </div>
+
       <!-- Web Content Viewport & AI Panel Wrapper -->
       <div class="workspace-wrapper">
         <section id="webViewContainer" class="webview-container">
           <iframe id="webFrame" class="web-frame" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; camera; microphone; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
           <div id="splitPaneWrapper" class="split-pane-wrapper hidden">
-            <div class="split-toolbar">
-              <input type="text" id="urlInputSplit" placeholder="Search or address in split pane..." spellcheck="false">
+            <div id="splitToolbar" class="split-toolbar">
+              <input type="text" id="urlInputSplit" placeholder="Search or address in split pane..." spellcheck="false" data-i18n-placeholder="split_placeholder">
+              <button id="btnToggleSplitUrl" class="btn-icon" title="Toggle Address Bar">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
               <button id="btnCloseSplit" class="btn-icon" title="Close Split View">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
+            <button id="btnFloatingShowSplitUrl" class="btn-floating-split hidden" title="Show URL Bar">▼</button>
             <iframe id="webFrameSplit" src="about:blank" class="web-frame" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; camera; microphone; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
           </div>
         </section>
@@ -153,6 +182,12 @@
           </div>
         </aside>
       </div>
+
+      <!-- Vim Mode Status Bar -->
+      <div id="vimStatusBar" class="vim-status-bar hidden">
+        <span id="vimStatusText" class="vim-status-text" data-i18n="vim_status">[VIM-РЕЖИМ] Нажмите Esc для выхода | j/k: скролл, r: обновить, t: новая вкладка, x: закрыть</span>
+        <button id="btnExitVim" class="btn-exit-vim" data-i18n="exit_vim">ВЫЙТИ ИЗ VIM</button>
+      </div>
     </main>
 
     <!-- Anchored Bookmarks Popup -->
@@ -184,7 +219,7 @@
     <div id="appMenu" class="dropdown-menu hidden">
       <!-- 1. Zoom Controls Row -->
       <div class="menu-zoom-row">
-        <span class="menu-zoom-lbl">Масштаб:</span>
+        <span class="menu-zoom-lbl" data-i18n="zoom_label">Масштаб:</span>
         <button id="btnZoomOut" class="btn-zoom" title="Zoom Out">-</button>
         <span id="zoomLevelLbl" style="font-size: 11px; min-width: 38px; text-align: center;">100%</span>
         <button id="btnZoomIn" class="btn-zoom" title="Zoom In">+</button>
@@ -193,7 +228,7 @@
       </div>
 
       <div class="menu-item" id="menuMobileMode">
-        <span class="menu-label">Мобильный режим:</span>
+        <span class="menu-label" data-i18n="mobile_mode">Мобильный режим:</span>
         <span id="lblMobileStatus" class="menu-tag">[ВЫКЛ]</span>
       </div>
 
@@ -201,63 +236,77 @@
 
       <!-- 2. Reading & Media -->
       <div class="menu-item" id="menuReader">
-        <span class="menu-label">Режим чтения</span>
+        <span class="menu-label" data-i18n="reader_mode">Режим чтения</span>
         <span class="menu-shortcut">Ctrl+Alt+R</span>
       </div>
       <div class="menu-item" id="menuPip">
-        <span class="menu-label">Картинка в картинке / PiP</span>
+        <span class="menu-label" data-i18n="pip_mode">Картинка в картинке / PiP</span>
         <span class="menu-shortcut">Ctrl+Alt+P</span>
       </div>
-      <div class="menu-item" id="menuTabOrientation">
-        <span class="menu-label">Расположение вкладок</span>
+      <div class="menu-item menu-has-submenu" id="menuTabOrientation">
+        <span class="menu-label" data-i18n="tab_layout">Расположение вкладок</span>
         <span class="menu-arrow">›</span>
+        <div class="menu-submenu">
+          <div class="menu-item" id="optTabVert">
+            <span class="menu-checkbox" id="chkTabVert">[x]</span>
+            <span class="menu-label" data-i18n="tab_vertical">Вертикальные вкладки</span>
+          </div>
+          <div class="menu-item" id="optTabHoriz">
+            <span class="menu-checkbox" id="chkTabHoriz">[ ]</span>
+            <span class="menu-label" data-i18n="tab_horizontal">Горизонтальные вкладки</span>
+          </div>
+        </div>
       </div>
-      <div class="menu-item" id="menuUiMode">
-        <span class="menu-label">Режим интерфейса</span>
+      <div class="menu-item menu-has-submenu" id="menuUiMode">
+        <span class="menu-label" data-i18n="ui_mode">Режим интерфейса</span>
         <span class="menu-arrow">›</span>
+        <div class="menu-submenu">
+          <div class="menu-item" id="optUiMinimal">
+            <span class="menu-checkbox" id="chkUiMinimal">[x]</span>
+            <span class="menu-label" data-i18n="ui_minimal">Минималистичный</span>
+          </div>
+          <div class="menu-item" id="optUiVim">
+            <span class="menu-checkbox" id="chkUiVim">[ ]</span>
+            <span class="menu-label" data-i18n="ui_vim">Vim-режим</span>
+          </div>
+        </div>
       </div>
 
       <div class="menu-separator"></div>
 
       <!-- 3. Tabs & Windows -->
       <div class="menu-item" id="menuNewTab">
-        <span class="menu-label">Новая вкладка</span>
+        <span class="menu-label" data-i18n="new_tab">Новая вкладка</span>
         <span class="menu-shortcut">Ctrl+T</span>
       </div>
-      <div class="menu-item" id="menuWorkspaces">
-        <span class="menu-label">WORKSPACES</span>
-        <span class="menu-arrow">›</span>
-      </div>
-      <div class="menu-item" id="menuTabSearch">
-        <span class="menu-label">TAB SEARCH...</span>
-        <span class="menu-shortcut">Ctrl+Shift+A</span>
-      </div>
       <div class="menu-item" id="menuReopenClosed">
-        <span class="menu-label">REOPEN CLOSED TAB</span>
+        <span class="menu-label" data-i18n="reopen_closed">Восстановить закрытую вкладку</span>
         <span class="menu-shortcut">Ctrl+Shift+T</span>
       </div>
-      <div class="menu-item" id="menuSaveSession">
-        <span class="menu-label">SAVE SESSION...</span>
-        <span class="menu-shortcut">Ctrl+Shift+S</span>
-      </div>
-      <div class="menu-item" id="menuRestoreSession">
-        <span class="menu-label">RESTORE SESSION...</span>
-        <span class="menu-shortcut"></span>
-      </div>
-      <div class="menu-item" id="menuPrivacyDashboard">
-        <span class="menu-label">PRIVACY DASHBOARD</span>
-        <span class="menu-shortcut">Ctrl+Shift+P</span>
-      </div>
-      <div class="menu-item" id="menuContainerTab">
-        <span class="menu-label">Вкладка в контейнере</span>
+      <div class="menu-item menu-has-submenu" id="menuContainerTab">
+        <span class="menu-label" data-i18n="container_tab">Вкладка в контейнере</span>
         <span class="menu-arrow">›</span>
+        <div class="menu-submenu">
+          <div class="menu-item" id="optContainerPersonal">
+            <span class="menu-label" data-i18n="container_personal">[ЛИЧНЫЙ] Личный</span>
+          </div>
+          <div class="menu-item" id="optContainerWork">
+            <span class="menu-label" data-i18n="container_work">[РАБОТА] Работа</span>
+          </div>
+          <div class="menu-item" id="optContainerBanking">
+            <span class="menu-label" data-i18n="container_banking">[БАНКИНГ] Банкинг</span>
+          </div>
+          <div class="menu-item" id="optContainerShopping">
+            <span class="menu-label" data-i18n="container_shopping">[ПОКУПКИ] Покупки</span>
+          </div>
+        </div>
       </div>
       <div class="menu-item" id="menuNewWindow">
-        <span class="menu-label">Новое окно</span>
+        <span class="menu-label" data-i18n="new_window">Новое окно</span>
         <span class="menu-shortcut">Ctrl+N</span>
       </div>
       <div class="menu-item" id="menuIncognitoWindow">
-        <span class="menu-label">Новое окно инкогнито</span>
+        <span class="menu-label" data-i18n="incognito_window">Новое окно инкогнито</span>
         <span class="menu-shortcut">Ctrl+Shift+N</span>
       </div>
 
@@ -265,63 +314,47 @@
 
       <!-- 4. Tools & View -->
       <div class="menu-item" id="menuFindInPage">
-        <span class="menu-label">Поиск на странице</span>
+        <span class="menu-label" data-i18n="find_in_page">Поиск на странице</span>
         <span class="menu-shortcut">Ctrl+F</span>
       </div>
       <div class="menu-item" id="menuSplit">
-        <span class="menu-label">Разделить экран</span>
+        <span class="menu-label" data-i18n="split_view">Разделить экран</span>
         <span class="menu-shortcut">Ctrl+\</span>
       </div>
-      <div class="menu-item" id="menuTaskManager">
-        <span class="menu-label">Диспетчер задач</span>
-        <span class="menu-shortcut">Shift+Esc</span>
-      </div>
       <div class="menu-item" id="menuDevTools">
-        <span class="menu-label">Инструменты разработчика</span>
+        <span class="menu-label" data-i18n="devtools">Инструменты разработчика</span>
         <span class="menu-shortcut">F12</span>
-      </div>
-      <div class="menu-item" id="menuSnoozeTabs">
-        <span class="menu-label">Усыпить фоновые вкладки (RAM)</span>
-        <span class="menu-shortcut"></span>
-      </div>
-      <div class="menu-item" id="menuWakeTabs">
-        <span class="menu-label">Разбудить все вкладки</span>
-        <span class="menu-shortcut"></span>
       </div>
 
       <div class="menu-separator"></div>
 
       <!-- 5. Data & Panels -->
       <div class="menu-item" id="menuDownloads">
-        <span class="menu-label">Загрузки</span>
+        <span class="menu-label" data-i18n="downloads">Загрузки</span>
         <span class="menu-shortcut">Ctrl+Shift+D</span>
       </div>
       <div class="menu-item" id="menuHistory">
-        <span class="menu-label">История</span>
+        <span class="menu-label" data-i18n="history">История</span>
         <span class="menu-shortcut">Ctrl+H</span>
       </div>
       <div class="menu-item" id="menuBookmarks">
-        <span class="menu-label">Закладки</span>
+        <span class="menu-label" data-i18n="bookmarks">Закладки</span>
         <span class="menu-shortcut">Ctrl+Shift+O</span>
       </div>
       <div class="menu-item" id="menuAi">
-        <span class="menu-label">AI-ассистент</span>
+        <span class="menu-label" data-i18n="ai_assistant">AI-ассистент</span>
         <span class="menu-shortcut">Ctrl+B</span>
       </div>
       <div class="menu-item" id="menuAdBlock">
-        <span class="menu-label">Блокировщик рекламы</span>
+        <span class="menu-label" data-i18n="adblock">Блокировщик рекламы</span>
         <span id="adblockCountTag" class="menu-tag">[АКТИВЕН]</span>
-      </div>
-      <div class="menu-item" id="menuPinToolbar">
-        <span class="menu-label">Закрепить в верхнем меню</span>
-        <span class="menu-arrow">›</span>
       </div>
 
       <div class="menu-separator"></div>
 
       <!-- 6. Settings -->
       <div class="menu-item" id="menuSettings">
-        <span class="menu-label">Настройки браузера</span>
+        <span class="menu-label" data-i18n="settings">Настройки браузера</span>
         <span class="menu-shortcut">Ctrl+,</span>
       </div>
     </div>

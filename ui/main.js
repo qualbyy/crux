@@ -10,11 +10,17 @@ function sendIpc(cmd, data = {}) {
   }
 }
 
+// Global Browser State
+let currentLanguage = "ru";
+let currentTheme = "dark";
+let tabOrientation = "vertical"; // 'vertical' | 'horizontal'
+let uiMode = "minimal"; // 'minimal' | 'vim'
 let searchEngine = "duckduckgo";
-let isSplitView = false;
 let currentAccent = "#a855f7";
 let currentZoom = 1.0;
 let isMobileMode = false;
+let mobileWidth = 390;
+let mobileHeight = 844;
 let closedTabsStack = [];
 let currentSettings = {};
 let currentBookmarks = [];
@@ -31,9 +37,99 @@ let tabs = [
     container: 'default',
     is_pinned: false,
     is_muted: false,
+    is_playing_audio: false,
+    is_split: false,
+    split_url: 'crux://startpage',
+    hide_split_url: false,
     is_active: true
   }
 ];
+
+// Complete Canonical RU & EN Localization Dictionaries
+const I18N = {
+  ru: {
+    zoom_label: "Масштаб:",
+    mobile_mode: "Мобильный режим:",
+    reader_mode: "Режим чтения",
+    pip_mode: "Картинка в картинке / PiP",
+    tab_layout: "Расположение вкладок",
+    tab_vertical: "Вертикальные вкладки",
+    tab_horizontal: "Горизонтальные вкладки",
+    ui_mode: "Режим интерфейса",
+    ui_minimal: "Минималистичный",
+    ui_vim: "Vim-режим",
+    new_tab: "Новая вкладка",
+    reopen_closed: "Восстановить закрытую вкладку",
+    container_tab: "Вкладка в контейнере",
+    container_personal: "[ЛИЧНЫЙ] Личный",
+    container_work: "[РАБОТА] Работа",
+    container_banking: "[БАНКИНГ] Банкинг",
+    container_shopping: "[ПОКУПКИ] Покупки",
+    new_window: "Новое окно",
+    incognito_window: "Новое окно инкогнито",
+    find_in_page: "Поиск на странице",
+    split_view: "Разделить экран",
+    devtools: "Инструменты разработчика",
+    downloads: "Загрузки",
+    history: "История",
+    bookmarks: "Закладки",
+    ai_assistant: "AI-ассистент",
+    adblock: "Блокировщик рекламы",
+    settings: "Настройки браузера",
+    vim_status: "[VIM-РЕЖИМ] Нажмите Esc для выхода | j/k: скролл, r: обновить, t: новая вкладка, x: закрыть",
+    exit_vim: "ВЫЙТИ ИЗ VIM",
+    split_placeholder: "Адрес или поиск во втором окне...",
+    hide_url_bar: "Скрыть строку адреса",
+    show_url_bar: "Показать строку адреса",
+    downloads_title: "ЗАГРУЗКИ",
+    bookmarks_title: "ЗАКЛАДКИ",
+    all_downloads: "ВСЕ ЗАГРУЗКИ (crux://downloads)",
+    all_bookmarks: "ВСЕ ЗАКЛАДКИ",
+    open_folder: "ОТКРЫТЬ ПАПКУ",
+    add_bookmark: "+ ДОБАВИТЬ СТРАНИЦУ"
+  },
+  en: {
+    zoom_label: "Zoom:",
+    mobile_mode: "Mobile Viewport:",
+    reader_mode: "Reading Mode",
+    pip_mode: "Picture in Picture / PiP",
+    tab_layout: "Tab Layout",
+    tab_vertical: "Vertical Tabs",
+    tab_horizontal: "Horizontal Tabs",
+    ui_mode: "UI Mode",
+    ui_minimal: "Minimalist",
+    ui_vim: "Vim Mode",
+    new_tab: "New Tab",
+    reopen_closed: "Reopen Closed Tab",
+    container_tab: "New Tab in Container",
+    container_personal: "[PERSONAL] Personal",
+    container_work: "[WORK] Work",
+    container_banking: "[BANKING] Banking",
+    container_shopping: "[SHOPPING] Shopping",
+    new_window: "New Window",
+    incognito_window: "New Incognito Window",
+    find_in_page: "Find in Page",
+    split_view: "Split View",
+    devtools: "Developer Tools",
+    downloads: "Downloads",
+    history: "History",
+    bookmarks: "Bookmarks",
+    ai_assistant: "AI Assistant",
+    adblock: "Ad & Tracker Shield",
+    settings: "Browser Settings",
+    vim_status: "[VIM MODE] Press Esc to exit | j/k: scroll, r: reload, t: new tab, x: close",
+    exit_vim: "EXIT VIM",
+    split_placeholder: "Search or address in split pane...",
+    hide_url_bar: "Hide Address Bar",
+    show_url_bar: "Show Address Bar",
+    downloads_title: "DOWNLOADS",
+    bookmarks_title: "BOOKMARKS",
+    all_downloads: "ALL DOWNLOADS (crux://downloads)",
+    all_bookmarks: "ALL BOOKMARKS",
+    open_folder: "OPEN FOLDER",
+    add_bookmark: "+ ADD CURRENT PAGE"
+  }
+};
 
 const elements = {
   tabsList: document.getElementById('tabsList'),
@@ -44,6 +140,9 @@ const elements = {
   webFrame: document.getElementById('webFrame'),
   splitPaneWrapper: document.getElementById('splitPaneWrapper'),
   urlInputSplit: document.getElementById('urlInputSplit'),
+  splitToolbar: document.getElementById('splitToolbar'),
+  btnToggleSplitUrl: document.getElementById('btnToggleSplitUrl'),
+  btnFloatingShowSplitUrl: document.getElementById('btnFloatingShowSplitUrl'),
   btnCloseSplit: document.getElementById('btnCloseSplit'),
   webFrameSplit: document.getElementById('webFrameSplit'),
   webViewContainer: document.getElementById('webViewContainer'),
@@ -86,14 +185,42 @@ const elements = {
   btnWinClose: document.getElementById('btnWinClose'),
   dragRegion: document.getElementById('dragRegion'),
   toastNotification: document.getElementById('toastNotification'),
-  // Menu Parity Elements
+  // Zoom Elements
   btnZoomOut: document.getElementById('btnZoomOut'),
   btnZoomIn: document.getElementById('btnZoomIn'),
   btnZoomReset: document.getElementById('btnZoomReset'),
   btnFullscreen: document.getElementById('btnFullscreen'),
   zoomLevelLbl: document.getElementById('zoomLevelLbl'),
+  // Mobile Viewport Elements
   menuMobileMode: document.getElementById('menuMobileMode'),
-  lblMobileStatus: document.getElementById('lblMobileStatus')
+  lblMobileStatus: document.getElementById('lblMobileStatus'),
+  viewportBar: document.getElementById('viewportBar'),
+  vpPresetSelect: document.getElementById('vpPresetSelect'),
+  vpWidthInput: document.getElementById('vpWidthInput'),
+  vpHeightInput: document.getElementById('vpHeightInput'),
+  btnVpRotate: document.getElementById('btnVpRotate'),
+  btnVpClose: document.getElementById('btnVpClose'),
+  // Horizontal Tab Bar Elements
+  horizontalTabBar: document.getElementById('horizontalTabBar'),
+  horizontalTabsList: document.getElementById('horizontalTabsList'),
+  btnNewTabHoriz: document.getElementById('btnNewTabHoriz'),
+  // Vim Mode Elements
+  vimStatusBar: document.getElementById('vimStatusBar'),
+  vimStatusText: document.getElementById('vimStatusText'),
+  btnExitVim: document.getElementById('btnExitVim'),
+  // Submenu Checkbox Elements
+  optTabVert: document.getElementById('optTabVert'),
+  optTabHoriz: document.getElementById('optTabHoriz'),
+  chkTabVert: document.getElementById('chkTabVert'),
+  chkTabHoriz: document.getElementById('chkTabHoriz'),
+  optUiMinimal: document.getElementById('optUiMinimal'),
+  optUiVim: document.getElementById('optUiVim'),
+  chkUiMinimal: document.getElementById('chkUiMinimal'),
+  chkUiVim: document.getElementById('chkUiVim'),
+  optContainerPersonal: document.getElementById('optContainerPersonal'),
+  optContainerWork: document.getElementById('optContainerWork'),
+  optContainerBanking: document.getElementById('optContainerBanking'),
+  optContainerShopping: document.getElementById('optContainerShopping')
 };
 
 // SVG Icon Helpers
@@ -121,11 +248,10 @@ function applyAccentColor(color) {
   document.documentElement.style.setProperty('--accent', color);
   document.documentElement.style.setProperty('--accent-hover', color);
 
-  // Update active startpage iframes
   try {
     if (elements.webFrame && elements.webFrame.contentWindow) {
       elements.webFrame.contentWindow.postMessage({ type: 'set_accent', accent: color }, '*');
-      if (elements.webFrame.contentDocument) {
+      if (elements.webFrame.contentDocument && elements.webFrame.contentDocument.documentElement) {
         elements.webFrame.contentDocument.documentElement.style.setProperty('--accent', color);
         elements.webFrame.contentDocument.documentElement.style.setProperty('--accent-warm', color);
       }
@@ -135,7 +261,7 @@ function applyAccentColor(color) {
   try {
     if (elements.webFrameSplit && elements.webFrameSplit.contentWindow) {
       elements.webFrameSplit.contentWindow.postMessage({ type: 'set_accent', accent: color }, '*');
-      if (elements.webFrameSplit.contentDocument) {
+      if (elements.webFrameSplit.contentDocument && elements.webFrameSplit.contentDocument.documentElement) {
         elements.webFrameSplit.contentDocument.documentElement.style.setProperty('--accent', color);
         elements.webFrameSplit.contentDocument.documentElement.style.setProperty('--accent-warm', color);
       }
@@ -143,11 +269,53 @@ function applyAccentColor(color) {
   } catch (e) {}
 }
 
-function getThemedStartpageHtml() {
-  const base = window.CRUX_STARTPAGE_HTML || '<!DOCTYPE html><html><body style="background:#18181b;color:#f5f5f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><h1>Crux Startpage</h1></body></html>';
-  return base
-    .replace(/--accent:\s*#a855f7;/g, `--accent: ${currentAccent};`)
-    .replace(/--accent-warm:\s*#a855f7;/g, `--accent-warm: ${currentAccent};`);
+// Clean Paper Light / Minimal Dark Theme System
+function applyTheme(th) {
+  currentTheme = th === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+
+  try {
+    if (elements.webFrame && elements.webFrame.contentDocument && elements.webFrame.contentDocument.documentElement) {
+      elements.webFrame.contentDocument.documentElement.setAttribute('data-theme', currentTheme);
+    }
+  } catch(e) {}
+
+  try {
+    if (elements.webFrameSplit && elements.webFrameSplit.contentDocument && elements.webFrameSplit.contentDocument.documentElement) {
+      elements.webFrameSplit.contentDocument.documentElement.setAttribute('data-theme', currentTheme);
+    }
+  } catch(e) {}
+}
+
+// Full Language Localization System (RU / EN)
+function applyLanguage(lang) {
+  if (!lang || !I18N[lang]) lang = "ru";
+  currentLanguage = lang;
+  const dict = I18N[lang];
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (dict[k]) el.textContent = dict[k];
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const k = el.getAttribute('data-i18n-placeholder');
+    if (dict[k]) el.placeholder = dict[k];
+  });
+
+  if (elements.lblMobileStatus) {
+    elements.lblMobileStatus.textContent = isMobileMode ? (lang === 'ru' ? '[ВКЛ]' : '[ON]') : (lang === 'ru' ? '[ВЫКЛ]' : '[OFF]');
+  }
+}
+
+// Prepare Internal HTML with Dynamic Accent and Theme
+function prepareInternalHtml(html) {
+  if (!html) return '';
+  return html
+    .replace(/--accent:\s*#[a-fA-F0-9]{3,6};/g, `--accent: ${currentAccent};`)
+    .replace(/--accent-warm:\s*#[a-fA-F0-9]{3,6};/g, `--accent-warm: ${currentAccent};`)
+    .replace(/var\(--accent,\s*#[a-fA-F0-9]{3,6}\)/g, `var(--accent, ${currentAccent})`)
+    .replace(/<html([^>]*)>/i, `<html$1 data-theme="${currentTheme}">`);
 }
 
 function updateNavButtons() {
@@ -163,6 +331,81 @@ function updateNavButtons() {
   }
 }
 
+// Per-Tab Split View Synchronizer
+function syncTabSplitView(tab) {
+  if (!tab) return;
+  if (tab.is_split) {
+    elements.webViewContainer.classList.add('split-mode');
+    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.remove('hidden');
+    if (elements.btnSplitView) elements.btnSplitView.classList.add('active');
+
+    if (elements.splitToolbar) {
+      if (tab.hide_split_url) {
+        elements.splitToolbar.classList.add('hidden');
+        if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.remove('hidden');
+      } else {
+        elements.splitToolbar.classList.remove('hidden');
+        if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.add('hidden');
+      }
+    }
+
+    if (elements.webFrameSplit) {
+      const splitUrl = tab.split_url || 'crux://startpage';
+      if (elements.urlInputSplit) elements.urlInputSplit.value = splitUrl === 'crux://startpage' ? '' : splitUrl;
+      if (splitUrl === 'crux://startpage' || splitUrl === 'about:blank') {
+        elements.webFrameSplit.removeAttribute('src');
+        elements.webFrameSplit.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
+      } else {
+        elements.webFrameSplit.removeAttribute('srcdoc');
+        elements.webFrameSplit.src = splitUrl;
+      }
+    }
+  } else {
+    elements.webViewContainer.classList.remove('split-mode');
+    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.add('hidden');
+    if (elements.btnSplitView) elements.btnSplitView.classList.remove('active');
+    if (elements.btnFloatingShowSplitUrl) elements.btnFloatingShowSplitUrl.classList.add('hidden');
+  }
+}
+
+function toggleSplitView() {
+  const active = tabs.find(t => t.is_active);
+  if (!active) return;
+  active.is_split = !active.is_split;
+  if (active.is_split && !active.split_url) {
+    active.split_url = 'crux://startpage';
+  }
+  syncTabSplitView(active);
+  showToast(active.is_split ? (currentLanguage === 'ru' ? "Разделение экрана: ВКЛ" : "Split View: ON") : (currentLanguage === 'ru' ? "Разделение экрана: ВЫКЛ" : "Split View: OFF"));
+}
+
+function navigateSplitTab(input) {
+  const active = tabs.find(t => t.is_active);
+  if (!active || !elements.webFrameSplit) return;
+
+  let url = (input || "").trim();
+  if (!url) {
+    url = 'crux://startpage';
+  } else if (!url.startsWith('crux://') && !url.startsWith('http://') && !url.startsWith('https://')) {
+    if (url.includes('.') && !url.includes(' ')) {
+      url = 'https://' + url;
+    } else {
+      url = getSearchUrl(url);
+    }
+  }
+
+  active.split_url = url;
+  if (elements.urlInputSplit) elements.urlInputSplit.value = url === 'crux://startpage' ? '' : url;
+
+  if (url === 'crux://startpage') {
+    elements.webFrameSplit.removeAttribute('src');
+    elements.webFrameSplit.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
+  } else {
+    elements.webFrameSplit.removeAttribute('srcdoc');
+    elements.webFrameSplit.src = url;
+  }
+}
+
 function loadTabContent(tab) {
   if (!tab || !elements.webFrame) return;
 
@@ -170,47 +413,57 @@ function loadTabContent(tab) {
 
   if (url === 'crux://startpage' || url === 'about:blank') {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = getThemedStartpageHtml();
+    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
     if (elements.urlInput) elements.urlInput.value = '';
-    setTimeout(() => applyAccentColor(currentAccent), 60);
+    setTimeout(() => {
+      applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
+    }, 60);
   } else if (url.startsWith('crux://settings')) {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = window.CRUX_SETTINGS_HTML || '<h1>Crux Settings</h1>';
+    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_SETTINGS_HTML || '<h1>Crux Settings</h1>');
     if (elements.urlInput) elements.urlInput.value = url;
     setTimeout(() => {
       sendIpc('get_settings');
       applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
     }, 60);
   } else if (url.startsWith('crux://history')) {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = window.CRUX_HISTORY_HTML || '<h1>Crux History</h1>';
+    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_HISTORY_HTML || '<h1>Crux History</h1>');
     if (elements.urlInput) elements.urlInput.value = url;
     setTimeout(() => {
       sendIpc('get_history');
       applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
     }, 60);
   } else if (url.startsWith('crux://downloads')) {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = window.CRUX_DOWNLOADS_HTML || '<h1>Crux Downloads</h1>';
+    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_DOWNLOADS_HTML || '<h1>Crux Downloads</h1>');
     if (elements.urlInput) elements.urlInput.value = url;
     setTimeout(() => {
       sendIpc('get_downloads');
       applyAccentColor(currentAccent);
+      applyTheme(currentTheme);
     }, 60);
   } else {
     elements.webFrame.removeAttribute('srcdoc');
     elements.webFrame.src = url;
     if (elements.urlInput) elements.urlInput.value = url;
   }
+
+  syncTabSplitView(tab);
+  applyZoom(currentZoom);
 }
 
+// Tab Rendering (Vertical)
 function renderTabs() {
   if (!elements.tabsList) return;
   elements.tabsList.innerHTML = '';
   tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = `tab-item ${tab.is_active ? 'active' : ''}`;
-    
+
     if (tab.is_pinned) {
       const pin = document.createElement('span');
       pin.className = 'tab-pin-badge';
@@ -219,22 +472,35 @@ function renderTabs() {
       el.appendChild(pin);
     }
 
+    if (tab.container && tab.container !== 'default') {
+      const cBadge = document.createElement('span');
+      cBadge.className = 'tab-pin-badge';
+      cBadge.style.fontSize = '9px';
+      cBadge.style.color = 'var(--accent)';
+      cBadge.textContent = `[${tab.container.toUpperCase()}]`;
+      el.appendChild(cBadge);
+    }
+
     const title = document.createElement('span');
     title.className = 'tab-title';
     title.textContent = tab.title || (tab.url === 'crux://startpage' ? 'Crux Startpage' : 'New Tab');
     el.appendChild(title);
 
-    const muteBtn = document.createElement('button');
-    muteBtn.className = `tab-mute ${tab.is_muted ? 'muted' : ''}`;
-    muteBtn.innerHTML = tab.is_muted ? ICONS.volumeMuted : ICONS.volume;
-    muteBtn.title = tab.is_muted ? 'Unmute Tab' : 'Mute Tab';
-    muteBtn.onclick = (e) => {
-      e.stopPropagation();
-      tab.is_muted = !tab.is_muted;
-      sendIpc('toggle_mute', { id: tab.id });
-      renderTabs();
-    };
-    el.appendChild(muteBtn);
+    // Speaker / Mute icon ONLY shown when playing audio or muted
+    if (tab.is_muted || tab.is_playing_audio) {
+      const muteBtn = document.createElement('button');
+      muteBtn.className = `tab-mute ${tab.is_muted ? 'muted' : ''}`;
+      muteBtn.innerHTML = tab.is_muted ? ICONS.volumeMuted : ICONS.volume;
+      muteBtn.title = tab.is_muted ? 'Unmute Tab' : 'Mute Tab';
+      muteBtn.onclick = (e) => {
+        e.stopPropagation();
+        tab.is_muted = !tab.is_muted;
+        sendIpc('toggle_mute', { id: tab.id });
+        renderTabs();
+        renderHorizontalTabs();
+      };
+      el.appendChild(muteBtn);
+    }
 
     if (!tab.is_pinned) {
       const close = document.createElement('button');
@@ -254,9 +520,109 @@ function renderTabs() {
   updateNavButtons();
 }
 
+// Horizontal Tabs Rendering
+function renderHorizontalTabs() {
+  if (!elements.horizontalTabsList) return;
+  elements.horizontalTabsList.innerHTML = '';
+  tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = `horizontal-tab-item ${tab.is_active ? 'active' : ''}`;
+
+    if (tab.is_pinned) {
+      const pin = document.createElement('span');
+      pin.className = 'tab-pin-badge';
+      pin.innerHTML = ICONS.pin;
+      pin.style.marginRight = '4px';
+      el.appendChild(pin);
+    }
+
+    if (tab.container && tab.container !== 'default') {
+      const cBadge = document.createElement('span');
+      cBadge.style.fontSize = '9px';
+      cBadge.style.color = 'var(--accent)';
+      cBadge.style.marginRight = '4px';
+      cBadge.textContent = `[${tab.container.toUpperCase()}]`;
+      el.appendChild(cBadge);
+    }
+
+    const title = document.createElement('span');
+    title.className = 'tab-title';
+    title.textContent = tab.title || (tab.url === 'crux://startpage' ? 'Startpage' : 'New Tab');
+    el.appendChild(title);
+
+    // Audio icon only if muted or playing
+    if (tab.is_muted || tab.is_playing_audio) {
+      const muteBtn = document.createElement('button');
+      muteBtn.className = `tab-mute ${tab.is_muted ? 'muted' : ''}`;
+      muteBtn.innerHTML = tab.is_muted ? ICONS.volumeMuted : ICONS.volume;
+      muteBtn.onclick = (e) => {
+        e.stopPropagation();
+        tab.is_muted = !tab.is_muted;
+        sendIpc('toggle_mute', { id: tab.id });
+        renderTabs();
+        renderHorizontalTabs();
+      };
+      el.appendChild(muteBtn);
+    }
+
+    if (!tab.is_pinned) {
+      const close = document.createElement('button');
+      close.className = 'tab-close';
+      close.innerHTML = ICONS.close;
+      close.onclick = (e) => {
+        e.stopPropagation();
+        closeTab(tab.id);
+      };
+      el.appendChild(close);
+    }
+
+    el.onclick = () => activateTab(tab.id);
+    elements.horizontalTabsList.appendChild(el);
+  });
+}
+
+function setTabOrientation(orient) {
+  tabOrientation = orient === 'horizontal' ? 'horizontal' : 'vertical';
+  if (tabOrientation === 'horizontal') {
+    if (elements.sidebar) elements.sidebar.classList.add('hidden');
+    if (elements.horizontalTabBar) elements.horizontalTabBar.classList.remove('hidden');
+    renderHorizontalTabs();
+  } else {
+    if (elements.sidebar) elements.sidebar.classList.remove('hidden');
+    if (elements.horizontalTabBar) elements.horizontalTabBar.classList.add('hidden');
+    renderTabs();
+  }
+  if (elements.chkTabVert) elements.chkTabVert.textContent = tabOrientation === 'vertical' ? '[x]' : '[ ]';
+  if (elements.chkTabHoriz) elements.chkTabHoriz.textContent = tabOrientation === 'horizontal' ? '[x]' : '[ ]';
+  sendIpc('save_setting', { key: 'tab_orientation', value: tabOrientation });
+}
+
+function setUiMode(mode) {
+  uiMode = mode === 'vim' ? 'vim' : 'minimal';
+  const topNav = document.getElementById('topNav');
+
+  if (uiMode === 'vim') {
+    if (topNav) topNav.classList.add('hidden');
+    if (elements.sidebar) elements.sidebar.classList.add('hidden');
+    if (elements.horizontalTabBar) elements.horizontalTabBar.classList.add('hidden');
+    if (elements.vimStatusBar) elements.vimStatusBar.classList.remove('hidden');
+    showToast(currentLanguage === 'ru' ? "Vim-режим: Нажмите Esc для выхода" : "Vim Mode: Press Esc to exit");
+  } else {
+    if (topNav) topNav.classList.remove('hidden');
+    if (elements.vimStatusBar) elements.vimStatusBar.classList.add('hidden');
+    setTabOrientation(tabOrientation);
+    showToast(currentLanguage === 'ru' ? "Минималистичный режим" : "Minimal UI Mode");
+  }
+
+  if (elements.chkUiMinimal) elements.chkUiMinimal.textContent = uiMode === 'minimal' ? '[x]' : '[ ]';
+  if (elements.chkUiVim) elements.chkUiVim.textContent = uiMode === 'vim' ? '[x]' : '[ ]';
+  sendIpc('save_setting', { key: 'ui_mode', value: uiMode });
+}
+
 function activateTab(id) {
   tabs.forEach(t => t.is_active = (t.id === id));
   renderTabs();
+  renderHorizontalTabs();
   const current = tabs.find(t => t.id === id);
   if (current) {
     loadTabContent(current);
@@ -309,10 +675,11 @@ function navigateActiveTab(input) {
   loadTabContent(active);
   updateNavButtons();
   renderTabs();
+  renderHorizontalTabs();
   sendIpc('navigate', { url });
 }
 
-function createTab(url = 'crux://startpage') {
+function createTab(url = 'crux://startpage', container = 'default') {
   const newId = (tabs.length ? Math.max(...tabs.map(t => t.id)) : 0) + 1;
   tabs.forEach(t => t.is_active = false);
 
@@ -328,115 +695,185 @@ function createTab(url = 'crux://startpage') {
     url,
     history: [url],
     historyIndex: 0,
-    container: 'default',
+    container,
     is_pinned: false,
     is_muted: false,
+    is_playing_audio: false,
+    is_split: false,
+    split_url: 'crux://startpage',
+    hide_split_url: false,
     is_active: true
   };
   tabs.push(tab);
   renderTabs();
+  renderHorizontalTabs();
   activateTab(newId);
-  sendIpc('create_tab', { url, container: 'default' });
-}
-
-function openInternalPage(url) {
-  const existing = tabs.find(t => t.url.startsWith(url));
-  if (existing) {
-    activateTab(existing.id);
-  } else {
-    createTab(url);
-  }
+  sendIpc('create_tab', { url, container });
 }
 
 function closeTab(id) {
   const idx = tabs.findIndex(t => t.id === id);
-  if (idx !== -1) {
-    const closed = tabs[idx];
-    closedTabsStack.push(closed);
-    const wasActive = closed.is_active;
-    tabs.splice(idx, 1);
-    sendIpc('close_tab', { id });
-    if (tabs.length === 0) {
-      createTab('crux://startpage');
-      return;
-    }
-    if (wasActive) {
-      const nextIdx = Math.min(idx, tabs.length - 1);
-      tabs[nextIdx].is_active = true;
-      activateTab(tabs[nextIdx].id);
-    } else {
-      renderTabs();
-    }
+  if (idx === -1) return;
+
+  const closed = tabs[idx];
+  closedTabsStack.push(closed);
+
+  tabs.splice(idx, 1);
+  if (tabs.length === 0) {
+    createTab('crux://startpage');
+    return;
   }
+
+  if (closed.is_active) {
+    const nextIdx = Math.max(0, idx - 1);
+    tabs[nextIdx].is_active = true;
+    loadTabContent(tabs[nextIdx]);
+  }
+
+  renderTabs();
+  renderHorizontalTabs();
+  sendIpc('close_tab', { id });
 }
 
 function reopenLastClosedTab() {
-  if (closedTabsStack.length > 0) {
-    const tab = closedTabsStack.pop();
-    createTab(tab.url);
-    showToast(`Reopened tab: ${tab.title || tab.url}`);
-  } else {
-    showToast("No recently closed tabs");
+  if (closedTabsStack.length === 0) {
+    showToast(currentLanguage === 'ru' ? "Нет закрытых вкладок для восстановления" : "No recently closed tabs");
+    return;
   }
+  const last = closedTabsStack.pop();
+  createTab(last.url, last.container);
+  showToast(currentLanguage === 'ru' ? `Восстановлена вкладка: ${last.title}` : `Reopened: ${last.title}`);
 }
 
 function getSearchUrl(query) {
+  const q = encodeURIComponent(query);
   switch (searchEngine) {
-    case 'google':
-      return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-    case 'searxng':
-      return `https://searx.be/search?q=${encodeURIComponent(query)}`;
-    case 'brave':
-      return `https://search.brave.com/search?q=${encodeURIComponent(query)}`;
+    case 'google': return `https://www.google.com/search?q=${q}`;
+    case 'searxng': return `https://searx.be/search?q=${q}`;
+    case 'brave': return `https://search.brave.com/search?q=${q}`;
+    case 'duckduckgo':
     default:
-      return `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
+      return `https://duckduckgo.com/?q=${q}`;
   }
 }
 
-// Navigation Buttons Handlers
+// Live Responsive Viewport & Mobile Mode System
+function setMobileMode(active, width = 390, height = 844) {
+  isMobileMode = active;
+  mobileWidth = width;
+  mobileHeight = height;
+
+  if (elements.viewportBar) {
+    if (isMobileMode) elements.viewportBar.classList.remove('hidden');
+    else elements.viewportBar.classList.add('hidden');
+  }
+
+  if (elements.webViewContainer) {
+    if (isMobileMode) {
+      elements.webViewContainer.classList.add('mobile-mode');
+    } else {
+      elements.webViewContainer.classList.remove('mobile-mode');
+    }
+  }
+
+  if (elements.webFrame) {
+    if (isMobileMode) {
+      elements.webFrame.style.width = `${mobileWidth}px`;
+      elements.webFrame.style.height = `${mobileHeight}px`;
+      elements.webFrame.style.maxWidth = `${mobileWidth}px`;
+      elements.webFrame.style.maxHeight = `${mobileHeight}px`;
+      elements.webFrame.style.transform = 'none';
+    } else {
+      elements.webFrame.style.width = '100%';
+      elements.webFrame.style.height = '100%';
+      elements.webFrame.style.maxWidth = '100%';
+      elements.webFrame.style.maxHeight = '100%';
+      elements.webFrame.style.border = 'none';
+      elements.webFrame.style.boxShadow = 'none';
+      applyZoom(currentZoom);
+    }
+  }
+
+  if (elements.vpWidthInput) elements.vpWidthInput.value = mobileWidth;
+  if (elements.vpHeightInput) elements.vpHeightInput.value = mobileHeight;
+  if (elements.lblMobileStatus) {
+    elements.lblMobileStatus.textContent = isMobileMode ? (currentLanguage === 'ru' ? '[ВКЛ]' : '[ON]') : (currentLanguage === 'ru' ? '[ВЫКЛ]' : '[OFF]');
+    elements.lblMobileStatus.style.color = isMobileMode ? '#10b981' : 'var(--text-muted)';
+  }
+}
+
+function toggleMobileMode() {
+  setMobileMode(!isMobileMode, mobileWidth, mobileHeight);
+  showToast(isMobileMode ? `Mobile Viewport: ${mobileWidth}x${mobileHeight}` : "Desktop Viewport");
+}
+
+// Live Smooth Zoom System
+function applyZoom(z) {
+  currentZoom = Math.min(2.5, Math.max(0.5, Math.round(z * 10) / 10));
+  if (elements.zoomLevelLbl) elements.zoomLevelLbl.textContent = `${Math.round(currentZoom * 100)}%`;
+
+  if (elements.webFrame && !isMobileMode) {
+    if (Math.abs(currentZoom - 1.0) < 0.01) {
+      elements.webFrame.style.transform = '';
+      elements.webFrame.style.transformOrigin = '';
+      elements.webFrame.style.width = '100%';
+      elements.webFrame.style.height = '100%';
+    } else {
+      elements.webFrame.style.transformOrigin = '0 0';
+      elements.webFrame.style.transform = `scale(${currentZoom})`;
+      elements.webFrame.style.width = `${(100 / currentZoom).toFixed(3)}%`;
+      elements.webFrame.style.height = `${(100 / currentZoom).toFixed(3)}%`;
+    }
+  }
+
+  try {
+    if (elements.webFrame && elements.webFrame.contentDocument && elements.webFrame.contentDocument.body) {
+      elements.webFrame.contentDocument.body.style.zoom = currentZoom;
+    }
+  } catch (e) {}
+}
+
+// Navigation & Tab Controls Listeners
+if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab('crux://startpage'));
+if (elements.btnNewTabHoriz) elements.btnNewTabHoriz.addEventListener('click', () => createTab('crux://startpage'));
+
+if (elements.btnToggleSidebar) {
+  elements.btnToggleSidebar.addEventListener('click', () => {
+    elements.sidebar.classList.toggle('compact');
+  });
+}
+
 if (elements.btnBack) {
   elements.btnBack.addEventListener('click', () => {
     const active = tabs.find(t => t.is_active);
-    if (active && active.historyIndex > 0) {
-      active.historyIndex--;
-      const targetUrl = active.history[active.historyIndex];
-      active.url = targetUrl;
-      loadTabContent(active);
-      updateNavButtons();
-      renderTabs();
-      sendIpc('navigate', { url: targetUrl });
-    }
+    if (!active || active.historyIndex <= 0) return;
+    active.historyIndex--;
+    const prevUrl = active.history[active.historyIndex];
+    active.url = prevUrl;
+    loadTabContent(active);
+    updateNavButtons();
   });
 }
 
 if (elements.btnForward) {
   elements.btnForward.addEventListener('click', () => {
     const active = tabs.find(t => t.is_active);
-    if (active && active.historyIndex < active.history.length - 1) {
-      active.historyIndex++;
-      const targetUrl = active.history[active.historyIndex];
-      active.url = targetUrl;
-      loadTabContent(active);
-      updateNavButtons();
-      renderTabs();
-      sendIpc('navigate', { url: targetUrl });
-    }
+    if (!active || active.historyIndex >= active.history.length - 1) return;
+    active.historyIndex++;
+    const nextUrl = active.history[active.historyIndex];
+    active.url = nextUrl;
+    loadTabContent(active);
+    updateNavButtons();
   });
 }
 
 if (elements.btnReload) {
   elements.btnReload.addEventListener('click', () => {
     const active = tabs.find(t => t.is_active);
-    if (active && elements.webFrame) {
-      loadTabContent(active);
-      showToast("Reloading page...");
-    }
+    if (!active) return;
+    loadTabContent(active);
+    showToast(currentLanguage === 'ru' ? "Страница обновлена" : "Page reloaded");
   });
-}
-
-if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab('crux://startpage'));
-if (elements.btnToggleSidebar) {
-  elements.btnToggleSidebar.addEventListener('click', () => elements.sidebar.classList.toggle('compact'));
 }
 
 if (elements.urlInput) {
@@ -447,18 +884,117 @@ if (elements.urlInput) {
   });
 }
 
-// Bookmarks Popup Logic
+if (elements.urlInputSplit) {
+  elements.urlInputSplit.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      navigateSplitTab(elements.urlInputSplit.value);
+    }
+  });
+}
+
+if (elements.btnToggleSplitUrl) {
+  elements.btnToggleSplitUrl.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    if (active) {
+      active.hide_split_url = true;
+      syncTabSplitView(active);
+    }
+  });
+}
+
+if (elements.btnFloatingShowSplitUrl) {
+  elements.btnFloatingShowSplitUrl.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    if (active) {
+      active.hide_split_url = false;
+      syncTabSplitView(active);
+    }
+  });
+}
+
+if (elements.btnCloseSplit) {
+  elements.btnCloseSplit.addEventListener('click', () => {
+    toggleSplitView();
+  });
+}
+
+if (elements.btnSplitView) {
+  elements.btnSplitView.addEventListener('click', toggleSplitView);
+}
+
+// Mobile Viewport Controls
+if (elements.vpPresetSelect) {
+  elements.vpPresetSelect.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val === 'custom') {
+      setMobileMode(false);
+    } else {
+      const [w, h] = val.split('x').map(n => parseInt(n));
+      setMobileMode(true, w, h);
+    }
+  });
+}
+
+if (elements.vpWidthInput) {
+  elements.vpWidthInput.addEventListener('input', (e) => {
+    const w = parseInt(e.target.value) || 390;
+    setMobileMode(true, w, mobileHeight);
+  });
+}
+
+if (elements.vpHeightInput) {
+  elements.vpHeightInput.addEventListener('input', (e) => {
+    const h = parseInt(e.target.value) || 844;
+    setMobileMode(true, mobileWidth, h);
+  });
+}
+
+if (elements.btnVpRotate) {
+  elements.btnVpRotate.addEventListener('click', () => {
+    setMobileMode(true, mobileHeight, mobileWidth);
+  });
+}
+
+if (elements.btnVpClose) {
+  elements.btnVpClose.addEventListener('click', () => {
+    setMobileMode(false);
+  });
+}
+
+// Exit Vim Button
+if (elements.btnExitVim) {
+  elements.btnExitVim.addEventListener('click', () => {
+    setUiMode('minimal');
+  });
+}
+
+// Zoom Controls
+if (elements.btnZoomIn) elements.btnZoomIn.addEventListener('click', () => applyZoom(currentZoom + 0.1));
+if (elements.btnZoomOut) elements.btnZoomOut.addEventListener('click', () => applyZoom(currentZoom - 0.1));
+if (elements.btnZoomReset) elements.btnZoomReset.addEventListener('click', () => applyZoom(1.0));
+if (elements.btnFullscreen) {
+  elements.btnFullscreen.addEventListener('click', () => {
+    closeAppMenu();
+    sendIpc('window_maximize');
+  });
+}
+
+// Popups: Bookmarks & Downloads
+function openInternalPage(url) {
+  closeAppMenu();
+  closeBookmarksPopup();
+  closeDownloadsPopup();
+  createTab(url);
+}
+
 function toggleBookmarksPopup(e) {
   if (e) e.stopPropagation();
-  if (!elements.bookmarksPopup) return;
-  const isOpening = elements.bookmarksPopup.classList.contains('hidden');
-  closeDownloadsPopup();
   closeAppMenu();
-  if (isOpening) {
+  closeDownloadsPopup();
+  if (!elements.bookmarksPopup) return;
+  elements.bookmarksPopup.classList.toggle('hidden');
+  if (!elements.bookmarksPopup.classList.contains('hidden')) {
     sendIpc('get_bookmarks');
-    elements.bookmarksPopup.classList.remove('hidden');
-  } else {
-    elements.bookmarksPopup.classList.add('hidden');
   }
 }
 
@@ -466,82 +1002,75 @@ function closeBookmarksPopup() {
   if (elements.bookmarksPopup) elements.bookmarksPopup.classList.add('hidden');
 }
 
-if (elements.btnBookmark) {
-  elements.btnBookmark.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleBookmarksPopup(e);
-  });
-}
-
-if (elements.bookmarksPopup) {
-  elements.bookmarksPopup.addEventListener('click', (e) => {
-    e.stopPropagation();
-  });
-}
-
-if (elements.btnAddCurrentBookmark) {
-  elements.btnAddCurrentBookmark.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const active = tabs.find(t => t.is_active);
-    if (active) {
-      const newBm = { url: active.url, title: active.title || active.url };
-      if (!currentBookmarks.some(b => b.url === active.url)) {
-        currentBookmarks.unshift(newBm);
-        renderBookmarksList(currentBookmarks);
-      }
-      sendIpc('add_bookmark', newBm);
-      showToast(`★ Added bookmark: ${active.title || active.url}`);
-    }
-  });
-}
-
 function renderBookmarksList(bookmarks) {
   if (!elements.bookmarksListPopup) return;
   elements.bookmarksListPopup.innerHTML = '';
-  if (!bookmarks || !bookmarks.length) {
-    elements.bookmarksListPopup.innerHTML = '<div class="popup-empty">No bookmarks saved yet. Click "+ ADD CURRENT" above.</div>';
+
+  if (!bookmarks || bookmarks.length === 0) {
+    elements.bookmarksListPopup.innerHTML = `<div class="popup-empty">${currentLanguage === 'ru' ? 'Нет сохраненных закладок' : 'No saved bookmarks'}</div>`;
     return;
   }
+
   bookmarks.forEach(bm => {
     const item = document.createElement('div');
     item.className = 'popup-item';
-    item.innerHTML = `
-      <div class="popup-item-info">
-        <span class="popup-item-title">${escapeHtml(bm.title || bm.url)}</span>
-        <span class="popup-item-url">${escapeHtml(bm.url)}</span>
-      </div>
-      <button class="popup-item-delete" title="Delete Bookmark">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    `;
-    item.onclick = (e) => {
+
+    const info = document.createElement('div');
+    info.className = 'popup-item-info';
+
+    const title = document.createElement('div');
+    title.className = 'popup-item-title';
+    title.textContent = bm.title || bm.url;
+
+    const url = document.createElement('div');
+    url.className = 'popup-item-url';
+    url.textContent = bm.url;
+
+    info.appendChild(title);
+    info.appendChild(url);
+    item.appendChild(info);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'popup-item-delete';
+    delBtn.innerHTML = ICONS.close;
+    delBtn.title = "Delete Bookmark";
+    delBtn.onclick = (e) => {
       e.stopPropagation();
-      if (e.target.closest('.popup-item-delete')) {
-        sendIpc('delete_bookmark', { url: bm.url });
-        currentBookmarks = currentBookmarks.filter(b => b.url !== bm.url);
-        renderBookmarksList(currentBookmarks);
-        showToast("Bookmark deleted");
-        return;
-      }
+      sendIpc('delete_bookmark', { url: bm.url });
+      item.remove();
+      showToast(currentLanguage === 'ru' ? "Закладка удалена" : "Bookmark deleted");
+    };
+    item.appendChild(delBtn);
+
+    item.onclick = () => {
       closeBookmarksPopup();
       navigateActiveTab(bm.url);
     };
+
     elements.bookmarksListPopup.appendChild(item);
   });
 }
 
-// Downloads Popup Logic
+if (elements.btnBookmark) elements.btnBookmark.addEventListener('click', toggleBookmarksPopup);
+
+if (elements.btnAddCurrentBookmark) {
+  elements.btnAddCurrentBookmark.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    if (!active) return;
+    sendIpc('add_bookmark', { url: active.url, title: active.title });
+    showToast(currentLanguage === 'ru' ? `Добавлено в закладки: ${active.title}` : `Bookmarked: ${active.title}`);
+    setTimeout(() => sendIpc('get_bookmarks'), 50);
+  });
+}
+
 function toggleDownloadsPopup(e) {
   if (e) e.stopPropagation();
-  if (!elements.downloadsPopup) return;
-  const isOpening = elements.downloadsPopup.classList.contains('hidden');
-  closeBookmarksPopup();
   closeAppMenu();
-  if (isOpening) {
+  closeBookmarksPopup();
+  if (!elements.downloadsPopup) return;
+  elements.downloadsPopup.classList.toggle('hidden');
+  if (!elements.downloadsPopup.classList.contains('hidden')) {
     sendIpc('get_downloads');
-    elements.downloadsPopup.classList.remove('hidden');
-  } else {
-    elements.downloadsPopup.classList.add('hidden');
   }
 }
 
@@ -549,153 +1078,85 @@ function closeDownloadsPopup() {
   if (elements.downloadsPopup) elements.downloadsPopup.classList.add('hidden');
 }
 
-if (elements.btnDownloads) {
-  elements.btnDownloads.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleDownloadsPopup(e);
-  });
-}
-
-if (elements.downloadsPopup) {
-  elements.downloadsPopup.addEventListener('click', (e) => {
-    e.stopPropagation();
-  });
-}
-
-if (elements.btnOpenDownloadsFolder) {
-  elements.btnOpenDownloadsFolder.addEventListener('click', (e) => {
-    e.stopPropagation();
-    sendIpc('open_downloads_folder');
-  });
-}
-
-if (elements.btnViewAllDownloads) {
-  elements.btnViewAllDownloads.addEventListener('click', (e) => {
-    e.stopPropagation();
-    closeDownloadsPopup();
-    openInternalPage('crux://downloads');
-  });
-}
-
 function renderDownloadsList(downloads) {
   if (!elements.downloadsListPopup) return;
   elements.downloadsListPopup.innerHTML = '';
-  if (!downloads || !downloads.length) {
-    elements.downloadsListPopup.innerHTML = '<div class="popup-empty">No active or recent downloads.</div>';
+
+  if (!downloads || downloads.length === 0) {
+    elements.downloadsListPopup.innerHTML = `<div class="popup-empty">${currentLanguage === 'ru' ? 'Загрузок пока нет' : 'No recent downloads'}</div>`;
     return;
   }
+
   downloads.forEach(dl => {
     const item = document.createElement('div');
     item.className = 'popup-item';
-    item.innerHTML = `
-      <div class="popup-item-info">
-        <span class="popup-item-title">${escapeHtml(dl.filename || 'File')}</span>
-        <span class="popup-item-url">${escapeHtml(dl.path || dl.url || '')}</span>
-      </div>
-    `;
-    item.onclick = (e) => {
-      e.stopPropagation();
-      if (dl.path) {
-        sendIpc('open_file', { path: dl.path });
+
+    const info = document.createElement('div');
+    info.className = 'popup-item-info';
+
+    const title = document.createElement('div');
+    title.className = 'popup-item-title';
+    title.textContent = dl.filename || dl.url;
+
+    const size = document.createElement('div');
+    size.className = 'popup-item-url';
+    const mb = dl.total_bytes ? `${(dl.total_bytes / (1024 * 1024)).toFixed(1)} MB • ` : '';
+    size.textContent = `${mb}${dl.status || 'Completed'}`;
+
+    info.appendChild(title);
+    info.appendChild(size);
+    item.appendChild(info);
+
+    item.onclick = () => {
+      closeDownloadsPopup();
+      if (dl.save_path) {
+        sendIpc('open_file', { path: dl.save_path });
+      } else {
+        sendIpc('open_downloads_folder');
       }
     };
+
     elements.downloadsListPopup.appendChild(item);
   });
 }
 
-// App Dropdown Menu (Anchored to Top Right)
+if (elements.btnDownloads) elements.btnDownloads.addEventListener('click', toggleDownloadsPopup);
+if (elements.btnOpenDownloadsFolder) elements.btnOpenDownloadsFolder.addEventListener('click', () => sendIpc('open_downloads_folder'));
+if (elements.btnViewAllDownloads) elements.btnViewAllDownloads.addEventListener('click', () => openInternalPage('crux://downloads'));
+
+// App Menu Controller
 function toggleAppMenu(e) {
   if (e) e.stopPropagation();
-  if (!elements.appMenu) return;
-  const isOpening = elements.appMenu.classList.contains('hidden');
   closeBookmarksPopup();
   closeDownloadsPopup();
-  if (isOpening) {
-    elements.appMenu.classList.remove('hidden');
-  } else {
-    elements.appMenu.classList.add('hidden');
-  }
+  if (!elements.appMenu) return;
+  elements.appMenu.classList.toggle('hidden');
 }
 
 function closeAppMenu() {
   if (elements.appMenu) elements.appMenu.classList.add('hidden');
 }
 
-if (elements.btnMenu) {
-  elements.btnMenu.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleAppMenu(e);
-  });
-}
-
-if (elements.appMenu) {
-  elements.appMenu.addEventListener('click', (e) => {
-    e.stopPropagation();
-  });
-}
+if (elements.btnMenu) elements.btnMenu.addEventListener('click', toggleAppMenu);
 
 // Developer Tools
 function openDevTools() {
   sendIpc('open_devtools');
-  showToast("Opening Developer Tools (F12)...");
+  showToast(currentLanguage === 'ru' ? "Инструменты разработчика WebKitGTK открыты" : "WebKitGTK Developer Tools opened");
 }
 
-// Split View with Mini Toolbar
-function toggleSplitView() {
-  isSplitView = !isSplitView;
-  if (isSplitView) {
-    elements.webViewContainer.classList.add('split-mode');
-    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.remove('hidden');
-    if (elements.btnSplitView) elements.btnSplitView.classList.add('active');
-    
-    // Load themed startpage in split pane if empty
-    if (elements.webFrameSplit && (!elements.webFrameSplit.src || elements.webFrameSplit.src === 'about:blank')) {
-      elements.webFrameSplit.srcdoc = getThemedStartpageHtml();
-    }
-    showToast("Split View (Dual Browser) enabled");
-  } else {
-    elements.webViewContainer.classList.remove('split-mode');
-    if (elements.splitPaneWrapper) elements.splitPaneWrapper.classList.add('hidden');
-    if (elements.btnSplitView) elements.btnSplitView.classList.remove('active');
-    showToast("Split View disabled");
-  }
-}
-
-if (elements.btnSplitView) elements.btnSplitView.addEventListener('click', toggleSplitView);
-if (elements.btnCloseSplit) elements.btnCloseSplit.addEventListener('click', toggleSplitView);
-
-if (elements.urlInputSplit) {
-  elements.urlInputSplit.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      let u = elements.urlInputSplit.value.trim();
-      if (!u) return;
-      if (!u.startsWith('http://') && !u.startsWith('https://')) {
-        if (u.includes('.') && !u.includes(' ')) u = 'https://' + u;
-        else u = getSearchUrl(u);
-      }
-      elements.webFrameSplit.removeAttribute('srcdoc');
-      elements.webFrameSplit.src = u;
-    }
-  });
-}
-
-// Reader Mode with Real Article Content Fetching
+// Distraction-Free Reader Mode
 function toggleReaderMode() {
   if (!elements.readerOverlay) return;
   const isHidden = elements.readerOverlay.classList.contains('hidden');
+
   if (isHidden) {
     const active = tabs.find(t => t.is_active);
-    const url = active ? active.url : "";
+    if (!active) return;
+    const url = active.url;
 
-    if (url.startsWith('crux://') || !url || url === 'about:blank') {
-      elements.readerTitle.textContent = 'Reader Mode';
-      elements.readerContent.innerHTML = `
-        <h2 style="font-size: 20px; margin-bottom: 12px; color: var(--accent);">Reader Mode // Crux</h2>
-        <p style="font-size: 14px; line-height: 1.8; color: var(--text-muted);">
-          Reader Mode is designed for news articles, blogs, and documentation. Navigate to any web article (e.g. Wikipedia, blog, news site) and activate Reader Mode for clean distraction-free reading typography.
-        </p>
-      `;
-      elements.readerOverlay.classList.remove('hidden');
+    if (url.startsWith('crux://') || url === 'about:blank') {
+      showToast(currentLanguage === 'ru' ? "Режим чтения недоступен для системных страниц" : "Reader mode unavailable for internal pages");
       return;
     }
 
@@ -704,7 +1165,7 @@ function toggleReaderMode() {
       <h2 style="font-size: 22px; margin-bottom: 8px;">${escapeHtml(active.title || 'Loading Article...')}</h2>
       <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Source: ${escapeHtml(url)}</p>
       <div style="font-size: 14px; line-height: 1.8; color: var(--text-muted);">
-        Extracting clean distraction-free article text...
+        ${currentLanguage === 'ru' ? 'Извлечение чистого текста статьи...' : 'Extracting clean article text...'}
       </div>
     `;
     elements.readerOverlay.classList.remove('hidden');
@@ -717,91 +1178,36 @@ function toggleReaderMode() {
 if (elements.btnReaderMode) elements.btnReaderMode.addEventListener('click', toggleReaderMode);
 if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => elements.readerOverlay.classList.add('hidden'));
 
-// Zoom Controls
-function applyZoom(z) {
-  currentZoom = Math.min(2.5, Math.max(0.5, z));
-  if (elements.zoomLevelLbl) elements.zoomLevelLbl.textContent = `${Math.round(currentZoom * 100)}%`;
-  if (elements.webFrame) {
-    elements.webFrame.style.zoom = currentZoom;
-  }
-}
-
-if (elements.btnZoomIn) elements.btnZoomIn.addEventListener('click', () => applyZoom(currentZoom + 0.1));
-if (elements.btnZoomOut) elements.btnZoomOut.addEventListener('click', () => applyZoom(currentZoom - 0.1));
-if (elements.btnZoomReset) elements.btnZoomReset.addEventListener('click', () => applyZoom(1.0));
-if (elements.btnFullscreen) {
-  elements.btnFullscreen.addEventListener('click', () => {
-    closeAppMenu();
-    sendIpc('window_maximize');
-  });
-}
-
-// Mobile Viewport Toggle
-function toggleMobileMode() {
-  isMobileMode = !isMobileMode;
-  if (elements.lblMobileStatus) {
-    elements.lblMobileStatus.textContent = isMobileMode ? '[ВКЛ]' : '[ВЫКЛ]';
-    elements.lblMobileStatus.style.color = isMobileMode ? '#10b981' : 'var(--text-muted)';
-  }
-  if (elements.webViewContainer) {
-    if (isMobileMode) {
-      elements.webFrame.style.maxWidth = '420px';
-      elements.webFrame.style.margin = '0 auto';
-      elements.webFrame.style.border = '1px solid var(--border)';
-      showToast("Mobile Mode: ON [Viewport 420px]");
-    } else {
-      elements.webFrame.style.maxWidth = '100%';
-      elements.webFrame.style.margin = '0';
-      elements.webFrame.style.border = 'none';
-      showToast("Mobile Mode: OFF [Desktop]");
-    }
-  }
-}
-
-if (elements.menuMobileMode) elements.menuMobileMode.addEventListener('click', toggleMobileMode);
-
-// App Menu Actions Matching Original Crux (Photo 4)
+// Full Interactive App Menu Actions
 const menuActions = {
+  menuMobileMode: toggleMobileMode,
   menuReader: toggleReaderMode,
-  menuPip: () => showToast("Picture-in-Picture: Click video player icon to detach"),
-  menuTabOrientation: () => {
-    showToast("Tab layout toggled");
-  },
-  menuUiMode: () => {
-    elements.sidebar.classList.toggle('compact');
-    showToast("UI Mode toggled (Minimal / Compact)");
-  },
+  menuPip: () => showToast(currentLanguage === 'ru' ? "Картинка в картинке: Нажмите на видео" : "Picture-in-Picture: Click video player icon"),
   menuNewTab: () => createTab('crux://startpage'),
-  menuWorkspaces: () => showToast("Workspaces profile active: Default"),
-  menuTabSearch: () => toggleCommandPalette(),
   menuReopenClosed: reopenLastClosedTab,
-  menuSaveSession: () => {
-    sendIpc('save_setting', { key: 'saved_session', value: JSON.stringify(tabs.map(t => t.url)) });
-    showToast("Active session saved to SQLite");
-  },
-  menuRestoreSession: () => {
-    showToast("Restoring saved tabs...");
-  },
-  menuPrivacyDashboard: () => openInternalPage('crux://settings#privacy'),
-  menuContainerTab: () => createTab('crux://startpage'),
-  menuNewWindow: () => showToast("Crux window instance active"),
+  menuNewWindow: () => showToast(currentLanguage === 'ru' ? "Новое окно Crux активно" : "Crux window active"),
   menuIncognitoWindow: () => {
-    createTab('crux://startpage');
-    showToast("Incognito container created");
+    createTab('crux://startpage', 'incognito');
+    showToast(currentLanguage === 'ru' ? "Создана вкладка инкогнито" : "Incognito container tab created");
   },
-  menuFindInPage: () => showToast("Find on page (Ctrl+F)"),
+  menuFindInPage: () => showToast(currentLanguage === 'ru' ? "Поиск на странице (Ctrl+F)" : "Find on page (Ctrl+F)"),
   menuSplit: toggleSplitView,
-  menuTaskManager: () => showToast("RAM & Process Manager: WebKitGTK active"),
   menuDevTools: openDevTools,
-  menuSnoozeTabs: () => showToast("Background tabs hibernated (RAM freed)"),
-  menuWakeTabs: () => showToast("All tabs active and awake"),
   menuDownloads: (e) => toggleDownloadsPopup(e),
   menuHistory: () => openInternalPage('crux://history'),
   menuBookmarks: (e) => toggleBookmarksPopup(e),
   menuAi: () => toggleAiPanel(),
-  menuAdBlock: () => showToast("Shield: Ad & Tracker Blocker active [ON]"),
-  menuPinToolbar: () => showToast("Toolbar actions updated"),
-  menuSettings: () => openInternalPage('crux://settings')
+  menuAdBlock: () => showToast(currentLanguage === 'ru' ? "Блокировщик рекламы: [АКТИВЕН]" : "Ad & Tracker Shield: [ACTIVE]"),
+  menuSettings: () => openInternalPage('crux://settings'),
+  // Submenu Actions
+  optTabVert: () => setTabOrientation('vertical'),
+  optTabHoriz: () => setTabOrientation('horizontal'),
+  optUiMinimal: () => setUiMode('minimal'),
+  optUiVim: () => setUiMode('vim'),
+  optContainerPersonal: () => createTab('crux://startpage', 'personal'),
+  optContainerWork: () => createTab('crux://startpage', 'work'),
+  optContainerBanking: () => createTab('crux://startpage', 'banking'),
+  optContainerShopping: () => createTab('crux://startpage', 'shopping')
 };
 
 Object.entries(menuActions).forEach(([id, action]) => {
@@ -815,7 +1221,7 @@ Object.entries(menuActions).forEach(([id, action]) => {
   }
 });
 
-// Close all floating popups on click outside
+// Click outside to close menus and popups
 document.addEventListener('click', (e) => {
   if (elements.appMenu && !elements.appMenu.contains(e.target) && e.target !== elements.btnMenu && !elements.btnMenu.contains(e.target)) {
     closeAppMenu();
@@ -848,7 +1254,7 @@ if (elements.dragRegion) {
   });
 }
 
-// Crux AI Panel Logic
+// Crux AI Panel
 function toggleAiPanel() {
   if (!elements.aiPanel) return;
   elements.aiPanel.classList.toggle('hidden');
@@ -934,6 +1340,9 @@ const commands = [
   { name: 'Toggle Developer Tools (F12)', action: openDevTools },
   { name: 'Toggle Split View (Ctrl+\\)', action: toggleSplitView },
   { name: 'Toggle Reading Mode (Ctrl+Alt+R)', action: toggleReaderMode },
+  { name: 'Toggle Tab Orientation (Vertical / Horizontal)', action: () => setTabOrientation(tabOrientation === 'vertical' ? 'horizontal' : 'vertical') },
+  { name: 'Toggle UI Mode (Minimal / Vim)', action: () => setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal') },
+  { name: 'Toggle Mobile Viewport (Ctrl+Shift+M)', action: toggleMobileMode },
   { name: 'Toggle Compact Sidebar', action: () => elements.sidebar.classList.toggle('compact') },
   { name: 'Toggle Crux AI Panel (Ctrl+B)', action: toggleAiPanel },
   { name: 'Open Downloads Folder', action: () => sendIpc('open_downloads_folder') },
@@ -952,13 +1361,13 @@ function renderCommands(query) {
   if (!elements.paletteResults) return;
   elements.paletteResults.innerHTML = '';
   const filtered = commands.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
-  filtered.forEach(cmd => {
+  filtered.forEach((cmd, idx) => {
     const li = document.createElement('li');
-    li.className = 'palette-item';
+    li.className = `palette-item ${idx === 0 ? 'selected' : ''}`;
     li.textContent = cmd.name;
     li.onclick = () => {
-      cmd.action();
       elements.commandPalette.classList.add('hidden');
+      cmd.action();
     };
     elements.paletteResults.appendChild(li);
   });
@@ -968,20 +1377,115 @@ if (elements.paletteInput) {
   elements.paletteInput.addEventListener('input', (e) => {
     renderCommands(e.target.value);
   });
+
+  elements.paletteInput.addEventListener('keydown', (e) => {
+    const items = elements.paletteResults.querySelectorAll('.palette-item');
+    let sel = Array.from(items).findIndex(i => i.classList.contains('selected'));
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (sel < items.length - 1) {
+        items[sel].classList.remove('selected');
+        items[sel + 1].classList.add('selected');
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (sel > 0) {
+        items[sel].classList.remove('selected');
+        items[sel - 1].classList.add('selected');
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (sel >= 0 && items[sel]) items[sel].click();
+    }
+  });
 }
 
-if (elements.btnCommandPalette) {
-  elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
-}
+if (elements.btnCommandPalette) elements.btnCommandPalette.addEventListener('click', toggleCommandPalette);
 
-// Global Hotkeys
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'F12') {
+// Global Keyboard Shortcuts (Including Vim Mode & Zoom)
+document.addEventListener('keydown', (e) => {
+  const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+
+  // Escape key always closes overlays and exits Vim mode
+  if (e.key === 'Escape') {
+    closeAppMenu();
+    closeBookmarksPopup();
+    closeDownloadsPopup();
+    if (elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
+      elements.commandPalette.classList.add('hidden');
+    }
+    if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
+      elements.readerOverlay.classList.add('hidden');
+    }
+    if (uiMode === 'vim') {
+      setUiMode('minimal');
+    }
+    return;
+  }
+
+  // Vim Mode hotkeys (when not typing in an input)
+  if (uiMode === 'vim' && !isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    if (e.key === 'j') {
+      try { elements.webFrame.contentWindow.scrollBy(0, 150); } catch(ex){}
+      return;
+    } else if (e.key === 'k') {
+      try { elements.webFrame.contentWindow.scrollBy(0, -150); } catch(ex){}
+      return;
+    } else if (e.key === 'd') {
+      try { elements.webFrame.contentWindow.scrollBy(0, 450); } catch(ex){}
+      return;
+    } else if (e.key === 'u') {
+      try { elements.webFrame.contentWindow.scrollBy(0, -450); } catch(ex){}
+      return;
+    } else if (e.key === 'r') {
+      const active = tabs.find(t => t.is_active);
+      if (active) loadTabContent(active);
+      return;
+    } else if (e.key === 't') {
+      createTab('crux://startpage');
+      return;
+    } else if (e.key === 'x') {
+      const active = tabs.find(t => t.is_active);
+      if (active) closeTab(active.id);
+      return;
+    } else if (e.key === 'J') {
+      // Next tab
+      const curIdx = tabs.findIndex(t => t.is_active);
+      if (curIdx >= 0 && curIdx < tabs.length - 1) activateTab(tabs[curIdx + 1].id);
+      return;
+    } else if (e.key === 'K') {
+      // Previous tab
+      const curIdx = tabs.findIndex(t => t.is_active);
+      if (curIdx > 0) activateTab(tabs[curIdx - 1].id);
+      return;
+    }
+  }
+
+  // Zoom hotkeys (Ctrl++, Ctrl+=, Ctrl+-, Ctrl+0)
+  if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
     e.preventDefault();
-    openDevTools();
+    applyZoom(currentZoom + 0.1);
+  } else if (e.ctrlKey && e.key === '-') {
+    e.preventDefault();
+    applyZoom(currentZoom - 0.1);
+  } else if (e.ctrlKey && e.key === '0') {
+    e.preventDefault();
+    applyZoom(1.0);
+  } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'm') {
+    e.preventDefault();
+    toggleMobileMode();
+  } else if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 't') {
+    e.preventDefault();
+    setTabOrientation(tabOrientation === 'vertical' ? 'horizontal' : 'vertical');
+  } else if (e.ctrlKey && e.key.toLowerCase() === 'm') {
+    e.preventDefault();
+    setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal');
   } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
     toggleCommandPalette();
+  } else if (e.ctrlKey && e.key.toLowerCase() === 't') {
+    e.preventDefault();
+    createTab('crux://startpage');
   } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 't') {
     e.preventDefault();
     reopenLastClosedTab();
@@ -991,9 +1495,6 @@ window.addEventListener('keydown', (e) => {
   } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
     e.preventDefault();
     toggleDownloadsPopup();
-  } else if (e.ctrlKey && e.key.toLowerCase() === 't') {
-    e.preventDefault();
-    createTab('crux://startpage');
   } else if (e.ctrlKey && e.key.toLowerCase() === 'h') {
     e.preventDefault();
     openInternalPage('crux://history');
@@ -1013,16 +1514,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     const active = tabs.find(t => t.is_active);
     if (active) closeTab(active.id);
-  } else if (e.key === 'Escape') {
-    closeAppMenu();
-    closeBookmarksPopup();
-    closeDownloadsPopup();
-    if (elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
-      elements.commandPalette.classList.add('hidden');
-    }
-    if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
-      elements.readerOverlay.classList.add('hidden');
-    }
+  } else if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i')) {
+    e.preventDefault();
+    openDevTools();
   }
 });
 
@@ -1038,8 +1532,12 @@ function handleCruxInternalCommand(cmdUrl) {
       currentSettings[key] = value;
       if (key === 'search_engine') searchEngine = value;
       if (key === 'accent_color') applyAccentColor(value);
+      if (key === 'theme') applyTheme(value);
+      if (key === 'language') applyLanguage(value);
+      if (key === 'tab_orientation') setTabOrientation(value);
+      if (key === 'ui_mode') setUiMode(value);
     }
-    showToast("Preferences dynamically applied & saved to SQLite");
+    showToast(currentLanguage === 'ru' ? "Настройки сохранены" : "Settings saved");
     return;
   }
 
@@ -1053,6 +1551,10 @@ function handleCruxInternalCommand(cmdUrl) {
       currentSettings[key] = value;
       if (key === 'search_engine') searchEngine = value;
       if (key === 'accent_color') applyAccentColor(value);
+      if (key === 'theme') applyTheme(value);
+      if (key === 'language') applyLanguage(value);
+      if (key === 'tab_orientation') setTabOrientation(value);
+      if (key === 'ui_mode') setUiMode(value);
     }
     return;
   }
@@ -1063,7 +1565,7 @@ function handleCruxInternalCommand(cmdUrl) {
     const url = params.get('url');
     if (url) {
       sendIpc('delete_history', { url });
-      showToast("History item deleted");
+      showToast(currentLanguage === 'ru' ? "Запись удалена" : "History item deleted");
       setTimeout(() => sendIpc('get_history'), 50);
     }
     return;
@@ -1071,7 +1573,7 @@ function handleCruxInternalCommand(cmdUrl) {
 
   if (cmdUrl === 'crux://action/clear-history') {
     sendIpc('clear_history');
-    showToast("History completely cleared");
+    showToast(currentLanguage === 'ru' ? "История очищена" : "History cleared");
     setTimeout(() => sendIpc('get_history'), 50);
     return;
   }
@@ -1083,7 +1585,7 @@ function handleCruxInternalCommand(cmdUrl) {
 
   if (cmdUrl === 'crux://action/clear-downloads') {
     sendIpc('clear_downloads');
-    showToast("Downloads list cleared");
+    showToast(currentLanguage === 'ru' ? "Список загрузок очищен" : "Downloads cleared");
     setTimeout(() => sendIpc('get_downloads'), 50);
     return;
   }
@@ -1110,7 +1612,7 @@ function handleCruxInternalCommand(cmdUrl) {
   }
 }
 
-// Listen to messages from internal page iframes (startpage, settings, history, downloads)
+// Listen to messages from internal page iframes
 window.addEventListener('message', (e) => {
   if (!e.data) return;
   if (e.data.type === 'navigate' && e.data.url) {
@@ -1120,7 +1622,7 @@ window.addEventListener('message', (e) => {
   }
 });
 
-// Window Callbacks from Rust Event Loop
+// Callbacks from Rust Event Loop
 window.onAiResponse = function(text, success) {
   appendAiMessage("assistant", text);
 };
@@ -1150,6 +1652,10 @@ window.onSettingsLoaded = function(settings) {
   currentSettings = settings;
   if (settings.search_engine) searchEngine = settings.search_engine;
   if (settings.accent_color) applyAccentColor(settings.accent_color);
+  if (settings.theme) applyTheme(settings.theme);
+  if (settings.language) applyLanguage(settings.language);
+  if (settings.tab_orientation) setTabOrientation(settings.tab_orientation);
+  if (settings.ui_mode) setUiMode(settings.ui_mode);
 
   if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.populateSettings) {
     elements.webFrame.contentWindow.populateSettings(settings);
@@ -1194,11 +1700,13 @@ function escapeHtml(str) {
   });
 }
 
-// Initial Render
+// Initial Render and Boot
 renderTabs();
+renderHorizontalTabs();
 const initialTab = tabs.find(t => t.is_active);
 if (initialTab) {
   loadTabContent(initialTab);
 }
+applyLanguage(currentLanguage);
 sendIpc('get_settings');
 console.log("Crux 2.0 Rust Architecture initialized with full original parity.");

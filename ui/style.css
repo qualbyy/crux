@@ -15,6 +15,18 @@
   --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-app: #f4f4f5;
+  --bg-sidebar: #eaeaea;
+  --bg-elevated: #ffffff;
+  --bg-active: #e4e4e7;
+  --border: #d4d4d8;
+  --border-muted: #e4e4e7;
+  --text-main: #18181b;
+  --text-muted: #71717a;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -325,7 +337,7 @@ body, html {
 
 .webview-container {
   flex: 1;
-  background-color: #000000;
+  background-color: var(--bg-app);
   position: relative;
 }
 
@@ -403,8 +415,8 @@ body, html {
 }
 
 .ai-select option, select option {
-  background-color: #262624 !important;
-  color: #f5f5f0 !important;
+  background-color: var(--bg-elevated) !important;
+  color: var(--text-main) !important;
   padding: 6px 8px;
 }
 
@@ -584,14 +596,217 @@ body, html {
   flex-direction: row;
 }
 
-.webview-container.split-mode .web-frame {
+.webview-container.split-mode > #webFrame {
   width: 50% !important;
-  flex: 1;
+  flex: 1 1 50% !important;
   display: block !important;
+  border-right: 1px solid var(--border);
 }
 
-.webview-container.split-mode .web-frame:first-child {
-  border-right: 1px solid var(--border);
+/* Horizontal Tab Bar */
+.horizontal-tab-bar {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  background-color: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  padding: 0 6px;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  user-select: none;
+}
+
+.horizontal-tab-bar.hidden {
+  display: none !important;
+}
+
+.horizontal-tabs-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  flex: 1;
+}
+
+.horizontal-tab-item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  max-width: 220px;
+  min-width: 110px;
+  padding: 0 8px;
+  background-color: var(--bg-app);
+  border: 1px solid var(--border-muted);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all var(--anim-speed) ease;
+  user-select: none;
+}
+
+.horizontal-tab-item:hover {
+  background-color: var(--bg-active);
+  color: var(--text-main);
+}
+
+.horizontal-tab-item.active {
+  background-color: var(--bg-elevated);
+  border-color: var(--accent);
+  color: var(--text-main);
+  font-weight: bold;
+}
+
+.horizontal-tab-item .tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 6px;
+}
+
+.horizontal-tab-item .tab-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  opacity: 0.6;
+}
+
+.horizontal-tab-item .tab-close:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.btn-new-tab-horiz {
+  background: none;
+  border: 1px solid var(--border-muted);
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.btn-new-tab-horiz:hover {
+  background-color: var(--bg-active);
+  color: var(--text-main);
+  border-color: var(--accent);
+}
+
+/* Vim Mode Status Bar */
+.vim-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  background-color: var(--bg-sidebar);
+  border-top: 1px solid var(--accent);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0 12px;
+  z-index: 999;
+}
+
+.vim-status-bar.hidden {
+  display: none !important;
+}
+
+.vim-status-text {
+  color: var(--text-main);
+  font-weight: bold;
+}
+
+.btn-exit-vim {
+  background-color: var(--accent);
+  color: #ffffff;
+  border: none;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-exit-vim:hover {
+  opacity: 0.9;
+}
+
+/* Responsive Viewport Toolbar & Centering */
+.viewport-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  background-color: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  padding: 0 10px;
+  font-size: 11px;
+  z-index: 50;
+}
+
+.viewport-bar.hidden {
+  display: none !important;
+}
+
+.viewport-title {
+  font-weight: bold;
+  color: var(--accent);
+}
+
+.viewport-label {
+  color: var(--text-muted);
+}
+
+.viewport-select, .viewport-input {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.viewport-input {
+  width: 60px;
+}
+
+.btn-viewport {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-viewport:hover {
+  background-color: var(--accent);
+  color: #ffffff;
+}
+
+.webview-container.mobile-mode {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  background-color: var(--bg-app) !important;
+  overflow: auto;
+}
+
+.webview-container.mobile-mode #webFrame {
+  flex: none !important;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border) !important;
 }
 
 /* Reader Mode Overlay */
@@ -831,13 +1046,44 @@ body, html {
   margin: 3px 0;
 }
 
+/* Hover Submenus in App Menu */
+.menu-has-submenu {
+  position: relative;
+}
+
+.menu-submenu {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -2px;
+  min-width: 220px;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  padding: 4px 0;
+  z-index: 1050;
+}
+
+.menu-has-submenu:hover > .menu-submenu {
+  display: block;
+}
+
+.menu-checkbox {
+  font-family: inherit;
+  margin-right: 8px;
+  color: var(--accent);
+  font-weight: bold;
+}
+
 /* Split View Pane & Mini Toolbar */
 .split-pane-wrapper {
-  flex: 1;
+  flex: 1 1 50%;
+  width: 50%;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--border);
   height: 100%;
+  position: relative;
 }
 
 .split-pane-wrapper.hidden {
@@ -852,6 +1098,30 @@ body, html {
   background-color: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
   gap: 6px;
+}
+
+.split-toolbar.hidden {
+  display: none !important;
+}
+
+.btn-floating-split {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 20;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.btn-floating-split:hover {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .split-toolbar input {
