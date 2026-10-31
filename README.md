@@ -1,61 +1,58 @@
-# Crux
+# Sonde 2.0
 
-A lightweight, modular, engineer-focused web browser built on PyQt6-WebEngine for Linux and Windows.
+A lightweight, modern, keyboard-driven web browser built with Rust, Wry/WebKitGTK, and native hardware acceleration for Linux and Windows.
 
-Crux provides three distinct interface paradigms, isolated multi-account containers, an integrated superuser-protected password and cookie vault, native request-level content blocking, customizable color themes, and Gemini/Ollama AI inference tools without background telemetry or bloatware.
+Sonde provides distinct interface paradigms, isolated multi-account containers, an integrated superuser-protected password and cookie vault, native request-level content blocking, customizable color themes (with Sand as default), bottom status bar with link preview, Google Gemini and Ollama AI inference tools without background telemetry or bloatware.
 
 ---
 
 ## Architecture and Interface Modes
 
-Crux provides two dedicated, switchable operational paradigms:
+Sonde provides dedicated, switchable operational paradigms:
 
 1. **Minimal Mode (Default)**
    - High-density square aesthetic with strict 0px border-radius, 1px borders, and monospace typography.
    - **Switchable Tab Orientation (`Ctrl+Alt+T`)**:
-     - *Vertical Sidebar*: Fixed-width tabs on the left with color-coded container badges. Collapsible to a 50px compact icon strip (`Ctrl+[`).
+     - *Vertical Sidebar*: Fixed-width tabs on the left with color-coded container badges. Collapsible to a compact icon strip (`Ctrl+[`).
      - *Horizontal Top Tabs*: Traditional horizontal tab bar positioned above the webview with crisp square close buttons.
-   - Discrete status indicators and minimal navigation bar.
+   - Discrete status indicators, bottom mini status bar with real-time hover link preview and progress bar.
 
 2. **Vim Mode**
-   - Distraction-free full-window browsing. Navigation toolbar and tab strips are hidden.
-   - Command input and feedback via a bottom statusline prompt (`:`).
+   - Distraction-free browsing.
+   - Full keyboard navigation works on both Russian and English keyboard layouts (`j`, `k`, `d`, `u`, `r`, `t`, `x`, `J`, `K`).
    - Dedicated `[EXIT VIM]` corner button and `Escape` key return path to standard mode.
-   - Single-key hotkeys for rapid navigation (`o`, `t`, `d`, `J`, `K`, `r`, `yy`, `H`, `L`).
 
-Switch between modes at any time using `Ctrl+M`, the status bar mode menu, or CLI flag `--mode {minimal,vim}`.
+Switch between modes at any time using `Ctrl+M`, the status bar mode menu, or Settings (`Ctrl+,`).
 
 ---
 
 ## Visual Theming and Accent Colors
 
-Crux supports dynamic system theming without requiring application restarts:
+Sonde supports dynamic system theming without requiring application restarts:
 
 - **Themes:** Claude Code Minimal Dark and Clean Paper Light.
 - **Accent Presets:**
-  - Crux Purple (`#a855f7`) — *Default*
-  - Emerald Green (`#10b981`)
-  - Sky Blue (`#38bdf8`)
-  - Zephyrium Amber (`#fe8019`)
-  - Nordic Rose (`#f43f5e`)
-  - Monochrome Slate (`#94a3b8`)
+   - Desert Sand (`#d4a373`) — *Default (Balanced contrast, warm desert sand)*
+   - Amber Orange (`#fe8019`)
+   - Emerald Green (`#10b981`)
+   - Sky Blue (`#38bdf8`)
+   - Nordic Purple (`#a855f7`)
+   - Monochrome Slate (`#94a3b8`)
 
-Configure your appearance via Settings (`Ctrl+,`) or during initial first-launch onboarding (`crux://welcome`).
+Configure your appearance via Settings (`Ctrl+,`) or during initial first-launch onboarding modal (`sonde://welcome`).
 
 ---
 
-- **Pinned Tabs & Visual Tab Groups**: Pin tabs to protect them against accidental closure with a dedicated `[PIN]` indicator. Organize workflows into named, colored tab groups directly from the sidebar context menu.
-- **Smart Omnibox URL Auto-Complete**: Dynamic search suggestions and URL auto-completion powered by local browsing history, bookmarks, and popular domains without third-party tracking.
-- **Distraction-Free Reader Mode**: Clean typography, customizable aesthetic, and instant toggle (`Ctrl+Alt+R` or toolbar button) converting noisy articles into readable, minimalist layouts.
-- **Picture-in-Picture (PiP)**: Pop out HTML5 videos into a persistent floating window (`Ctrl+Alt+P` or toolbar button) to watch media while working across tabs.
-- **AI Quick Actions**: Selected text context menu actions (`✦ Crux AI` -> Explain, Translate to Russian, Summarize TL;DR) powered by the Google Gemini API directly inside the AI sidebar without heavy local models.
-- **Custom URL Scheme Handler (`crux://`)**: Native Chromium protocol handler for internal settings, history, and downloads, ensuring 100% bug-free rendering on both Windows/Wine and Linux (with automatic aliasing for `zephyrium://`).
-- **Protected Credentials Vault**: Dedicated settings tab (`04 // Passwords & Cookies`) secured by Linux `sudo` authentication. View, reveal, copy, and export stored credentials to CSV or JSON, and cookies to Netscape format.
-- **Universal Browser Importer**: Automatic detection of native and Flatpak installations of Google Chrome, Chromium, Microsoft Edge, Brave, and Mozilla Firefox. Imports bookmarks, history, cookies, and login credentials, with support for CSV password imports.
-- **Tab Suspension and Memory Optimization**: Background tabs automatically enter sleep mode after 20 minutes of inactivity, unloading DOM trees to conserve RAM while preserving restoration state. Manual suspension is available via tab context menu.
-- **Native AdBlocker and Privacy Engine**: Interceptor-based network blocking with a persistent domain whitelist (`~/.config/crux/adblock_whitelist.json`). Automatic stripping of URL tracking parameters (`utm_*`, `fbclid`, `gclid`). SOCKS5/Tor proxy toggle (`127.0.0.1:9050`).
-- **Single-Instance IPC Architecture**: A local domain socket (`crux_ipc_sock`) handles subsequent CLI invocations (`crux <url>`), passing requests to the running process without spawning redundant browser processes.
-- **Dual AI Assistant (Gemini & Ollama)**: Integrated sidebar chat capable of analyzing active web page DOM contexts (`@page <query>`). Choose between Google Gemini (API key) and local Ollama (`http://localhost:11434`) models (`llama3`, `mistral`, `deepseek-r1`).
+- **Bottom Mini Status Bar**: Compact bottom status bar displaying real-time hovered hyperlink destinations, animated page loading progress bar, current zoom level, and security status badge (`🔒 SECURE` / `⚠️ HTTP` / `⚡ SONDE`).
+- **Interactive Hotkey Configuration**: View and customize keyboard shortcuts directly in Settings (`Ctrl+,`), with persistent storage in SQLite.
+- **First-Run Onboarding Modal**: First-launch onboarding modal to configure interface language, accent color, search engine, and UI mode.
+- **Custom URL Scheme Handler (`sonde://`)**: Native protocol handler for internal settings, history, and downloads (with automatic backward-compatibility aliasing for `crux://` and `zephyrium://`).
+- **Google Gemini & Ollama AI Integration**: Built-in AI panel with Google Gemini 2.5 Flash, 1.5 Pro, 1.5 Flash, DeepSeek, OpenAI, Ollama, and custom model inputs.
+- **Secure Credentials Vault**: Password storage protected by system authentication with native IPC routing ensuring sensitive data is never exposed to the address bar.
+- **Distraction-Free Reader Mode**: Clean typography and instant toggle (`Ctrl+Alt+R`) converting noisy articles into readable layouts.
+- **Picture-in-Picture (PiP)**: Pop out HTML5 videos into a persistent floating window (`Ctrl+Alt+P`).
+- **Native AdBlocker and Privacy Engine**: Network-level request interceptor with a persistent whitelist, URL tracking parameter stripping (`utm_*`, `fbclid`, `gclid`).
+- **Automatic File & Userscript Downloads**: Direct downloads into `~/Downloads/` (and `~/.config/sonde/scripts/` for userscripts like Better xCloud).
 - **Multilingual Support (i18n)**: Full localization engine covering 10 major languages: English, Russian, Simplified Chinese, Spanish, German, French, Japanese, Portuguese, Italian, and Turkish.
 - **Wayland and Desktop Integration**: Linux process name registered as `crux` via `prctl(PR_SET_NAME)`. Conforms to `StartupWMClass=crux` for Waybar, Hyprland, Sway, GNOME, and KDE task managers.
 
