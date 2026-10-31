@@ -487,3 +487,155 @@ body, html {
     transform: scale(1) translateY(0);
   }
 }
+
+/* Split View */
+.webview-container.split-mode {
+  display: flex !important;
+  flex-direction: row;
+}
+
+.webview-container.split-mode .web-frame {
+  width: 50% !important;
+  flex: 1;
+  display: block !important;
+}
+
+.webview-container.split-mode .web-frame:first-child {
+  border-right: 1px solid var(--border);
+}
+
+/* Reader Mode Overlay */
+.reader-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: #1a1a1a;
+  color: #e5e5e5;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  padding: 30px;
+  overflow-y: auto;
+  animation: fadeIn var(--anim-speed) ease;
+}
+
+.reader-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 24px;
+}
+
+.reader-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--accent);
+}
+
+.reader-content {
+  max-width: 720px;
+  margin: 0 auto;
+  font-family: serif;
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+/* Settings Modal */
+.settings-box {
+  width: 600px;
+  background-color: var(--bg-app);
+  border: 1px solid var(--accent);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
+  animation: scaleUp var(--anim-speed) var(--anim-ease);
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-title {
+  font-weight: bold;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+
+.settings-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setting-lbl {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.setting-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.settings-select, .settings-input {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 12px;
+  height: 32px;
+  padding: 0 8px;
+  outline: none;
+}
+
+.settings-select:focus, .settings-input:focus {
+  border-color: var(--accent);
+}
+
+.download-dir-row {
+  display: flex;
+  gap: 6px;
+}
+
+.download-dir-row input {
+  flex: 1;
+}
+
+.settings-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Tab Mute Button */
+.tab-mute {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.tab-mute:hover {
+  color: var(--accent);
+}
+
+.tab-mute.muted {
+  color: #ef4444;
+}
+

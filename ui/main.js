@@ -10,8 +10,11 @@ function sendIpc(cmd, data = {}) {
   }
 }
 
+let searchEngine = "duckduckgo";
+let isSplitView = false;
+
 let tabs = [
-  { id: 1, title: 'Crux Startpage', url: 'https://duckduckgo.com', container: 'default', is_pinned: false, is_active: true }
+  { id: 1, title: 'Crux Startpage', url: 'https://duckduckgo.com', container: 'default', is_pinned: false, is_muted: false, is_active: true }
 ];
 
 const elements = {
@@ -21,11 +24,28 @@ const elements = {
   sidebar: document.getElementById('sidebar'),
   urlInput: document.getElementById('urlInput'),
   webFrame: document.getElementById('webFrame'),
+  webFrameSplit: document.getElementById('webFrameSplit'),
+  webViewContainer: document.getElementById('webViewContainer'),
   progressBar: document.getElementById('progressBar'),
   commandPalette: document.getElementById('commandPalette'),
   paletteInput: document.getElementById('paletteInput'),
   paletteResults: document.getElementById('paletteResults'),
   btnCommandPalette: document.getElementById('btnCommandPalette'),
+  btnSplitView: document.getElementById('btnSplitView'),
+  btnReaderMode: document.getElementById('btnReaderMode'),
+  readerOverlay: document.getElementById('readerOverlay'),
+  btnCloseReader: document.getElementById('btnCloseReader'),
+  readerTitle: document.getElementById('readerTitle'),
+  readerContent: document.getElementById('readerContent'),
+  btnSettings: document.getElementById('btnSettings'),
+  settingsModal: document.getElementById('settingsModal'),
+  btnCloseSettings: document.getElementById('btnCloseSettings'),
+  btnSaveSettings: document.getElementById('btnSaveSettings'),
+  btnBrowseDownload: document.getElementById('btnBrowseDownload'),
+  searchEngineSelect: document.getElementById('searchEngineSelect'),
+  adblockToggle: document.getElementById('adblockToggle'),
+  txtDownloadDir: document.getElementById('txtDownloadDir'),
+  txtAiApiKey: document.getElementById('txtAiApiKey'),
   btnAiSidebar: document.getElementById('btnAiSidebar'),
   btnBookmark: document.getElementById('btnBookmark'),
   btnToggleAi: document.getElementById('btnToggleAi'),
@@ -60,6 +80,19 @@ function renderTabs() {
     title.className = 'tab-title';
     title.textContent = tab.title || 'New Tab';
     el.appendChild(title);
+
+    // Audio Mute indicator & toggle
+    const muteBtn = document.createElement('button');
+    muteBtn.className = `tab-mute ${tab.is_muted ? 'muted' : ''}`;
+    muteBtn.textContent = tab.is_muted ? '🔇' : '🔊';
+    muteBtn.title = tab.is_muted ? 'Unmute Tab' : 'Mute Tab';
+    muteBtn.onclick = (e) => {
+      e.stopPropagation();
+      tab.is_muted = !tab.is_muted;
+      sendIpc('toggle_mute', { id: tab.id });
+      renderTabs();
+    };
+    el.appendChild(muteBtn);
 
     if (!tab.is_pinned) {
       const close = document.createElement('button');
@@ -97,6 +130,7 @@ function createTab(url = 'https://duckduckgo.com') {
     url,
     container: 'default',
     is_pinned: false,
+    is_muted: false,
     is_active: true
   };
   tabs.push(tab);
@@ -121,7 +155,20 @@ function closeTab(id) {
   }
 }
 
-// Navigation Events
+// Navigation & Search Engines
+function getSearchUrl(query) {
+  switch (searchEngine) {
+    case 'google':
+      return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    case 'searxng':
+      return `https://searx.be/search?q=${encodeURIComponent(query)}`;
+    case 'brave':
+      return `https://search.brave.com/search?q=${encodeURIComponent(query)}`;
+    default:
+      return `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
+  }
+}
+
 if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab());
 if (elements.btnToggleSidebar) {
   elements.btnToggleSidebar.addEventListener('click', () => elements.sidebar.classList.toggle('compact'));
@@ -135,7 +182,7 @@ if (elements.urlInput) {
         if (input.includes('.') && !input.includes(' ')) {
           input = 'https://' + input;
         } else {
-          input = 'https://duckduckgo.com/?q=' + encodeURIComponent(input);
+          input = getSearchUrl(input);
         }
       }
       const active = tabs.find(t => t.is_active);
@@ -161,6 +208,68 @@ if (elements.btnBookmark) {
       sendIpc('add_bookmark', { url: active.url, title: active.title });
       appendAiMessage("system", `Bookmarked: ${active.url}`);
     }
+  });
+}
+
+// Split View
+function toggleSplitView() {
+  isSplitView = !isSplitView;
+  if (isSplitView) {
+    elements.webViewContainer.classList.add('split-mode');
+    elements.webFrameSplit.classList.remove('hidden');
+    elements.webFrameSplit.src = 'https://duckduckgo.com';
+    elements.btnSplitView.classList.add('active');
+  } else {
+    elements.webViewContainer.classList.remove('split-mode');
+    elements.webFrameSplit.classList.add('hidden');
+    elements.btnSplitView.classList.remove('active');
+  }
+}
+
+if (elements.btnSplitView) elements.btnSplitView.addEventListener('click', toggleSplitView);
+
+// Reader Mode
+function toggleReaderMode() {
+  if (!elements.readerOverlay) return;
+  const isHidden = elements.readerOverlay.classList.contains('hidden');
+  if (isHidden) {
+    const active = tabs.find(t => t.is_active);
+    elements.readerTitle.textContent = active ? (active.title || active.url) : 'Distraction-Free Reading';
+    elements.readerOverlay.classList.remove('hidden');
+  } else {
+    elements.readerOverlay.classList.add('hidden');
+  }
+}
+
+if (elements.btnReaderMode) elements.btnReaderMode.addEventListener('click', toggleReaderMode);
+if (elements.btnCloseReader) elements.btnCloseReader.addEventListener('click', () => elements.readerOverlay.classList.add('hidden'));
+
+// Settings Modal
+function toggleSettingsModal() {
+  if (!elements.settingsModal) return;
+  elements.settingsModal.classList.toggle('hidden');
+}
+
+if (elements.btnSettings) elements.btnSettings.addEventListener('click', toggleSettingsModal);
+if (elements.btnCloseSettings) elements.btnCloseSettings.addEventListener('click', toggleSettingsModal);
+
+if (elements.btnBrowseDownload) {
+  elements.btnBrowseDownload.addEventListener('click', () => {
+    sendIpc('choose_download_dir');
+  });
+}
+
+if (elements.btnSaveSettings) {
+  elements.btnSaveSettings.addEventListener('click', () => {
+    if (elements.searchEngineSelect) {
+      searchEngine = elements.searchEngineSelect.value;
+      sendIpc('save_setting', { key: 'search_engine', value: searchEngine });
+    }
+    if (elements.txtAiApiKey && elements.txtAiApiKey.value) {
+      sendIpc('save_setting', { key: 'ai_api_key', value: elements.txtAiApiKey.value.trim() });
+    }
+    toggleSettingsModal();
+    appendAiMessage("system", "Settings saved successfully.");
   });
 }
 
@@ -209,7 +318,20 @@ if (elements.btnAiSummarize) {
     const url = active ? active.url : "";
     appendAiMessage("user", `Summarize page: ${url}`);
     sendIpc('ask_ai', {
-      prompt: `Please summarize the purpose and key points of webpage: ${url}`,
+      prompt: `Please summarize the key points of webpage: ${url}`,
+      provider: "ollama",
+      model: "llama3"
+    });
+  });
+}
+
+if (elements.btnAiExplain) {
+  elements.btnAiExplain.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    const url = active ? active.url : "";
+    appendAiMessage("user", `Explain concepts on: ${url}`);
+    sendIpc('ask_ai', {
+      prompt: `Explain the technical concepts and topic covered by: ${url}`,
       provider: "ollama",
       model: "llama3"
     });
@@ -230,8 +352,13 @@ function toggleCommandPalette() {
 const commands = [
   { name: 'New Tab', action: () => createTab() },
   { name: 'Toggle Compact Sidebar', action: () => elements.sidebar.classList.toggle('compact') },
+  { name: 'Toggle Split View (Side-by-side)', action: toggleSplitView },
+  { name: 'Toggle Reading Mode', action: toggleReaderMode },
+  { name: 'Open Settings', action: toggleSettingsModal },
   { name: 'Toggle Crux AI Panel', action: toggleAiPanel },
   { name: 'Bookmark Current Page', action: () => elements.btnBookmark && elements.btnBookmark.click() },
+  { name: 'Show SQLite Bookmarks', action: () => sendIpc('get_bookmarks') },
+  { name: 'Show SQLite History', action: () => sendIpc('get_history') },
   { name: 'Choose Default Download Directory (Rust RFD)', action: () => sendIpc('choose_download_dir') },
   { name: 'Pin / Unpin Current Tab', action: () => {
     const active = tabs.find(t => t.is_active);
@@ -274,10 +401,47 @@ window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
     toggleCommandPalette();
-  } else if (e.key === 'Escape' && elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
-    elements.commandPalette.classList.add('hidden');
+  } else if (e.key === 'Escape') {
+    if (elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
+      elements.commandPalette.classList.add('hidden');
+    }
+    if (elements.settingsModal && !elements.settingsModal.classList.contains('hidden')) {
+      elements.settingsModal.classList.add('hidden');
+    }
+    if (elements.readerOverlay && !elements.readerOverlay.classList.contains('hidden')) {
+      elements.readerOverlay.classList.add('hidden');
+    }
   }
 });
+
+// Window Callbacks from Rust Event Loop
+window.onAiResponse = function(text, success) {
+  appendAiMessage("assistant", text);
+};
+
+window.onBookmarksLoaded = function(bookmarks) {
+  if (!bookmarks || !bookmarks.length) {
+    appendAiMessage("system", "No bookmarks saved in SQLite yet.");
+    return;
+  }
+  const lines = bookmarks.map(b => `• ${b.title || b.url} (${b.url})`);
+  appendAiMessage("system", `Saved Bookmarks (${bookmarks.length}):\n` + lines.join("\n"));
+  if (elements.aiPanel && elements.aiPanel.classList.contains('hidden')) {
+    toggleAiPanel();
+  }
+};
+
+window.onHistoryLoaded = function(history) {
+  if (!history || !history.length) {
+    appendAiMessage("system", "History is empty.");
+    return;
+  }
+  const lines = history.slice(0, 10).map(h => `• ${h.title || h.url} [${h.visited_at}]`);
+  appendAiMessage("system", `Recent SQLite History (${history.length}):\n` + lines.join("\n"));
+  if (elements.aiPanel && elements.aiPanel.classList.contains('hidden')) {
+    toggleAiPanel();
+  }
+};
 
 // Initial Render
 renderTabs();

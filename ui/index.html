@@ -40,6 +40,9 @@
         </div>
 
         <div class="action-buttons">
+          <button id="btnSplitView" class="btn-nav" title="Toggle Split View">SPLIT</button>
+          <button id="btnReaderMode" class="btn-nav" title="Reading Mode">READ</button>
+          <button id="btnSettings" class="btn-nav" title="Settings">⚙</button>
           <button id="btnCommandPalette" class="btn-nav" title="Command Palette (Ctrl+Shift+P)">CMD</button>
           <button id="btnToggleAi" class="btn-nav" title="Toggle Crux AI">AI</button>
         </div>
@@ -49,7 +52,19 @@
       <div class="workspace-wrapper">
         <section id="webViewContainer" class="webview-container">
           <iframe id="webFrame" src="https://duckduckgo.com" class="web-frame"></iframe>
+          <iframe id="webFrameSplit" src="about:blank" class="web-frame hidden"></iframe>
         </section>
+
+        <!-- Reader Mode Overlay -->
+        <div id="readerOverlay" class="reader-overlay hidden">
+          <div class="reader-header">
+            <span id="readerTitle" class="reader-title">Reader Mode</span>
+            <button id="btnCloseReader" class="btn-icon">&times;</button>
+          </div>
+          <article id="readerContent" class="reader-content">
+            <p>Reader mode parses clean typography and distraction-free text.</p>
+          </article>
+        </div>
 
         <!-- Collapsible Crux AI Panel -->
         <aside id="aiPanel" class="ai-panel hidden">
@@ -93,6 +108,49 @@
         <ul id="paletteResults" class="palette-results">
           <!-- Commands dynamically rendered -->
         </ul>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal-overlay hidden">
+      <div class="settings-box">
+        <div class="settings-header">
+          <span class="settings-title">CRUX SETTINGS</span>
+          <button id="btnCloseSettings" class="btn-icon">&times;</button>
+        </div>
+        <div class="settings-body">
+          <div class="setting-item">
+            <label class="setting-lbl">Default Search Engine</label>
+            <select id="searchEngineSelect" class="settings-select">
+              <option value="duckduckgo">DuckDuckGo</option>
+              <option value="google">Google</option>
+              <option value="searxng">SearXNG</option>
+              <option value="brave">Brave Search</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <label class="setting-lbl">Ad & Tracker Blocker</label>
+            <input type="checkbox" id="adblockToggle" checked>
+            <span class="setting-desc">Filter telemetry and ad domains in Rust</span>
+          </div>
+
+          <div class="setting-item">
+            <label class="setting-lbl">Download Directory</label>
+            <div class="download-dir-row">
+              <input type="text" id="txtDownloadDir" class="settings-input" placeholder="~/Downloads" readonly>
+              <button id="btnBrowseDownload" class="btn-nav">Browse...</button>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <label class="setting-lbl">Crux AI API Key (OpenAI / DeepSeek)</label>
+            <input type="password" id="txtAiApiKey" class="settings-input" placeholder="sk-...">
+          </div>
+        </div>
+        <div class="settings-footer">
+          <button id="btnSaveSettings" class="btn-new-tab">SAVE SETTINGS</button>
+        </div>
       </div>
     </div>
   </div>
