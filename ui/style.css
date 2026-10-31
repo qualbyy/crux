@@ -45,7 +45,7 @@ body, html {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  transition: width var(--anim-speed) var(--anim-ease), transform var(--anim-speed) var(--anim-ease);
+  transition: width var(--anim-speed) var(--anim-ease);
 }
 
 .sidebar.compact {
@@ -234,7 +234,6 @@ body, html {
   border-color: var(--accent);
 }
 
-/* Progress Bar with glowing accent */
 .progress-bar {
   position: absolute;
   bottom: 0;
@@ -243,6 +242,13 @@ body, html {
   width: 0%;
   background-color: var(--accent);
   transition: width 200ms ease;
+}
+
+.workspace-wrapper {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
 }
 
 .webview-container {
@@ -257,7 +263,159 @@ body, html {
   border: none;
 }
 
-/* Command Palette Animation */
+/* Crux AI Panel (Anthropic Dark Style) */
+.ai-panel {
+  width: 320px;
+  background-color: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--anim-speed) var(--anim-ease);
+}
+
+.ai-panel.hidden {
+  display: none;
+}
+
+.ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.ai-title {
+  color: var(--accent);
+  font-weight: bold;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.ai-controls {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-lbl {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.ai-select {
+  flex: 1;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 11px;
+  height: 26px;
+  padding: 0 6px;
+  outline: none;
+}
+
+.ai-history {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  user-select: text;
+}
+
+.ai-msg {
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  border-left: 2px solid var(--border);
+}
+
+.ai-msg.system {
+  border-left-color: var(--accent);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ai-msg.user {
+  background-color: var(--bg-elevated);
+  border-left-color: #38bdf8;
+  color: var(--text-main);
+}
+
+.ai-msg.assistant {
+  background-color: var(--bg-active);
+  border-left-color: var(--accent);
+  color: var(--text-main);
+}
+
+.ai-actions-row {
+  display: flex;
+  padding: 6px 10px;
+  gap: 6px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.btn-ai-action {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  height: 24px;
+  cursor: pointer;
+  transition: all var(--anim-speed) ease;
+}
+
+.btn-ai-action:hover {
+  color: var(--text-main);
+  border-color: var(--accent);
+}
+
+.ai-input-row {
+  display: flex;
+  padding: 8px 10px;
+  gap: 6px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.ai-input {
+  flex: 1;
+  height: 28px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0 8px;
+  outline: none;
+}
+
+.ai-input:focus {
+  border-color: var(--accent);
+}
+
+.btn-ai-send {
+  background-color: var(--accent);
+  color: #ffffff;
+  border: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.btn-ai-send:hover {
+  background-color: var(--accent-hover);
+}
+
+/* Command Palette */
 .modal-overlay {
   position: fixed;
   inset: 0;

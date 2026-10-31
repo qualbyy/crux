@@ -1,4 +1,4 @@
-// Crux 2.0 — Frontend Controller with Rust IPC
+// Crux 2.0 — Frontend Controller with Rust IPC & AI Engine
 
 function sendIpc(cmd, data = {}) {
   try {
@@ -27,7 +27,19 @@ const elements = {
   paletteResults: document.getElementById('paletteResults'),
   btnCommandPalette: document.getElementById('btnCommandPalette'),
   btnAiSidebar: document.getElementById('btnAiSidebar'),
-  btnSettings: document.getElementById('btnSettings')
+  btnBookmark: document.getElementById('btnBookmark'),
+  btnToggleAi: document.getElementById('btnToggleAi'),
+  aiPanel: document.getElementById('aiPanel'),
+  btnCloseAi: document.getElementById('btnCloseAi'),
+  aiModelSelect: document.getElementById('aiModelSelect'),
+  aiChatHistory: document.getElementById('aiChatHistory'),
+  aiInput: document.getElementById('aiInput'),
+  btnAiSend: document.getElementById('btnAiSend'),
+  btnAiSummarize: document.getElementById('btnAiSummarize'),
+  btnAiExplain: document.getElementById('btnAiExplain'),
+  btnBack: document.getElementById('btnBack'),
+  btnForward: document.getElementById('btnForward'),
+  btnReload: document.getElementById('btnReload')
 };
 
 function renderTabs() {
@@ -109,15 +121,10 @@ function closeTab(id) {
   }
 }
 
-// Event Listeners
-if (elements.btnNewTab) {
-  elements.btnNewTab.addEventListener('click', () => createTab());
-}
-
+// Navigation Events
+if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab());
 if (elements.btnToggleSidebar) {
-  elements.btnToggleSidebar.addEventListener('click', () => {
-    elements.sidebar.classList.toggle('compact');
-  });
+  elements.btnToggleSidebar.addEventListener('click', () => elements.sidebar.classList.toggle('compact'));
 }
 
 if (elements.urlInput) {
@@ -141,6 +148,74 @@ if (elements.urlInput) {
   });
 }
 
+if (elements.btnReload) {
+  elements.btnReload.addEventListener('click', () => {
+    if (elements.webFrame) elements.webFrame.src = elements.webFrame.src;
+  });
+}
+
+if (elements.btnBookmark) {
+  elements.btnBookmark.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    if (active) {
+      sendIpc('add_bookmark', { url: active.url, title: active.title });
+      appendAiMessage("system", `Bookmarked: ${active.url}`);
+    }
+  });
+}
+
+// Crux AI Panel Logic
+function toggleAiPanel() {
+  if (!elements.aiPanel) return;
+  elements.aiPanel.classList.toggle('hidden');
+}
+
+if (elements.btnToggleAi) elements.btnToggleAi.addEventListener('click', toggleAiPanel);
+if (elements.btnAiSidebar) elements.btnAiSidebar.addEventListener('click', toggleAiPanel);
+if (elements.btnCloseAi) elements.btnCloseAi.addEventListener('click', toggleAiPanel);
+
+function appendAiMessage(role, text) {
+  if (!elements.aiChatHistory) return;
+  const msg = document.createElement('div');
+  msg.className = `ai-msg ${role}`;
+  msg.textContent = text;
+  elements.aiChatHistory.appendChild(msg);
+  elements.aiChatHistory.scrollTop = elements.aiChatHistory.scrollHeight;
+}
+
+function handleAiSend() {
+  const text = elements.aiInput ? elements.aiInput.value.trim() : "";
+  if (!text) return;
+  elements.aiInput.value = "";
+  appendAiMessage("user", text);
+
+  const model = elements.aiModelSelect ? elements.aiModelSelect.value : "llama3";
+  const provider = model.includes("gpt") ? "openai" : (model.includes("deepseek-chat") ? "deepseek" : "ollama");
+
+  appendAiMessage("assistant", `Crux AI (${model}): Processing request...`);
+  sendIpc('ask_ai', { prompt: text, provider, model });
+}
+
+if (elements.btnAiSend) elements.btnAiSend.addEventListener('click', handleAiSend);
+if (elements.aiInput) {
+  elements.aiInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleAiSend();
+  });
+}
+
+if (elements.btnAiSummarize) {
+  elements.btnAiSummarize.addEventListener('click', () => {
+    const active = tabs.find(t => t.is_active);
+    const url = active ? active.url : "";
+    appendAiMessage("user", `Summarize page: ${url}`);
+    sendIpc('ask_ai', {
+      prompt: `Please summarize the purpose and key points of webpage: ${url}`,
+      provider: "ollama",
+      model: "llama3"
+    });
+  });
+}
+
 // Command Palette (Ctrl+Shift+P)
 function toggleCommandPalette() {
   if (!elements.commandPalette) return;
@@ -155,8 +230,9 @@ function toggleCommandPalette() {
 const commands = [
   { name: 'New Tab', action: () => createTab() },
   { name: 'Toggle Compact Sidebar', action: () => elements.sidebar.classList.toggle('compact') },
+  { name: 'Toggle Crux AI Panel', action: toggleAiPanel },
+  { name: 'Bookmark Current Page', action: () => elements.btnBookmark && elements.btnBookmark.click() },
   { name: 'Choose Default Download Directory (Rust RFD)', action: () => sendIpc('choose_download_dir') },
-  { name: 'Open Settings', action: () => createTab('crux://settings') },
   { name: 'Pin / Unpin Current Tab', action: () => {
     const active = tabs.find(t => t.is_active);
     if (active) {
@@ -164,7 +240,8 @@ const commands = [
       renderTabs();
       sendIpc('toggle_pin', { id: active.id });
     }
-  }}
+  }},
+  { name: 'Clear SQLite History', action: () => sendIpc('clear_history') }
 ];
 
 function renderCommands(query) {
@@ -204,4 +281,4 @@ window.addEventListener('keydown', (e) => {
 
 // Initial Render
 renderTabs();
-console.log("Crux 2.0 UI Shell initialized with Rust IPC.");
+console.log("Crux 2.0 Rust Architecture initialized.");

@@ -9,21 +9,28 @@ use tao::{
 use wry::WebViewBuilder;
 use serde_json::Value;
 
+mod adblock;
+mod ai;
 mod storage;
 mod tab_manager;
 
+use adblock::AdBlocker;
 use storage::Database;
 use tab_manager::TabManager;
 
 fn main() -> wry::Result<()> {
+    // WebKitGTK Wayland DMA-BUF rendering fix to prevent blank/gray screen on Linux Wayland/Hyprland
+    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
     // 1. Initialize SQLite Database in user config dir
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let config_dir = PathBuf::from(home).join(".config").join("crux");
     let db_path = config_dir.join("crux_v2.db");
     let db = Arc::new(Database::init(db_path).expect("Failed to initialize SQLite database"));
 
-    // 2. Initialize TabManager
+    // 2. Initialize Core State: TabManager & AdBlocker
     let tab_manager = Arc::new(Mutex::new(TabManager::new()));
+    let adblocker = Arc::new(AdBlocker::new());
 
     // 3. Initialize Tao Event Loop & Window
     let event_loop = EventLoop::new();
@@ -43,13 +50,9 @@ fn main() -> wry::Result<()> {
         .replace(r#"<link rel="stylesheet" href="style.css">"#, &format!("<style>{}</style>", css_content))
         .replace(r#"<script src="main.js"></script>"#, &format!("<script>{}</script>", js_content));
 
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    use tao::platform::unix::WindowExtUnix;
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    use wry::WebViewBuilderExtUnix;
-
     let tm_clone = Arc::clone(&tab_manager);
     let db_clone = Arc::clone(&db);
+    let adb_clone = Arc::clone(&adblocker);
 
     let mut builder = WebViewBuilder::new();
     builder = builder
@@ -61,6 +64,10 @@ fn main() -> wry::Result<()> {
                 match cmd {
                     "navigate" => {
                         if let Some(url) = v["url"].as_str() {
+                            if adb_clone.should_block(url) {
+                                println!("[Rust AdBlock] Blocked URL: {}", url);
+                                return;
+                            }
                             let mut tm = tm_clone.lock().unwrap();
                             if let Some(act_id) = tm.active_id {
                                 tm.set_url(act_id, url.to_string());
@@ -97,6 +104,16 @@ fn main() -> wry::Result<()> {
                             println!("[Rust Core] Toggled Pin Tab: #{}", id);
                         }
                     }
+                    "add_bookmark" => {
+                        let url = v["url"].as_str().unwrap_or("");
+                        let title = v["title"].as_str().unwrap_or("Bookmark");
+                        db_clone.add_bookmark(url, title).ok();
+                        println!("[Rust Core] Added bookmark: {}", url);
+                    }
+                    "clear_history" => {
+                        db_clone.clear_history().ok();
+                        println!("[Rust Core] History cleared");
+                    }
                     "choose_download_dir" => {
                         std::thread::spawn(|| {
                             let folder = rfd::FileDialog::new()
@@ -107,23 +124,28 @@ fn main() -> wry::Result<()> {
                             }
                         });
                     }
+                    "ask_ai" => {
+                        let prompt = v["prompt"].as_str().unwrap_or("").to_string();
+                        let provider = v["provider"].as_str().unwrap_or("ollama").to_string();
+                        let model = v["model"].as_str().unwrap_or("llama3").to_string();
+                        let api_key = v["api_key"].as_str().map(|s| s.to_string());
+
+                        std::thread::spawn(move || {
+                            let req = ai::AiRequest {
+                                provider,
+                                model,
+                                prompt,
+                                api_key,
+                            };
+                            let resp = ai::query_ai(req);
+                            println!("[Crux AI] Response received: success={}", resp.success);
+                        });
+                    }
                     _ => {}
                 }
             }
         });
 
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let _webview = {
-        let wv = builder.build_gtk(window.gtk_window())?;
-        use gtk::prelude::WidgetExt;
-        window.gtk_window().show_all();
-        wv
-    };
-
-    #[cfg(target_os = "windows")]
-    let _webview = builder.build(&window)?;
-
-    #[cfg(target_os = "macos")]
     let _webview = builder.build(&window)?;
 
     event_loop.run(move |event, _, control_flow| {

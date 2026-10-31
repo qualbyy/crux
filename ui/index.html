@@ -20,7 +20,7 @@
 
       <div class="sidebar-footer">
         <button id="btnAiSidebar" class="btn-footer">AI CHAT</button>
-        <button id="btnSettings" class="btn-footer">SETTINGS</button>
+        <button id="btnBookmark" class="btn-footer">★ BOOKMARK</button>
       </div>
     </aside>
 
@@ -41,14 +41,49 @@
 
         <div class="action-buttons">
           <button id="btnCommandPalette" class="btn-nav" title="Command Palette (Ctrl+Shift+P)">CMD</button>
-          <button id="btnSplitView" class="btn-nav" title="Split Screen">SPLIT</button>
+          <button id="btnToggleAi" class="btn-nav" title="Toggle Crux AI">AI</button>
         </div>
       </header>
 
-      <!-- Web Content Viewport -->
-      <section id="webViewContainer" class="webview-container">
-        <iframe id="webFrame" src="about:blank" class="web-frame"></iframe>
-      </section>
+      <!-- Web Content Viewport & AI Panel Wrapper -->
+      <div class="workspace-wrapper">
+        <section id="webViewContainer" class="webview-container">
+          <iframe id="webFrame" src="https://duckduckgo.com" class="web-frame"></iframe>
+        </section>
+
+        <!-- Collapsible Crux AI Panel -->
+        <aside id="aiPanel" class="ai-panel hidden">
+          <div class="ai-header">
+            <span class="ai-title">CRUX AI</span>
+            <button id="btnCloseAi" class="btn-icon">&times;</button>
+          </div>
+
+          <div class="ai-controls">
+            <label class="ai-lbl">MODEL:</label>
+            <select id="aiModelSelect" class="ai-select">
+              <option value="llama3">Ollama: llama3 (Local)</option>
+              <option value="deepseek-r1">Ollama: deepseek-r1 (Local)</option>
+              <option value="mistral">Ollama: mistral (Local)</option>
+              <option value="deepseek-chat">DeepSeek V3 (Cloud)</option>
+              <option value="gpt-4o-mini">OpenAI: GPT-4o Mini</option>
+            </select>
+          </div>
+
+          <div id="aiChatHistory" class="ai-history">
+            <div class="ai-msg system">Crux AI ready. Ask any question or summarize web pages.</div>
+          </div>
+
+          <div class="ai-actions-row">
+            <button id="btnAiSummarize" class="btn-ai-action">SUMMARIZE PAGE</button>
+            <button id="btnAiExplain" class="btn-ai-action">EXPLAIN</button>
+          </div>
+
+          <div class="ai-input-row">
+            <input type="text" id="aiInput" class="ai-input" placeholder="Ask AI anything..." spellcheck="false">
+            <button id="btnAiSend" class="btn-ai-send">SEND</button>
+          </div>
+        </aside>
+      </div>
     </main>
 
     <!-- Command Palette Modal (Ctrl+Shift+P) -->
