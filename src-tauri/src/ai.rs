@@ -18,7 +18,7 @@ pub struct AiResponse {
 
 pub fn query_ai(req: AiRequest) -> AiResponse {
     let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(45))
         .build();
 
     let client = match client {
@@ -32,8 +32,75 @@ pub fn query_ai(req: AiRequest) -> AiResponse {
         }
     };
 
-    if req.provider == "ollama" {
-        // Query local Ollama daemon
+    if req.provider == "gemini" || req.model.starts_with("gemini-") {
+        // Google Gemini API
+        let key = req.api_key.clone().unwrap_or_default();
+        if key.trim().is_empty() {
+            return AiResponse {
+                success: false,
+                reply: String::new(),
+                error: Some("Gemini API key is required. Please set it in Sonde Settings -> AI Assistant.".to_string()),
+            };
+        }
+        let model = if req.model.is_empty() || req.model == "default" {
+            "gemini-2.5-flash"
+        } else {
+            &req.model
+        };
+        let url = format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+            model, key.trim()
+        );
+
+        let payload = json!({
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": req.prompt}]
+            }],
+            "systemInstruction": {
+                "parts": [{"text": "You are Sonde AI, an intelligent, ultra-fast, engineer-grade browser assistant."}]
+            }
+        });
+
+        match client.post(&url).json(&payload).send() {
+            Ok(resp) => {
+                if let Ok(v) = resp.json::<serde_json::Value>() {
+                    if let Some(err) = v.get("error") {
+                        let msg = err["message"].as_str().unwrap_or("Gemini API error");
+                        AiResponse {
+                            success: false,
+                            reply: String::new(),
+                            error: Some(format!("Gemini Error: {}", msg)),
+                        }
+                    } else if let Some(reply) = v["candidates"][0]["content"]["parts"][0]["text"].as_str() {
+                        AiResponse {
+                            success: true,
+                            reply: reply.to_string(),
+                            error: None,
+                        }
+                    } else {
+                        AiResponse {
+                            success: false,
+                            reply: String::new(),
+                            error: Some("No text returned by Gemini".to_string()),
+                        }
+                    }
+                } else {
+                    AiResponse {
+                        success: false,
+                        reply: String::new(),
+                        error: Some("Invalid response from Gemini endpoint".to_string()),
+                    }
+                }
+            }
+            Err(e) => AiResponse {
+                success: false,
+                reply: String::new(),
+                error: Some(format!("Gemini request failed: {}", e)),
+            },
+        }
+    } else if req.provider == "ollama" {
+        // Local Ollama daemon
         let payload = json!({
             "model": if req.model.is_empty() { "llama3" } else { &req.model },
             "prompt": req.prompt,
@@ -68,7 +135,7 @@ pub fn query_ai(req: AiRequest) -> AiResponse {
             },
         }
     } else {
-        // Standard OpenAI-compatible format (OpenAI, DeepSeek, Groq)
+        // OpenAI / DeepSeek / Custom OpenAI-compatible endpoint
         let endpoint = if req.provider == "deepseek" {
             "https://api.deepseek.com/v1/chat/completions"
         } else if req.provider == "groq" {
@@ -81,7 +148,7 @@ pub fn query_ai(req: AiRequest) -> AiResponse {
         let payload = json!({
             "model": req.model,
             "messages": [
-                {"role": "system", "content": "You are Crux AI, an intelligent engineer-focused browser assistant."},
+                {"role": "system", "content": "You are Sonde AI, an intelligent engineer-focused browser assistant."},
                 {"role": "user", "content": req.prompt}
             ],
             "temperature": 0.7

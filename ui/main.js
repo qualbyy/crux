@@ -1,4 +1,4 @@
-// Crux 2.0 — Frontend Controller with Rust IPC & AI Engine (Full Original Parity)
+// Sonde 2.0 — Frontend Controller with Rust IPC & AI Engine (Sand Minimalist Aesthetic)
 
 function sendIpc(cmd, data = {}) {
   try {
@@ -15,8 +15,8 @@ let currentLanguage = "ru";
 let currentTheme = "dark";
 let tabOrientation = "vertical"; // 'vertical' | 'horizontal'
 let uiMode = "minimal"; // 'minimal' | 'vim'
-let searchEngine = "duckduckgo";
-let currentAccent = "#a855f7";
+let searchEngine = "google";
+let currentAccent = "#d4a373";
 let currentZoom = 1.0;
 let isMobileMode = false;
 let mobileWidth = 390;
@@ -30,16 +30,16 @@ let currentHistory = [];
 let tabs = [
   {
     id: 1,
-    title: 'Crux Startpage',
-    url: 'crux://startpage',
-    history: ['crux://startpage'],
+    title: 'Sonde Startpage',
+    url: 'sonde://startpage',
+    history: ['sonde://startpage'],
     historyIndex: 0,
     container: 'default',
     is_pinned: false,
     is_muted: false,
     is_playing_audio: false,
     is_split: false,
-    split_url: 'crux://startpage',
+    split_url: 'sonde://startpage',
     hide_split_url: false,
     is_active: true
   }
@@ -83,7 +83,7 @@ const I18N = {
     show_url_bar: "Показать строку адреса",
     downloads_title: "ЗАГРУЗКИ",
     bookmarks_title: "ЗАКЛАДКИ",
-    all_downloads: "ВСЕ ЗАГРУЗКИ (crux://downloads)",
+    all_downloads: "ВСЕ ЗАГРУЗКИ (sonde://downloads)",
     all_bookmarks: "ВСЕ ЗАКЛАДКИ",
     open_folder: "ОТКРЫТЬ ПАПКУ",
     add_bookmark: "+ ДОБАВИТЬ СТРАНИЦУ",
@@ -94,7 +94,7 @@ const I18N = {
     reader_btn: "ЧТЕНИЕ",
     ai_btn: "ИИ",
     cmd_btn: "КОМАНДЫ",
-    url_placeholder: "Поиск в DuckDuckGo или введите адрес...",
+    url_placeholder: "Поиск или ввод адреса...",
     find_placeholder: "Поиск на странице...",
     ctx_pin: "Закрепить вкладку",
     ctx_unpin: "Открепить вкладку",
@@ -141,7 +141,7 @@ const I18N = {
     show_url_bar: "Show Address Bar",
     downloads_title: "DOWNLOADS",
     bookmarks_title: "BOOKMARKS",
-    all_downloads: "ALL DOWNLOADS (crux://downloads)",
+    all_downloads: "ALL DOWNLOADS (sonde://downloads)",
     all_bookmarks: "ALL BOOKMARKS",
     open_folder: "OPEN FOLDER",
     add_bookmark: "+ ADD CURRENT PAGE",
@@ -152,7 +152,7 @@ const I18N = {
     reader_btn: "READ",
     ai_btn: "AI",
     cmd_btn: "CMD",
-    url_placeholder: "Search DuckDuckGo or enter address...",
+    url_placeholder: "Search or enter address...",
     find_placeholder: "Find in page...",
     ctx_pin: "Pin Tab",
     ctx_unpin: "Unpin Tab",
@@ -412,11 +412,11 @@ function syncTabSplitView(tab) {
     }
 
     if (elements.webFrameSplit) {
-      const splitUrl = tab.split_url || 'crux://startpage';
-      if (elements.urlInputSplit) elements.urlInputSplit.value = splitUrl === 'crux://startpage' ? '' : splitUrl;
-      if (splitUrl === 'crux://startpage' || splitUrl === 'about:blank') {
+      const splitUrl = tab.split_url || 'sonde://startpage';
+      if (elements.urlInputSplit) elements.urlInputSplit.value = (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage') ? '' : splitUrl;
+      if (splitUrl === 'sonde://startpage' || splitUrl === 'crux://startpage' || splitUrl === 'about:blank') {
         elements.webFrameSplit.removeAttribute('src');
-        elements.webFrameSplit.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
+        elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
       } else if (splitUrl.startsWith('http://') || splitUrl.startsWith('https://')) {
         elements.webFrameSplit.removeAttribute('srcdoc');
         elements.webFrameSplit.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(splitUrl)}`;
@@ -438,7 +438,7 @@ function toggleSplitView() {
   if (!active) return;
   active.is_split = !active.is_split;
   if (active.is_split && !active.split_url) {
-    active.split_url = 'crux://startpage';
+    active.split_url = 'sonde://startpage';
   }
   syncTabSplitView(active);
   showToast(active.is_split ? (currentLanguage === 'ru' ? "Разделение экрана: ВКЛ" : "Split View: ON") : (currentLanguage === 'ru' ? "Разделение экрана: ВЫКЛ" : "Split View: OFF"));
@@ -450,8 +450,8 @@ function navigateSplitTab(input) {
 
   let url = (input || "").trim();
   if (!url) {
-    url = 'crux://startpage';
-  } else if (!url.startsWith('crux://') && !url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'sonde://startpage';
+  } else if (!url.startsWith('sonde://') && !url.startsWith('crux://') && !url.startsWith('http://') && !url.startsWith('https://')) {
     if (url.includes('.') && !url.includes(' ')) {
       url = 'https://' + url;
     } else {
@@ -460,11 +460,11 @@ function navigateSplitTab(input) {
   }
 
   active.split_url = url;
-  if (elements.urlInputSplit) elements.urlInputSplit.value = url === 'crux://startpage' ? '' : url;
+  if (elements.urlInputSplit) elements.urlInputSplit.value = (url === 'sonde://startpage' || url === 'crux://startpage') ? '' : url;
 
-  if (url === 'crux://startpage') {
+  if (url === 'sonde://startpage' || url === 'crux://startpage') {
     elements.webFrameSplit.removeAttribute('src');
-    elements.webFrameSplit.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
+    elements.webFrameSplit.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
   } else if (url.startsWith('http://') || url.startsWith('https://')) {
     elements.webFrameSplit.removeAttribute('srcdoc');
     elements.webFrameSplit.src = `http://127.0.0.1:39281/proxy?url=${encodeURIComponent(url)}`;
@@ -477,37 +477,65 @@ function navigateSplitTab(input) {
 function loadTabContent(tab) {
   if (!tab || !elements.webFrame) return;
 
-  const url = tab.url || 'crux://startpage';
+  const url = tab.url || 'sonde://startpage';
 
-  if (url === 'crux://startpage' || url === 'about:blank') {
+  const prog = document.getElementById('statusBarProgress');
+  const progFill = document.getElementById('statusBarProgressFill');
+  const secBadge = document.getElementById('statusBarSecurity');
+  const sbUrl = document.getElementById('statusBarUrl');
+  if (sbUrl) sbUrl.textContent = url.startsWith('http') ? url : (currentLanguage === 'ru' ? 'Готово' : 'Ready');
+
+  if (secBadge) {
+    if (url.startsWith('https://')) {
+      secBadge.textContent = '🔒 SECURE';
+      secBadge.style.color = '#10b981';
+      secBadge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    } else if (url.startsWith('http://')) {
+      secBadge.textContent = '⚠️ HTTP';
+      secBadge.style.color = '#ef4444';
+      secBadge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+    } else {
+      secBadge.textContent = '⚡ SONDE';
+      secBadge.style.color = 'var(--accent)';
+      secBadge.style.borderColor = 'var(--accent)';
+    }
+  }
+
+  if (prog && progFill) {
+    prog.classList.remove('hidden');
+    progFill.style.width = '35%';
+    setTimeout(() => { if (progFill) progFill.style.width = '75%'; }, 150);
+  }
+
+  if (url === 'sonde://startpage' || url === 'crux://startpage' || url === 'about:blank') {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_STARTPAGE_HTML || '<h1>Crux Startpage</h1>');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_STARTPAGE_HTML || window.CRUX_STARTPAGE_HTML || '<h1>Sonde Startpage</h1>');
     if (elements.urlInput) elements.urlInput.value = '';
     setTimeout(() => {
       applyAccentColor(currentAccent);
       applyTheme(currentTheme);
     }, 60);
-  } else if (url.startsWith('crux://settings')) {
+  } else if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_SETTINGS_HTML || '<h1>Crux Settings</h1>');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_SETTINGS_HTML || window.CRUX_SETTINGS_HTML || '<h1>Sonde Settings</h1>');
     if (elements.urlInput) elements.urlInput.value = url;
     setTimeout(() => {
       sendIpc('get_settings');
       applyAccentColor(currentAccent);
       applyTheme(currentTheme);
     }, 60);
-  } else if (url.startsWith('crux://history')) {
+  } else if (url.startsWith('sonde://history') || url.startsWith('crux://history')) {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_HISTORY_HTML || '<h1>Crux History</h1>');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_HISTORY_HTML || window.CRUX_HISTORY_HTML || '<h1>Sonde History</h1>');
     if (elements.urlInput) elements.urlInput.value = url;
     setTimeout(() => {
       sendIpc('get_history');
       applyAccentColor(currentAccent);
       applyTheme(currentTheme);
     }, 60);
-  } else if (url.startsWith('crux://downloads')) {
+  } else if (url.startsWith('sonde://downloads') || url.startsWith('crux://downloads')) {
     elements.webFrame.removeAttribute('src');
-    elements.webFrame.srcdoc = prepareInternalHtml(window.CRUX_DOWNLOADS_HTML || '<h1>Crux Downloads</h1>');
+    elements.webFrame.srcdoc = prepareInternalHtml(window.SONDE_DOWNLOADS_HTML || window.CRUX_DOWNLOADS_HTML || '<h1>Sonde Downloads</h1>');
     if (elements.urlInput) elements.urlInput.value = url;
     setTimeout(() => {
       sendIpc('get_downloads');
@@ -529,13 +557,27 @@ function loadTabContent(tab) {
   applyZoom(currentZoom);
 }
 
+if (elements.webFrame) {
+  elements.webFrame.addEventListener('load', () => {
+    const prog = document.getElementById('statusBarProgress');
+    const progFill = document.getElementById('statusBarProgressFill');
+    if (prog && progFill) {
+      progFill.style.width = '100%';
+      setTimeout(() => {
+        prog.classList.add('hidden');
+        progFill.style.width = '0%';
+      }, 250);
+    }
+  });
+}
+
 // Letter Badge Helper for Compact Mode & Tab Favicon Fallback
 function getTabBadgeLetter(tab) {
   const url = tab.url || '';
-  if (url.startsWith('crux://startpage')) return 'C';
-  if (url.startsWith('crux://settings')) return '⚙';
-  if (url.startsWith('crux://history')) return 'H';
-  if (url.startsWith('crux://downloads')) return 'D';
+  if (url.startsWith('sonde://startpage') || url.startsWith('crux://startpage')) return 'S';
+  if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) return '⚙';
+  if (url.startsWith('sonde://history') || url.startsWith('crux://history')) return 'H';
+  if (url.startsWith('sonde://downloads') || url.startsWith('crux://downloads')) return 'D';
   try {
     const host = new URL(url).hostname.replace(/^www\./, '');
     if (host.length > 0) return host[0].toUpperCase();
@@ -578,7 +620,7 @@ function renderTabs() {
 
     const title = document.createElement('span');
     title.className = 'tab-title';
-    title.textContent = tab.title || (tab.url === 'crux://startpage' ? 'Crux Startpage' : 'New Tab');
+    title.textContent = tab.title || (tab.url === 'sonde://startpage' || tab.url === 'crux://startpage' ? 'Sonde Startpage' : 'New Tab');
     el.appendChild(title);
 
     // Speaker / Mute icon ONLY shown when playing audio or muted
@@ -657,7 +699,7 @@ function renderHorizontalTabs() {
 
     const title = document.createElement('span');
     title.className = 'tab-title';
-    title.textContent = tab.title || (tab.url === 'crux://startpage' ? 'Startpage' : 'New Tab');
+    title.textContent = tab.title || (tab.url === 'sonde://startpage' || tab.url === 'crux://startpage' ? 'Startpage' : 'New Tab');
     el.appendChild(title);
 
     // Audio icon only if muted or playing
@@ -713,7 +755,7 @@ function setTabOrientation(orient) {
   sendIpc('save_setting', { key: 'tab_orientation', value: tabOrientation });
 }
 
-function setUiMode(mode) {
+function setUiMode(mode, silent = false) {
   uiMode = mode === 'vim' ? 'vim' : 'minimal';
   const topNav = document.getElementById('topNav');
 
@@ -722,12 +764,12 @@ function setUiMode(mode) {
     if (elements.sidebar) elements.sidebar.classList.add('hidden');
     if (elements.horizontalTabBar) elements.horizontalTabBar.classList.add('hidden');
     if (elements.vimStatusBar) elements.vimStatusBar.classList.remove('hidden');
-    showToast(currentLanguage === 'ru' ? "Vim-режим: Нажмите Esc для выхода" : "Vim Mode: Press Esc to exit");
+    if (!silent) showToast(currentLanguage === 'ru' ? "Vim-режим: Нажмите Esc для выхода" : "Vim Mode: Press Esc to exit");
   } else {
     if (topNav) topNav.classList.remove('hidden');
     if (elements.vimStatusBar) elements.vimStatusBar.classList.add('hidden');
     setTabOrientation(tabOrientation);
-    showToast(currentLanguage === 'ru' ? "Минималистичный режим" : "Minimal UI Mode");
+    if (!silent) showToast(currentLanguage === 'ru' ? "Минималистичный режим" : "Minimal UI Mode");
   }
 
   if (elements.chkUiMinimal) elements.chkUiMinimal.textContent = uiMode === 'minimal' ? '[x]' : '[ ]';
@@ -753,8 +795,8 @@ function navigateActiveTab(input) {
 
   let url = (input || "").trim();
   if (!url) {
-    url = 'crux://startpage';
-  } else if (url.startsWith('crux://')) {
+    url = 'sonde://startpage';
+  } else if (url.startsWith('sonde://') || url.startsWith('crux://')) {
     // Keep internal URLs
   } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
     if (url.includes('.') && !url.includes(' ')) {
@@ -765,14 +807,14 @@ function navigateActiveTab(input) {
   }
 
   active.url = url;
-  if (url === 'crux://startpage') {
-    active.title = 'Crux Startpage';
-  } else if (url.startsWith('crux://settings')) {
-    active.title = 'Crux Settings';
-  } else if (url.startsWith('crux://history')) {
-    active.title = 'Crux History';
-  } else if (url.startsWith('crux://downloads')) {
-    active.title = 'Crux Downloads';
+  if (url === 'sonde://startpage' || url === 'crux://startpage') {
+    active.title = 'Sonde Startpage';
+  } else if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) {
+    active.title = 'Sonde Settings';
+  } else if (url.startsWith('sonde://history') || url.startsWith('crux://history')) {
+    active.title = 'Sonde History';
+  } else if (url.startsWith('sonde://downloads') || url.startsWith('crux://downloads')) {
+    active.title = 'Sonde Downloads';
   } else {
     try {
       const u = new URL(url);
@@ -795,15 +837,15 @@ function navigateActiveTab(input) {
   sendIpc('navigate', { url });
 }
 
-function createTab(url = 'crux://startpage', container = 'default') {
+function createTab(url = 'sonde://startpage', container = 'default') {
   const newId = (tabs.length ? Math.max(...tabs.map(t => t.id)) : 0) + 1;
   tabs.forEach(t => t.is_active = false);
 
   let title = 'New Tab';
-  if (url === 'crux://startpage') title = 'Crux Startpage';
-  else if (url.startsWith('crux://settings')) title = 'Crux Settings';
-  else if (url.startsWith('crux://history')) title = 'Crux History';
-  else if (url.startsWith('crux://downloads')) title = 'Crux Downloads';
+  if (url === 'sonde://startpage' || url === 'crux://startpage') title = 'Sonde Startpage';
+  else if (url.startsWith('sonde://settings') || url.startsWith('crux://settings')) title = 'Sonde Settings';
+  else if (url.startsWith('sonde://history') || url.startsWith('crux://history')) title = 'Sonde History';
+  else if (url.startsWith('sonde://downloads') || url.startsWith('crux://downloads')) title = 'Sonde Downloads';
 
   const tab = {
     id: newId,
@@ -816,7 +858,7 @@ function createTab(url = 'crux://startpage', container = 'default') {
     is_muted: false,
     is_playing_audio: false,
     is_split: false,
-    split_url: 'crux://startpage',
+    split_url: 'sonde://startpage',
     hide_split_url: false,
     is_active: true
   };
@@ -836,7 +878,7 @@ function closeTab(id) {
 
   tabs.splice(idx, 1);
   if (tabs.length === 0) {
-    createTab('crux://startpage');
+    createTab('sonde://startpage');
     return;
   }
 
@@ -956,6 +998,8 @@ function toggleMobileMode() {
 function applyZoom(z) {
   currentZoom = Math.min(2.5, Math.max(0.5, Math.round(z * 10) / 10));
   if (elements.zoomLevelLbl) elements.zoomLevelLbl.textContent = `${Math.round(currentZoom * 100)}%`;
+  const sbZoom = document.getElementById('statusBarZoom');
+  if (sbZoom) sbZoom.textContent = `${Math.round(currentZoom * 100)}%`;
 
   if (elements.webFrame && !isMobileMode) {
     if (Math.abs(currentZoom - 1.0) < 0.01) {
@@ -979,8 +1023,8 @@ function applyZoom(z) {
 }
 
 // Navigation & Tab Controls Listeners
-if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab('crux://startpage'));
-if (elements.btnNewTabHoriz) elements.btnNewTabHoriz.addEventListener('click', () => createTab('crux://startpage'));
+if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab('sonde://startpage'));
+if (elements.btnNewTabHoriz) elements.btnNewTabHoriz.addEventListener('click', () => createTab('sonde://startpage'));
 
 if (elements.btnToggleSidebar) {
   elements.btnToggleSidebar.addEventListener('click', () => {
@@ -1303,7 +1347,7 @@ function renderDownloadsList(downloads) {
 
 if (elements.btnDownloads) elements.btnDownloads.addEventListener('click', toggleDownloadsPopup);
 if (elements.btnOpenDownloadsFolder) elements.btnOpenDownloadsFolder.addEventListener('click', () => sendIpc('open_downloads_folder'));
-if (elements.btnViewAllDownloads) elements.btnViewAllDownloads.addEventListener('click', () => openInternalPage('crux://downloads'));
+if (elements.btnViewAllDownloads) elements.btnViewAllDownloads.addEventListener('click', () => openInternalPage('sonde://downloads'));
 
 // App Menu Controller
 function toggleAppMenu(e) {
@@ -1338,7 +1382,7 @@ function toggleReaderMode() {
     if (!active) return;
     const url = active.url;
 
-    if (url.startsWith('crux://') || url === 'about:blank') {
+    if (url.startsWith('sonde://') || url.startsWith('crux://') || url === 'about:blank') {
       showToast(currentLanguage === 'ru' ? "Режим чтения недоступен для системных страниц" : "Reader mode unavailable for internal pages");
       return;
     }
@@ -1570,31 +1614,31 @@ const menuActions = {
     } catch(e) {}
     showToast(currentLanguage === 'ru' ? "Видео для режима картинка-в-картинке не найдено" : "No video found for Picture-in-Picture");
   },
-  menuNewTab: () => createTab('crux://startpage'),
+  menuNewTab: () => createTab('sonde://startpage'),
   menuReopenClosed: reopenLastClosedTab,
-  menuNewWindow: () => showToast(currentLanguage === 'ru' ? "Новое окно Crux активно" : "Crux window active"),
+  menuNewWindow: () => showToast(currentLanguage === 'ru' ? "Новое окно Sonde активно" : "Sonde window active"),
   menuIncognitoWindow: () => {
-    createTab('crux://startpage', 'incognito');
+    createTab('sonde://startpage', 'incognito');
     showToast(currentLanguage === 'ru' ? "Создана вкладка инкогнито" : "Incognito container tab created");
   },
   menuFindInPage: toggleFindInPage,
   menuSplit: toggleSplitView,
   menuDevTools: openDevTools,
   menuDownloads: (e) => toggleDownloadsPopup(e),
-  menuHistory: () => openInternalPage('crux://history'),
+  menuHistory: () => openInternalPage('sonde://history'),
   menuBookmarks: (e) => toggleBookmarksPopup(e),
   menuAi: () => toggleAiPanel(),
   menuAdBlock: () => sendIpc('toggle_adblock'),
-  menuSettings: () => openInternalPage('crux://settings'),
+  menuSettings: () => openInternalPage('sonde://settings'),
   // Submenu Actions
   optTabVert: () => setTabOrientation('vertical'),
   optTabHoriz: () => setTabOrientation('horizontal'),
   optUiMinimal: () => setUiMode('minimal'),
   optUiVim: () => setUiMode('vim'),
-  optContainerPersonal: () => createTab('crux://startpage', 'personal'),
-  optContainerWork: () => createTab('crux://startpage', 'work'),
-  optContainerBanking: () => createTab('crux://startpage', 'banking'),
-  optContainerShopping: () => createTab('crux://startpage', 'shopping')
+  optContainerPersonal: () => createTab('sonde://startpage', 'personal'),
+  optContainerWork: () => createTab('sonde://startpage', 'work'),
+  optContainerBanking: () => createTab('sonde://startpage', 'banking'),
+  optContainerShopping: () => createTab('sonde://startpage', 'shopping')
 };
 
 Object.entries(menuActions).forEach(([id, action]) => {
@@ -1656,17 +1700,54 @@ function appendAiMessage(role, text) {
   elements.aiChatHistory.scrollTop = elements.aiChatHistory.scrollHeight;
 }
 
+function getSelectedAiConfig() {
+  let rawModel = elements.aiModelSelect ? elements.aiModelSelect.value : "gemini:gemini-2.5-flash";
+  let provider = "gemini";
+  let model = "gemini-2.5-flash";
+
+  if (rawModel === 'custom') {
+    const customInp = document.getElementById('aiCustomModelInput');
+    const val = customInp ? customInp.value.trim() : "";
+    model = val || "llama3";
+    provider = model.startsWith("gemini") ? "gemini" : (model.includes("gpt") ? "openai" : (model.includes("deepseek") ? "deepseek" : "ollama"));
+  } else if (rawModel.includes(':')) {
+    const parts = rawModel.split(':');
+    provider = parts[0];
+    model = parts[1];
+  } else {
+    model = rawModel;
+    provider = model.startsWith("gemini") ? "gemini" : (model.includes("gpt") ? "openai" : (model.includes("deepseek") ? "deepseek" : "ollama"));
+  }
+
+  const apiKey = (currentSettings && currentSettings.ai_api_key) ? currentSettings.ai_api_key : undefined;
+  return { provider, model, apiKey };
+}
+
 function handleAiSend() {
   const text = elements.aiInput ? elements.aiInput.value.trim() : "";
   if (!text) return;
   elements.aiInput.value = "";
   appendAiMessage("user", text);
 
-  const model = elements.aiModelSelect ? elements.aiModelSelect.value : "llama3";
-  const provider = model.includes("gpt") ? "openai" : (model.includes("deepseek-chat") ? "deepseek" : "ollama");
+  const { provider, model, apiKey } = getSelectedAiConfig();
 
-  appendAiMessage("assistant", `Crux AI (${model}): Processing request...`);
-  sendIpc('ask_ai', { prompt: text, provider, model });
+  appendAiMessage("assistant", `Sonde AI (${model}): ${currentLanguage === 'ru' ? 'Обработка запроса...' : 'Processing request...'}`);
+  sendIpc('ask_ai', { prompt: text, provider, model, api_key: apiKey });
+}
+
+if (elements.aiModelSelect) {
+  elements.aiModelSelect.addEventListener('change', () => {
+    const customRow = document.getElementById('aiCustomModelContainer');
+    if (customRow) {
+      if (elements.aiModelSelect.value === 'custom') {
+        customRow.classList.remove('hidden');
+        const customInput = document.getElementById('aiCustomModelInput');
+        if (customInput) customInput.focus();
+      } else {
+        customRow.classList.add('hidden');
+      }
+    }
+  });
 }
 
 if (elements.btnAiSend) elements.btnAiSend.addEventListener('click', handleAiSend);
@@ -1681,10 +1762,12 @@ if (elements.btnAiSummarize) {
     const active = tabs.find(t => t.is_active);
     const url = active ? active.url : "";
     appendAiMessage("user", `Summarize page: ${url}`);
+    const { provider, model, apiKey } = getSelectedAiConfig();
     sendIpc('ask_ai', {
       prompt: `Please summarize the key points of webpage: ${url}`,
-      provider: "ollama",
-      model: "llama3"
+      provider,
+      model,
+      api_key: apiKey
     });
   });
 }
@@ -1694,10 +1777,12 @@ if (elements.btnAiExplain) {
     const active = tabs.find(t => t.is_active);
     const url = active ? active.url : "";
     appendAiMessage("user", `Explain concepts on: ${url}`);
+    const { provider, model, apiKey } = getSelectedAiConfig();
     sendIpc('ask_ai', {
       prompt: `Explain the technical concepts and topic covered by: ${url}`,
-      provider: "ollama",
-      model: "llama3"
+      provider,
+      model,
+      api_key: apiKey
     });
   });
 }
@@ -1714,11 +1799,11 @@ function toggleCommandPalette() {
 }
 
 const commands = [
-  { name: 'New Tab (Ctrl+T)', action: () => createTab('crux://startpage') },
+  { name: 'New Tab (Ctrl+T)', action: () => createTab('sonde://startpage') },
   { name: 'Reopen Closed Tab (Ctrl+Shift+T)', action: reopenLastClosedTab },
-  { name: 'Open Preferences & Settings (Ctrl+,)', action: () => openInternalPage('crux://settings') },
-  { name: 'Open Browsing History (Ctrl+H)', action: () => openInternalPage('crux://history') },
-  { name: 'Open Downloads Manager (Ctrl+Shift+D)', action: () => openInternalPage('crux://downloads') },
+  { name: 'Open Preferences & Settings (Ctrl+,)', action: () => openInternalPage('sonde://settings') },
+  { name: 'Open Browsing History (Ctrl+H)', action: () => openInternalPage('sonde://history') },
+  { name: 'Open Downloads Manager (Ctrl+Shift+D)', action: () => openInternalPage('sonde://downloads') },
   { name: 'Toggle Bookmarks Popup (Ctrl+Shift+O)', action: toggleBookmarksPopup },
   { name: 'Toggle Downloads Popup', action: toggleDownloadsPopup },
   { name: 'Toggle Developer Tools (F12)', action: openDevTools },
@@ -1728,7 +1813,7 @@ const commands = [
   { name: 'Toggle UI Mode (Minimal / Vim)', action: () => setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal') },
   { name: 'Toggle Mobile Viewport (Ctrl+Shift+M)', action: toggleMobileMode },
   { name: 'Toggle Compact Sidebar', action: () => elements.sidebar.classList.toggle('compact') },
-  { name: 'Toggle Crux AI Panel (Ctrl+B)', action: toggleAiPanel },
+  { name: 'Toggle Sonde AI Panel (Ctrl+B)', action: toggleAiPanel },
   { name: 'Open Downloads Folder', action: () => sendIpc('open_downloads_folder') },
   { name: 'Choose Default Download Directory', action: () => sendIpc('choose_download_dir') },
   { name: 'Clear SQLite History', action: () => {
@@ -1819,110 +1904,122 @@ function handleGlobalShortcut(e) {
     return;
   }
 
+  const code = e.code || '';
+  const key = (e.key || '').toLowerCase();
+  const ctrl = e.ctrlKey || e.metaKey;
+
+  function scrollActiveWebFrame(dy) {
+    try {
+      if (elements.webFrame && elements.webFrame.contentWindow) {
+        elements.webFrame.contentWindow.postMessage({ type: 'sonde_scroll', dy: dy }, '*');
+        elements.webFrame.contentWindow.scrollBy(0, dy);
+      }
+    } catch(ex) {}
+  }
+
   // Vim Mode hotkeys (when not typing in an input)
-  if (uiMode === 'vim' && !isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
-    if (e.key === 'j') {
-      try { elements.webFrame.contentWindow.scrollBy(0, 150); } catch(ex){}
+  if (uiMode === 'vim' && !isInput && !ctrl && !e.altKey) {
+    if (code === 'KeyJ' || key === 'j' || key === 'о') {
+      if (e.shiftKey) {
+        // Next tab
+        const curIdx = tabs.findIndex(t => t.is_active);
+        if (curIdx >= 0 && curIdx < tabs.length - 1) activateTab(tabs[curIdx + 1].id);
+      } else {
+        scrollActiveWebFrame(150);
+      }
       return;
-    } else if (e.key === 'k') {
-      try { elements.webFrame.contentWindow.scrollBy(0, -150); } catch(ex){}
+    } else if (code === 'KeyK' || key === 'k' || key === 'л') {
+      if (e.shiftKey) {
+        // Previous tab
+        const curIdx = tabs.findIndex(t => t.is_active);
+        if (curIdx > 0) activateTab(tabs[curIdx - 1].id);
+      } else {
+        scrollActiveWebFrame(-150);
+      }
       return;
-    } else if (e.key === 'd') {
-      try { elements.webFrame.contentWindow.scrollBy(0, 450); } catch(ex){}
+    } else if (code === 'KeyD' || key === 'd' || key === 'в') {
+      scrollActiveWebFrame(450);
       return;
-    } else if (e.key === 'u') {
-      try { elements.webFrame.contentWindow.scrollBy(0, -450); } catch(ex){}
+    } else if (code === 'KeyU' || key === 'u' || key === 'г') {
+      scrollActiveWebFrame(-450);
       return;
-    } else if (e.key === 'r') {
+    } else if (code === 'KeyR' || key === 'r' || key === 'к') {
       const active = tabs.find(t => t.is_active);
       if (active) loadTabContent(active);
       return;
-    } else if (e.key === 't') {
-      createTab('crux://startpage');
+    } else if (code === 'KeyT' || key === 't' || key === 'е') {
+      createTab('sonde://startpage');
       return;
-    } else if (e.key === 'x') {
+    } else if (code === 'KeyX' || key === 'x' || key === 'ч') {
       const active = tabs.find(t => t.is_active);
       if (active) closeTab(active.id);
-      return;
-    } else if (e.key === 'J') {
-      // Next tab
-      const curIdx = tabs.findIndex(t => t.is_active);
-      if (curIdx >= 0 && curIdx < tabs.length - 1) activateTab(tabs[curIdx + 1].id);
-      return;
-    } else if (e.key === 'K') {
-      // Previous tab
-      const curIdx = tabs.findIndex(t => t.is_active);
-      if (curIdx > 0) activateTab(tabs[curIdx - 1].id);
       return;
     }
   }
 
-  const ctrl = e.ctrlKey || e.metaKey;
-  const key = (e.key || '').toLowerCase();
-
   // Zoom hotkeys (Ctrl++, Ctrl+=, Ctrl+-, Ctrl+0)
-  if (ctrl && (key === '=' || key === '+')) {
+  if (ctrl && (key === '=' || key === '+' || code === 'Equal')) {
     if (e.preventDefault) e.preventDefault();
     applyZoom(currentZoom + 0.1);
-  } else if (ctrl && key === '-') {
+  } else if (ctrl && (key === '-' || code === 'Minus')) {
     if (e.preventDefault) e.preventDefault();
     applyZoom(currentZoom - 0.1);
-  } else if (ctrl && key === '0') {
+  } else if (ctrl && (key === '0' || code === 'Digit0')) {
     if (e.preventDefault) e.preventDefault();
     applyZoom(1.0);
-  } else if (ctrl && e.shiftKey && key === 'm') {
+  } else if (ctrl && e.shiftKey && (code === 'KeyM' || key === 'm' || key === 'ь')) {
     if (e.preventDefault) e.preventDefault();
     toggleMobileMode();
-  } else if (ctrl && e.altKey && key === 't') {
+  } else if (ctrl && e.altKey && (code === 'KeyT' || key === 't' || key === 'е')) {
     if (e.preventDefault) e.preventDefault();
     setTabOrientation(tabOrientation === 'vertical' ? 'horizontal' : 'vertical');
-  } else if (ctrl && key === 'm') {
+  } else if (ctrl && !e.shiftKey && !e.altKey && (code === 'KeyM' || key === 'm' || key === 'ь')) {
     if (e.preventDefault) e.preventDefault();
     setUiMode(uiMode === 'minimal' ? 'vim' : 'minimal');
-  } else if (ctrl && e.shiftKey && key === 'p') {
+  } else if (ctrl && e.shiftKey && (code === 'KeyP' || key === 'p' || key === 'з')) {
     if (e.preventDefault) e.preventDefault();
     toggleCommandPalette();
-  } else if (ctrl && key === 't' && !e.shiftKey) {
+  } else if (ctrl && !e.shiftKey && !e.altKey && (code === 'KeyT' || key === 't' || key === 'е')) {
     if (e.preventDefault) e.preventDefault();
-    createTab('crux://startpage');
-  } else if (ctrl && e.shiftKey && key === 't') {
+    createTab('sonde://startpage');
+  } else if (ctrl && e.shiftKey && (code === 'KeyT' || key === 't' || key === 'е')) {
     if (e.preventDefault) e.preventDefault();
     reopenLastClosedTab();
-  } else if (ctrl && e.shiftKey && key === 'o') {
+  } else if (ctrl && e.shiftKey && (code === 'KeyO' || key === 'o' || key === 'щ')) {
     if (e.preventDefault) e.preventDefault();
     toggleBookmarksPopup();
-  } else if (ctrl && e.shiftKey && key === 'd') {
+  } else if (ctrl && e.shiftKey && (code === 'KeyD' || key === 'd' || key === 'в')) {
     if (e.preventDefault) e.preventDefault();
     toggleDownloadsPopup();
-  } else if (ctrl && key === 'h' && !e.shiftKey) {
+  } else if (ctrl && !e.shiftKey && (code === 'KeyH' || key === 'h' || key === 'р')) {
     if (e.preventDefault) e.preventDefault();
-    openInternalPage('crux://history');
-  } else if (ctrl && key === 'b') {
+    openInternalPage('sonde://history');
+  } else if (ctrl && !e.shiftKey && (code === 'KeyB' || key === 'b' || key === 'и')) {
     if (e.preventDefault) e.preventDefault();
     toggleAiPanel();
-  } else if (ctrl && key === 'f') {
+  } else if (ctrl && !e.shiftKey && (code === 'KeyF' || key === 'f' || key === 'а')) {
     if (e.preventDefault) e.preventDefault();
     toggleFindInPage();
-  } else if (ctrl && key === 'l') {
+  } else if (ctrl && !e.shiftKey && (code === 'KeyL' || key === 'l' || key === 'д')) {
     if (e.preventDefault) e.preventDefault();
     if (elements.urlInput) {
       elements.urlInput.focus();
       elements.urlInput.select();
     }
-  } else if (ctrl && key === ',') {
+  } else if (ctrl && (code === 'Comma' || key === ',' || key === 'б')) {
     if (e.preventDefault) e.preventDefault();
-    openInternalPage('crux://settings');
-  } else if (ctrl && (key === '\\' || e.code === 'Backslash')) {
+    openInternalPage('sonde://settings');
+  } else if (ctrl && (key === '\\' || code === 'Backslash')) {
     if (e.preventDefault) e.preventDefault();
     toggleSplitView();
-  } else if (ctrl && e.altKey && key === 'r') {
+  } else if (ctrl && e.altKey && (code === 'KeyR' || key === 'r' || key === 'к')) {
     if (e.preventDefault) e.preventDefault();
     toggleReaderMode();
-  } else if (ctrl && key === 'w' && !e.shiftKey) {
+  } else if (ctrl && !e.shiftKey && !e.altKey && (code === 'KeyW' || key === 'w' || key === 'ц')) {
     if (e.preventDefault) e.preventDefault();
     const active = tabs.find(t => t.is_active);
     if (active) closeTab(active.id);
-  } else if (e.key === 'F12' || (ctrl && e.shiftKey && key === 'i')) {
+  } else if (e.key === 'F12' || (ctrl && e.shiftKey && (code === 'KeyI' || key === 'i' || key === 'ш'))) {
     if (e.preventDefault) e.preventDefault();
     openDevTools();
   }
@@ -1931,11 +2028,38 @@ function handleGlobalShortcut(e) {
 document.addEventListener('keydown', handleGlobalShortcut);
 
 // Internal Page Communication Bridge
-function handleCruxInternalCommand(cmdUrl) {
+function handleSondeInternalCommand(cmdUrl) {
   if (!cmdUrl) return;
 
-  if (cmdUrl.startsWith('crux://apply-settings?')) {
-    const qs = cmdUrl.substring('crux://apply-settings?'.length);
+  if (cmdUrl.startsWith('sonde://action/unlock-vault?') || cmdUrl.startsWith('crux://action/unlock-vault?')) {
+    const qs = cmdUrl.includes('?') ? cmdUrl.split('?')[1] : '';
+    const params = new URLSearchParams(qs);
+    const pwd = params.get('password') || '';
+    sendIpc('unlock_vault', { password: pwd });
+    return; // Safely handled via IPC, NEVER expose password in omnibox!
+  }
+
+  if (cmdUrl.startsWith('sonde://action/add-password?') || cmdUrl.startsWith('crux://action/add-password?')) {
+    const qs = cmdUrl.includes('?') ? cmdUrl.split('?')[1] : '';
+    const params = new URLSearchParams(qs);
+    sendIpc('add_password', {
+      url: params.get('url') || '',
+      username: params.get('username') || '',
+      password: params.get('password') || ''
+    });
+    return;
+  }
+
+  if (cmdUrl.startsWith('sonde://action/delete-password?') || cmdUrl.startsWith('crux://action/delete-password?')) {
+    const qs = cmdUrl.includes('?') ? cmdUrl.split('?')[1] : '';
+    const params = new URLSearchParams(qs);
+    const id = parseInt(params.get('id') || '0', 10);
+    sendIpc('delete_password', { id });
+    return;
+  }
+
+  if (cmdUrl.startsWith('sonde://apply-settings?') || cmdUrl.startsWith('crux://apply-settings?')) {
+    const qs = cmdUrl.substring(cmdUrl.indexOf('?') + 1);
     const params = new URLSearchParams(qs);
     for (const [key, value] of params.entries()) {
       sendIpc('save_setting', { key, value });
@@ -1945,14 +2069,14 @@ function handleCruxInternalCommand(cmdUrl) {
       if (key === 'theme') applyTheme(value);
       if (key === 'language') applyLanguage(value);
       if (key === 'tab_orientation') setTabOrientation(value);
-      if (key === 'ui_mode') setUiMode(value);
+      if (key === 'ui_mode') setUiMode(value, true);
     }
     showToast(currentLanguage === 'ru' ? "Настройки сохранены" : "Settings saved");
     return;
   }
 
-  if (cmdUrl.startsWith('crux://live-setting?')) {
-    const qs = cmdUrl.substring('crux://live-setting?'.length);
+  if (cmdUrl.startsWith('sonde://live-setting?') || cmdUrl.startsWith('crux://live-setting?')) {
+    const qs = cmdUrl.substring(cmdUrl.indexOf('?') + 1);
     const params = new URLSearchParams(qs);
     const key = params.get('key');
     const value = params.get('value');
@@ -1964,13 +2088,13 @@ function handleCruxInternalCommand(cmdUrl) {
       if (key === 'theme') applyTheme(value);
       if (key === 'language') applyLanguage(value);
       if (key === 'tab_orientation') setTabOrientation(value);
-      if (key === 'ui_mode') setUiMode(value);
+      if (key === 'ui_mode') setUiMode(value, true);
     }
     return;
   }
 
-  if (cmdUrl.startsWith('crux://action/delete-history?')) {
-    const qs = cmdUrl.substring('crux://action/delete-history?'.length);
+  if (cmdUrl.startsWith('sonde://action/delete-history?') || cmdUrl.startsWith('crux://action/delete-history?')) {
+    const qs = cmdUrl.substring(cmdUrl.indexOf('?') + 1);
     const params = new URLSearchParams(qs);
     const url = params.get('url');
     if (url) {
@@ -1981,51 +2105,53 @@ function handleCruxInternalCommand(cmdUrl) {
     return;
   }
 
-  if (cmdUrl === 'crux://action/clear-history') {
+  if (cmdUrl === 'sonde://action/clear-history' || cmdUrl === 'crux://action/clear-history') {
     sendIpc('clear_history');
     showToast(currentLanguage === 'ru' ? "История очищена" : "History cleared");
     setTimeout(() => sendIpc('get_history'), 50);
     return;
   }
 
-  if (cmdUrl === 'crux://action/open-downloads-folder') {
+  if (cmdUrl === 'sonde://action/open-downloads-folder' || cmdUrl === 'crux://action/open-downloads-folder') {
     sendIpc('open_downloads_folder');
     return;
   }
 
-  if (cmdUrl === 'crux://action/clear-downloads') {
+  if (cmdUrl === 'sonde://action/clear-downloads' || cmdUrl === 'crux://action/clear-downloads') {
     sendIpc('clear_downloads');
     showToast(currentLanguage === 'ru' ? "Список загрузок очищен" : "Downloads cleared");
     setTimeout(() => sendIpc('get_downloads'), 50);
     return;
   }
 
-  if (cmdUrl.startsWith('crux://action/open-file?')) {
-    const qs = cmdUrl.substring('crux://action/open-file?'.length);
+  if (cmdUrl.startsWith('sonde://action/open-file?') || cmdUrl.startsWith('crux://action/open-file?')) {
+    const qs = cmdUrl.substring(cmdUrl.indexOf('?') + 1);
     const params = new URLSearchParams(qs);
     const path = params.get('path');
     if (path) sendIpc('open_file', { path });
     return;
   }
 
-  if (cmdUrl.startsWith('crux://new-tab?')) {
-    const qs = cmdUrl.substring('crux://new-tab?'.length);
+  if (cmdUrl.startsWith('sonde://new-tab?') || cmdUrl.startsWith('crux://new-tab?')) {
+    const qs = cmdUrl.substring(cmdUrl.indexOf('?') + 1);
     const params = new URLSearchParams(qs);
-    const targetUrl = params.get('url') || 'crux://startpage';
+    const targetUrl = params.get('url') || 'sonde://startpage';
     createTab(targetUrl);
     return;
   }
 
-  if (cmdUrl.startsWith('crux://') || cmdUrl.startsWith('http://') || cmdUrl.startsWith('https://')) {
+  if (cmdUrl.startsWith('sonde://') || cmdUrl.startsWith('crux://') || cmdUrl.startsWith('http://') || cmdUrl.startsWith('https://')) {
     navigateActiveTab(cmdUrl);
     return;
   }
 }
 
+const handleCruxInternalCommand = handleSondeInternalCommand;
+
 // Listen to messages from internal page iframes & bypass proxy
 window.addEventListener('message', (e) => {
   if (!e.data) return;
-  if (e.data.type === 'crux_navigated' && e.data.url) {
+  if ((e.data.type === 'sonde_navigated' || e.data.type === 'crux_navigated') && e.data.url) {
     const active = tabs.find(t => t.is_active);
     if (active && active.url !== e.data.url) {
       active.url = e.data.url;
@@ -2038,14 +2164,22 @@ window.addEventListener('message', (e) => {
       renderTabs();
       renderHorizontalTabs();
     }
-  } else if (e.data.type === 'crux_key') {
+  } else if (e.data.type === 'sonde_key' || e.data.type === 'crux_key') {
     handleGlobalShortcut(e.data);
-  } else if (e.data.type === 'crux_click') {
+  } else if (e.data.type === 'sonde_click' || e.data.type === 'crux_click') {
     closeAllPopups();
+  } else if (e.data.type === 'sonde_link_hover') {
+    const statusBar = document.getElementById('statusBarUrl');
+    if (statusBar) {
+      statusBar.textContent = e.data.url || (currentLanguage === 'ru' ? 'Готово' : 'Ready');
+    }
+  } else if (e.data.type === 'sonde_download_complete') {
+    showToast((currentLanguage === 'ru' ? 'Файл скачан: ' : 'Downloaded: ') + (e.data.filename || ''));
+    sendIpc('get_downloads');
   } else if (e.data.type === 'navigate' && e.data.url) {
     navigateActiveTab(e.data.url);
-  } else if (e.data.type === 'crux_cmd' && e.data.url) {
-    handleCruxInternalCommand(e.data.url);
+  } else if ((e.data.type === 'sonde_cmd' || e.data.type === 'crux_cmd') && e.data.url) {
+    handleSondeInternalCommand(e.data.url);
   }
 });
 
@@ -2105,11 +2239,66 @@ window.onSettingsLoaded = function(settings) {
   if (settings.theme) applyTheme(settings.theme);
   if (settings.language) applyLanguage(settings.language);
   if (settings.tab_orientation) setTabOrientation(settings.tab_orientation);
-  if (settings.ui_mode) setUiMode(settings.ui_mode);
+  if (settings.ui_mode) setUiMode(settings.ui_mode, true);
+
+  if (settings.first_run_completed !== 'true') {
+    const onboarding = document.getElementById('onboardingModal');
+    if (onboarding) {
+      onboarding.classList.remove('hidden');
+      onboarding.style.display = 'flex';
+    }
+  }
 
   if (elements.webFrame && elements.webFrame.contentWindow && elements.webFrame.contentWindow.populateSettings) {
     elements.webFrame.contentWindow.populateSettings(settings);
   }
+};
+
+window.setOnbLang = function(lang) {
+  document.getElementById('onbLangRu')?.classList.toggle('active', lang === 'ru');
+  document.getElementById('onbLangEn')?.classList.toggle('active', lang === 'en');
+  applyLanguage(lang);
+  sendIpc('save_setting', { key: 'language', value: lang });
+};
+
+window.setOnbAccent = function(color, el) {
+  document.querySelectorAll('.onboarding-swatch').forEach(s => s.classList.remove('active'));
+  if (el) el.classList.add('active');
+  applyAccentColor(color);
+  sendIpc('save_setting', { key: 'accent_color', value: color });
+};
+
+window.setOnbSearch = function(engine) {
+  ['onbSearchGoogle', 'onbSearchDdg', 'onbSearchYandex', 'onbSearchBing'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active');
+  });
+  const map = {
+    google: 'onbSearchGoogle',
+    duckduckgo: 'onbSearchDdg',
+    yandex: 'onbSearchYandex',
+    bing: 'onbSearchBing'
+  };
+  if (map[engine]) document.getElementById(map[engine])?.classList.add('active');
+  searchEngine = engine;
+  sendIpc('save_setting', { key: 'search_engine', value: engine });
+};
+
+window.setOnbMode = function(mode) {
+  document.getElementById('onbModeMinimal')?.classList.toggle('active', mode === 'minimal');
+  document.getElementById('onbModeVim')?.classList.toggle('active', mode === 'vim');
+  setUiMode(mode, true);
+  sendIpc('save_setting', { key: 'ui_mode', value: mode });
+};
+
+window.finishOnboarding = function() {
+  const onboarding = document.getElementById('onboardingModal');
+  if (onboarding) {
+    onboarding.classList.add('hidden');
+    onboarding.style.display = 'none';
+  }
+  sendIpc('save_setting', { key: 'first_run_completed', value: 'true' });
+  currentSettings.first_run_completed = 'true';
+  showToast(currentLanguage === 'ru' ? "Добро пожаловать в Sonde 2.0!" : "Welcome to Sonde 2.0!");
 };
 
 window.onDownloadDirSelected = function(path) {
@@ -2159,4 +2348,4 @@ if (initialTab) {
 }
 applyLanguage(currentLanguage);
 sendIpc('get_settings');
-console.log("Crux 2.0 Rust Architecture initialized with full original parity.");
+console.log("Sonde 2.0 Rust Architecture initialized with full parity.");

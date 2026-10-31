@@ -26,7 +26,7 @@ impl TabManager {
             active_id: None,
         };
         // Initial tab
-        tm.create_tab("crux://startpage".to_string(), "default".to_string());
+        tm.create_tab("sonde://startpage".to_string(), "default".to_string());
         tm
     }
 

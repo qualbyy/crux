@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>crux://settings</title>
+    <title>sonde://settings</title>
     <style>
         :root, :root[data-theme="dark"] {
             color-scheme: dark;
@@ -11,11 +11,11 @@
             --bg-surface: #262624;
             --bg-elevated: #2d2d2a;
             --border-muted: #3f3f46;
-            --border-active: var(--accent, #a855f7);
+            --border-active: var(--accent, #d4a373);
             --text-primary: #d4d4d8;
             --text-bright: #f5f5f0;
             --text-muted: #71717a;
-            --accent: #a855f7;
+            --accent: #d4a373;
             --status-success: #10b981;
             --status-error: #ef4444;
             --font-mono: "Iosevka Nerd Font", "JetBrains Mono", monospace;
@@ -26,7 +26,7 @@
             --bg-surface: #ffffff;
             --bg-elevated: #f1f5f9;
             --border-muted: #cbd5e1;
-            --border-active: var(--accent, #a855f7);
+            --border-active: var(--accent, #d4a373);
             --text-primary: #334155;
             --text-bright: #0f172a;
             --text-muted: #64748b;
@@ -516,7 +516,7 @@
         </div>
 
         <div id="toastMessage" class="toast" data-i18n="toast_saved">
-            Settings saved and dynamically applied across Crux.
+            Settings saved and dynamically applied across Sonde.
         </div>
 
         <div class="layout-grid">
@@ -579,7 +579,7 @@
                             <span class="label-title" data-i18n="lbl_homepage">Homepage URL</span>
                             <span class="label-desc" data-i18n="desc_homepage">URL opened on startup.</span>
                         </div>
-                        <input type="text" id="setting-homepage" value="crux://startpage" style="width: 280px;">
+                        <input type="text" id="setting-homepage" value="sonde://startpage" style="width: 280px;">
                     </div>
 
                     <div class="form-row">
@@ -587,7 +587,7 @@
                             <span class="label-title" data-i18n="lbl_new_tab_url">New Tab URL</span>
                             <span class="label-desc" data-i18n="desc_new_tab_url">URL opened when opening a new tab.</span>
                         </div>
-                        <input type="text" id="setting-new-tab-url" value="crux://startpage" style="width: 280px;">
+                        <input type="text" id="setting-new-tab-url" value="sonde://startpage" style="width: 280px;">
                     </div>
 
                     <div class="form-row">
@@ -664,14 +664,15 @@
                             <span class="label-desc" data-i18n="desc_accent">Primary highlight color across tabs, buttons, and badges.</span>
                         </div>
                         <div class="color-palette">
-                            <div class="color-swatch" style="background-color: #fe8019;" data-color="#fe8019" onclick="selectAccent('#fe8019', this)"></div>
-                            <div class="color-swatch" style="background-color: #10b981;" data-color="#10b981" onclick="selectAccent('#10b981', this)"></div>
-                            <div class="color-swatch" style="background-color: #38bdf8;" data-color="#38bdf8" onclick="selectAccent('#38bdf8', this)"></div>
-                            <div class="color-swatch selected" style="background-color: #a855f7;" data-color="#a855f7" onclick="selectAccent('#a855f7', this)"></div>
-                            <div class="color-swatch" style="background-color: #f43f5e;" data-color="#f43f5e" onclick="selectAccent('#f43f5e', this)"></div>
-                            <div class="color-swatch" style="background-color: #94a3b8;" data-color="#94a3b8" onclick="selectAccent('#94a3b8', this)"></div>
+                            <div class="color-swatch selected" style="background-color: #d4a373;" data-color="#d4a373" onclick="selectAccent('#d4a373', this)" title="Sand / Песочный (Default)"></div>
+                            <div class="color-swatch" style="background-color: #fe8019;" data-color="#fe8019" onclick="selectAccent('#fe8019', this)" title="Amber Orange"></div>
+                            <div class="color-swatch" style="background-color: #10b981;" data-color="#10b981" onclick="selectAccent('#10b981', this)" title="Emerald Green"></div>
+                            <div class="color-swatch" style="background-color: #38bdf8;" data-color="#38bdf8" onclick="selectAccent('#38bdf8', this)" title="Sky Blue"></div>
+                            <div class="color-swatch" style="background-color: #a855f7;" data-color="#a855f7" onclick="selectAccent('#a855f7', this)" title="Nordic Purple"></div>
+                            <div class="color-swatch" style="background-color: #f43f5e;" data-color="#f43f5e" onclick="selectAccent('#f43f5e', this)" title="Rose"></div>
+                            <div class="color-swatch" style="background-color: #94a3b8;" data-color="#94a3b8" onclick="selectAccent('#94a3b8', this)" title="Monochrome Slate"></div>
                         </div>
-                        <input type="hidden" id="setting-accent" value="#a855f7">
+                        <input type="hidden" id="setting-accent" value="#d4a373">
                     </div>
 
                     <div class="form-row">
@@ -796,7 +797,7 @@
                             <span class="label-title" data-i18n="lbl_open_downloads">Open Full Downloads Page</span>
                             <span class="label-desc" data-i18n="desc_open_downloads">View all past and active file downloads in dedicated tab.</span>
                         </div>
-                        <a href="crux://downloads" class="btn-action" style="text-decoration: none;" data-i18n="btn_open_downloads">OPEN ALL DOWNLOADS</a>
+                        <a href="sonde://downloads" class="btn-action" style="text-decoration: none;" data-i18n="btn_open_downloads">OPEN ALL DOWNLOADS</a>
                     </div>
                 </div>
 
@@ -852,6 +853,7 @@
                             <div class="vault-toolbar">
                                 <input type="text" id="vault-pwd-search" class="vault-search-input" placeholder="Filter passwords by domain or username..." oninput="filterVaultPasswords()" data-i18n="placeholder_filter_pwd">
                                 <div class="vault-actions-group">
+                                    <button type="button" class="btn-action" onclick="promptAddPassword()" style="border-color: var(--accent); color: var(--accent);" data-i18n="btn_add_password">+ ДОБАВИТЬ ПАРОЛЬ</button>
                                     <button type="button" class="btn-action" onclick="exportPasswordsCSV()" data-i18n="btn_export_csv">EXPORT CSV</button>
                                     <button type="button" class="btn-action" onclick="exportPasswordsJSON()" data-i18n="btn_export_json">EXPORT JSON</button>
                                 </div>
@@ -979,7 +981,7 @@
 
                     <div class="form-group" style="margin-top: 10px;">
                         <span class="label-title" data-i18n="lbl_ai_persona">AI Persona / System Instruction</span>
-                        <textarea id="setting-ai-persona" rows="3" style="width: 100%; margin-top: 6px;">You are an intelligent, engineer-focused AI assistant in Crux Browser.</textarea>
+                        <textarea id="setting-ai-persona" rows="3" style="width: 100%; margin-top: 6px;">You are an intelligent, engineer-focused AI assistant in Sonde Browser.</textarea>
                     </div>
                 </div>
 
@@ -993,71 +995,74 @@
                     <table class="keybinds-table">
                         <thead>
                             <tr>
-                                <th data-i18n="col_keybind">KEYBIND</th>
-                                <th data-i18n="col_action">ACTION</th>
-                                <th data-i18n="col_context">CONTEXT</th>
+                                <th style="width: 32%;" data-i18n="col_keybind">KEYBIND</th>
+                                <th style="width: 48%;" data-i18n="col_action">ACTION</th>
+                                <th style="width: 20%;" data-i18n="col_context">CONTEXT</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td><span class="key-badge">Ctrl + K</span></td>
+                                <td><input type="text" id="kb-palette" value="Ctrl + Shift + P" onchange="applySettingLive('kb_palette', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_palette">Command Palette & Omnibar Focus</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + T</span></td>
+                                <td><input type="text" id="kb-new-tab" value="Ctrl + T" onchange="applySettingLive('kb_new_tab', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_new_tab">New Tab</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + W</span></td>
+                                <td><input type="text" id="kb-close-tab" value="Ctrl + W" onchange="applySettingLive('kb_close_tab', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_close_tab">Close Current Tab</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + \</span></td>
+                                <td><input type="text" id="kb-split" value="Ctrl + \" onchange="applySettingLive('kb_split', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_split_screen">Toggle Split Screen</td>
                                 <td data-i18n="ctx_tab_manager">Tab Manager</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + B</span></td>
-                                <td data-i18n="act_ai_notes">Toggle AI Assistant & Notes Sidebar</td>
+                                <td><input type="text" id="kb-ai" value="Ctrl + B" onchange="applySettingLive('kb_ai', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
+                                <td data-i18n="act_ai_notes">Toggle Sonde AI Assistant</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + Alt + T</span></td>
+                                <td><input type="text" id="kb-orient" value="Ctrl + Alt + T" onchange="applySettingLive('kb_orient', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_switch_orient">Switch Vertical / Horizontal Tab Orientation</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + M</span></td>
+                                <td><input type="text" id="kb-mode" value="Ctrl + M" onchange="applySettingLive('kb_mode', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_toggle_mode">Toggle UI Mode (Minimal / Vim)</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + ,</span></td>
+                                <td><input type="text" id="kb-settings" value="Ctrl + ," onchange="applySettingLive('kb_settings', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_open_settings">Open Preferences & Settings</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                             <tr>
-                                <td><span class="key-badge">Ctrl + Shift + D</span></td>
+                                <td><input type="text" id="kb-downloads" value="Ctrl + Shift + D" onchange="applySettingLive('kb_downloads', this.value)" style="width: 140px; padding: 4px 8px; font-family: monospace; background: var(--bg-base); border: 1px solid var(--border-muted); color: var(--accent); font-weight: bold;"></td>
                                 <td data-i18n="act_open_downloads">Open Downloads Dropdown / Page</td>
                                 <td data-i18n="ctx_global">Global</td>
                             </tr>
                         </tbody>
                     </table>
+                    <div style="margin-top: 14px;">
+                        <button type="button" class="btn-action" onclick="resetKeybinds()">СБРОСИТЬ ГОРЯЧИЕ КЛАВИШИ</button>
+                    </div>
                 </div>
 
                 <!-- ABOUT -->
                 <div id="tab-about" class="tab-content">
                     <div class="section-header">
-                        <h2 data-i18n="header_about">ABOUT CRUX</h2>
+                        <h2 data-i18n="header_about">ABOUT SONDE</h2>
                         <p data-i18n="desc_about">Minimal, Engineer-Grade Web Browser</p>
                     </div>
 
                     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.6;">
                         <p data-i18n="about_body" data-i18n-html="true">
-                            <strong>Crux</strong> is a lightweight, keyboard-driven browser engineered with a strict 
+                            <strong>Sonde</strong> is a lightweight, keyboard-driven browser engineered with a strict 
                             Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.
                         </p>
                         <p>
@@ -1066,7 +1071,7 @@
                             <span data-i18n="about_arch">Architecture:</span> <strong>x86_64 Desktop</strong>
                         </p>
                         <div style="display: flex; gap: 12px; margin-top: 12px;">
-                            <button type="button" class="btn-action" onclick="openExternalUrl('https://github.com/qualbyy/CRUX')" data-i18n="btn_github">GITHUB</button>
+                            <button type="button" class="btn-action" onclick="openExternalUrl('https://github.com/qualbyy/sonde')" data-i18n="btn_github">GITHUB</button>
                             <button type="button" class="btn-action" onclick="openExternalUrl('https://t.me/qualbyy')" data-i18n="btn_telegram">TELEGRAM</button>
                         </div>
                     </div>
@@ -1470,9 +1475,9 @@
                 act_open_downloads: "Открыть меню / страницу загрузок",
                 ctx_global: "Глобально",
                 ctx_tab_manager: "Менеджер вкладок",
-                header_about: "О БРАУЗЕРЕ CRUX",
+                header_about: "О БРАУЗЕРЕ SONDE",
                 desc_about: "Минималистичный инженерный веб-браузер",
-                about_body: "<strong>Crux</strong> — легковесный браузер с клавиатурным управлением, строгой эстетикой Anthropic Minimal Dark, квадратным дизайном (0px скругления), моноширинным шрифтом и полной локализацией.",
+                about_body: "<strong>Sonde</strong> — легковесный браузер с клавиатурным управлением, строгой эстетикой Anthropic Minimal Dark, квадратным дизайном (0px скругления), моноширинным шрифтом и полной локализацией.",
                 about_version: "Версия:",
                 about_engine: "Движок:",
                 about_arch: "Архитектура:",
@@ -1617,9 +1622,9 @@
                 act_open_downloads: "Open Downloads Dropdown / Page",
                 ctx_global: "Global",
                 ctx_tab_manager: "Tab Manager",
-                header_about: "ABOUT CRUX",
+                header_about: "ABOUT SONDE",
                 desc_about: "Minimal, Engineer-Grade Web Browser",
-                about_body: "<strong>Crux</strong> is a lightweight, keyboard-driven browser engineered with a strict Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.",
+                about_body: "<strong>Sonde</strong> is a lightweight, keyboard-driven browser engineered with a strict Anthropic Minimal Dark aesthetic, 0px border-radius, monospace typography, and full i18n support.",
                 about_version: "Version:",
                 about_engine: "Engine:",
                 about_arch: "Architecture:",
@@ -1687,9 +1692,20 @@
                 btn.textContent = (currentLang === 'ru' ? 'ПРОВЕРКА...' : 'VERIFYING...');
                 btn.disabled = true;
             }
-            sendToHost('crux://action/unlock-vault?password=' + encodeURIComponent(pwd));
+            sendToHost('sonde://action/unlock-vault?password=' + encodeURIComponent(pwd));
         }
         window.submitVaultUnlock = submitVaultUnlock;
+
+        function promptAddPassword() {
+            const domain = prompt(currentLang === 'ru' ? "Сайт или домен (напр: github.com):" : "Domain or URL (e.g. github.com):");
+            if (!domain) return;
+            const user = prompt(currentLang === 'ru' ? "Логин / Email:" : "Username / Email:");
+            if (!user) return;
+            const pwd = prompt(currentLang === 'ru' ? "Пароль:" : "Password:");
+            if (!pwd) return;
+            sendToHost(`sonde://action/add-password?url=${encodeURIComponent(domain)}&username=${encodeURIComponent(user)}&password=${encodeURIComponent(pwd)}`);
+        }
+        window.promptAddPassword = promptAddPassword;
 
         window.onVaultAuthSuccess = function(passwords) {
             const btn = document.getElementById('btn-vault-unlock');
@@ -1727,6 +1743,27 @@
                 pwdInput.focus();
             }
         };
+
+        function resetKeybinds() {
+            const defaults = {
+                kb_palette: 'Ctrl + Shift + P',
+                kb_new_tab: 'Ctrl + T',
+                kb_close_tab: 'Ctrl + W',
+                kb_split: 'Ctrl + \\',
+                kb_ai: 'Ctrl + B',
+                kb_orient: 'Ctrl + Alt + T',
+                kb_mode: 'Ctrl + M',
+                kb_settings: 'Ctrl + ,',
+                kb_downloads: 'Ctrl + Shift + D'
+            };
+            for (const [k, v] of Object.entries(defaults)) {
+                const el = document.getElementById(k.replace('_', '-'));
+                if (el) el.value = v;
+                applySettingLive(k, v);
+            }
+            showToast(currentLang === 'ru' ? "Горячие клавиши сброшены" : "Shortcuts reset to defaults");
+        }
+        window.resetKeybinds = resetKeybinds;
 
         function lockVault() {
             isVaultUnlocked = false;
@@ -1780,7 +1817,7 @@
                         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: nowrap;">
                             <button type="button" class="btn-table-sm" id="btn-toggle-pwd-${idx}" onclick="togglePasswordVisibility(${idx}, '${escapeHtml(rawPwd)}')">SHOW</button>
                             <button type="button" class="btn-table-sm" onclick="copyToClipboard(this, '${escapeHtml(rawPwd)}')">COPY</button>
-                            <button type="button" class="btn-table-del" onclick="deletePassword('${encodeURIComponent(item.url || '')}', '${encodeURIComponent(item.username || '')}')">DEL</button>
+                            <button type="button" class="btn-table-del" onclick="deletePassword(${item.id || 0}, '${encodeURIComponent(item.url || '')}', '${encodeURIComponent(item.username || '')}')">DEL</button>
                         </div>
                     </td>
                 `;
@@ -1823,9 +1860,9 @@
             }, 1400);
         }
 
-        function deletePassword(encDomain, encUser) {
-            if (confirm("Delete this saved credential?")) {
-                sendToHost(`crux://action/delete-password?domain=${encDomain}&username=${encUser}`);
+        function deletePassword(id, encDomain, encUser) {
+            if (confirm(currentLang === 'ru' ? "Удалить этот сохраненный пароль?" : "Delete this saved credential?")) {
+                sendToHost(`sonde://action/delete-password?id=${id}&domain=${encDomain}&username=${encUser}`);
             }
         }
 
@@ -1930,7 +1967,7 @@
                 alert("No cookies to export.");
                 return;
             }
-            let txt = "# Netscape HTTP Cookie File\n# http://curl.haxx.se/rfc/cookie_spec.html\n# Generated by Crux\n\n";
+            let txt = "# Netscape HTTP Cookie File\n# http://curl.haxx.se/rfc/cookie_spec.html\n# Generated by Sonde\n\n";
             currentCookies.forEach(c => {
                 const domain = c.host || "";
                 const flag = domain.startsWith(".") ? "TRUE" : "FALSE";

@@ -514,21 +514,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
-name = "crux-rs"
-version = "2.0.0-alpha.1"
-dependencies = [
- "gtk",
- "reqwest",
- "rfd",
- "rusqlite",
- "serde",
- "serde_json",
- "tao",
- "webkit2gtk",
- "wry",
-]
-
-[[package]]
 name = "crypto-common"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3108,6 +3093,21 @@ checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "sonde-rs"
+version = "2.0.0-alpha.1"
+dependencies = [
+ "gtk",
+ "reqwest",
+ "rfd",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tao",
+ "webkit2gtk",
+ "wry",
 ]
 
 [[package]]

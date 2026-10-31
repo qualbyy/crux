@@ -1,0 +1,33 @@
+[Desktop Entry]
+Actions=NewTab;Incognito;Work;Dev;
+Categories=Network;WebBrowser;
+Comment[ru_RU]=Быстрый браузер с клавиатурным управлением
+Comment=Fast, keyboard-driven web browser
+Exec=/home/qualbyy/.local/bin/sonde %u
+GenericName[ru_RU]=Веб-браузер
+GenericName=Web Browser
+Icon=/home/qualbyy/.gemini/antigravity/scratch/zinc-browser/resources/sonde.svg
+MimeType=text/html;application/xml;application/xhtml+xml;application/rss+xml;application/rdf+xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/sonde;x-scheme-handler/crux;
+Name[ru_RU]=Sonde
+Name=Sonde
+StartupNotify=true
+StartupWMClass=sonde
+Terminal=false
+Type=Application
+Version=2.0
+
+[Desktop Action Dev]
+Exec=/home/qualbyy/.local/bin/sonde --container dev
+Name=Open in Dev Container
+
+[Desktop Action Incognito]
+Exec=/home/qualbyy/.local/bin/sonde --container incognito
+Name=Open in Incognito Container
+
+[Desktop Action NewTab]
+Exec=/home/qualbyy/.local/bin/sonde sonde://startpage
+Name=New Tab
+
+[Desktop Action Work]
+Exec=/home/qualbyy/.local/bin/sonde --container work
+Name=Open in Work Container

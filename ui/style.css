@@ -1,4 +1,4 @@
-/* Crux 2.0 — Anthropic Minimal Dark Theme */
+/* Sonde 2.0 — Anthropic Minimal Dark Theme */
 :root {
   color-scheme: dark;
   --bg-app: #18181b;
@@ -9,7 +9,7 @@
   --border-muted: #27272a;
   --text-main: #f5f5f0;
   --text-muted: #a1a1aa;
-  --accent: #a855f7;
+  --accent: #d4a373;
   --accent-hover: var(--accent);
   --anim-speed: 150ms;
   --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -1479,4 +1479,238 @@ body, html {
   color: var(--text-muted);
   font-size: 11px;
 }
+
+/* ==========================================================================
+   Bottom Mini Status Bar (Link Preview, Progress, Zoom & Security)
+   ========================================================================== */
+.bottom-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  min-height: 22px;
+  max-height: 22px;
+  padding: 0 10px;
+  background-color: var(--bg-sidebar);
+  border-top: 1px solid var(--border-muted);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: inherit;
+  z-index: 100;
+  user-select: none;
+}
+
+.status-bar-left {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 65%;
+}
+
+.status-bar-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--anim-speed) ease;
+}
+
+.status-bar-text.hover-active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.status-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.status-bar-progress {
+  width: 80px;
+  height: 3px;
+  background-color: var(--border-muted);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  width: 30%;
+  height: 100%;
+  background-color: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.status-bar-zoom {
+  cursor: pointer;
+  padding: 1px 4px;
+}
+
+.status-bar-zoom:hover {
+  color: var(--accent);
+}
+
+.status-bar-badge {
+  color: #10b981;
+  font-weight: bold;
+}
+
+/* ==========================================================================
+   First-Run Onboarding Modal (Welcome Setup Overlay)
+   ========================================================================== */
+.onboarding-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 580px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  padding: 32px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+  font-family: inherit;
+  color: var(--text-main);
+}
+
+.onboarding-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.onboarding-logo {
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.onboarding-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.onboarding-section {
+  margin-bottom: 18px;
+}
+
+.onboarding-section-title {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.onboarding-row {
+  display: flex;
+  gap: 8px;
+}
+
+.onboarding-btn-choice {
+  flex: 1;
+  padding: 8px 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-muted);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--anim-speed) ease;
+}
+
+.onboarding-btn-choice:hover {
+  border-color: var(--accent);
+}
+
+.onboarding-btn-choice.active {
+  border-color: var(--accent);
+  background-color: var(--bg-active);
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.onboarding-color-palette {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.onboarding-swatch {
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.1s ease;
+}
+
+.onboarding-swatch:hover {
+  transform: scale(1.1);
+}
+
+.onboarding-swatch.active {
+  border-color: #ffffff !important;
+}
+
+.onboarding-footer {
+  margin-top: 28px;
+  text-align: center;
+}
+
+.btn-onboarding-finish {
+  width: 100%;
+  padding: 10px 16px;
+  background-color: var(--accent);
+  color: #18181b;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-onboarding-finish:hover {
+  opacity: 0.9;
+}
+
+/* AI Custom Model Input */
+.ai-custom-model-row {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.ai-custom-model-input {
+  flex: 1;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border-muted);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.ai-custom-model-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 

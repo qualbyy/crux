@@ -1,11 +1,11 @@
 [package]
-name = "crux-rs"
+name = "sonde-rs"
 version = "2.0.0-alpha.1"
-description = "Crux Browser — Modern, privacy-first, engineer-centric browser"
+description = "Sonde Browser — Modern, lightweight, keyboard-driven web browser"
 edition = "2021"
 
 [[bin]]
-name = "crux-rs"
+name = "sonde-rs"
 path = "src/main.rs"
 
 [dependencies]

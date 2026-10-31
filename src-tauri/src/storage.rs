@@ -31,6 +31,15 @@ pub struct DownloadItem {
     pub timestamp: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordEntry {
+    pub id: i64,
+    pub url: String,
+    pub username: String,
+    pub password: String,
+    pub created_at: String,
+}
+
 pub struct Database {
     pub conn: Mutex<Connection>,
 }
@@ -78,6 +87,17 @@ impl Database {
                 path TEXT,
                 size INTEGER DEFAULT 0,
                 state TEXT DEFAULT 'completed',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS passwords (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL,
+                username TEXT NOT NULL,
+                password TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
             [],
@@ -262,5 +282,47 @@ impl Database {
             }
         }
         map
+    }
+
+    // --- CREDENTIALS VAULT (PASSWORDS) ---
+    pub fn get_passwords(&self) -> Result<Vec<PasswordEntry>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, url, username, password, created_at FROM passwords ORDER BY id DESC")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(PasswordEntry {
+                id: row.get(0)?,
+                url: row.get(1)?,
+                username: row.get(2)?,
+                password: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?;
+
+        let mut res = Vec::new();
+        for r in rows.flatten() {
+            res.push(r);
+        }
+        Ok(res)
+    }
+
+    pub fn add_password(&self, url: &str, username: &str, password: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO passwords (url, username, password) VALUES (?1, ?2, ?3)",
+            params![url, username, password],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_password(&self, id: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM passwords WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn clear_passwords(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM passwords", [])?;
+        Ok(())
     }
 }

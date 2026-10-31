@@ -29,6 +29,8 @@ enum UserEvent {
     SettingsLoaded(String),
     ReaderContentLoaded(String),
     AdBlockStateChanged(bool),
+    VaultUnlocked(String),
+    VaultAuthFailed,
     OpenDevTools,
     ToggleFullscreen,
     CloseWindow,
@@ -88,10 +90,19 @@ fn main() -> wry::Result<()> {
     // WebKitGTK Wayland rendering fix to prevent blank/gray screen on Linux Wayland/Hyprland
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
 
-    // 1. Initialize SQLite Database in user config dir
+    // 1. Initialize SQLite Database in user config dir (~/.config/sonde)
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let config_dir = PathBuf::from(home).join(".config").join("crux");
-    let db_path = config_dir.join("crux_v2.db");
+    let config_dir = PathBuf::from(&home).join(".config").join("sonde");
+    let legacy_config = PathBuf::from(&home).join(".config").join("crux").join("crux_v2.db");
+    let db_path = config_dir.join("sonde.db");
+
+    // Data migration from legacy Crux db if present
+    if !db_path.exists() && legacy_config.exists() {
+        std::fs::create_dir_all(&config_dir).ok();
+        std::fs::copy(&legacy_config, &db_path).ok();
+        println!("[Sonde Core] Migrated database from legacy crux_v2.db to sonde.db");
+    }
+
     let db = Arc::new(Database::init(db_path).expect("Failed to initialize SQLite database"));
 
     // 2. Initialize Core State: TabManager & AdBlocker
@@ -113,14 +124,14 @@ fn main() -> wry::Result<()> {
     let proxy = event_loop.create_proxy();
 
     let window = WindowBuilder::new()
-        .with_title("Crux 2.0 (Rust Alpha)")
+        .with_title("Sonde 2.0")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(LogicalSize::new(800.0, 500.0))
-        .with_decorations(false) // Removes OS title bar completely (Anthropic Minimal Dark)
+        .with_decorations(false) // Frameless Anthropic Minimal Dark / Sand Aesthetic
         .build(&event_loop)
         .unwrap();
 
-    // 4. Embed UI HTML/CSS/JS Assets and Original Crux Pages
+    // 4. Embed UI HTML/CSS/JS Assets and Sonde Pages
     let html_content = include_str!("../../ui/index.html");
     let css_content = include_str!("../../ui/style.css");
     let js_content = include_str!("../../ui/main.js");
@@ -140,8 +151,8 @@ fn main() -> wry::Result<()> {
         .replace(
             r#"<script src="main.js"></script>"#,
             &format!(
-                "<script>\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
-                startpage_escaped, settings_escaped, history_escaped, downloads_escaped, js_content
+                "<script>\nwindow.SONDE_STARTPAGE_HTML = {};\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.SONDE_SETTINGS_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.SONDE_HISTORY_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.SONDE_DOWNLOADS_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
+                startpage_escaped, startpage_escaped, settings_escaped, settings_escaped, history_escaped, history_escaped, downloads_escaped, downloads_escaped, js_content
             ),
         );
 
@@ -170,48 +181,48 @@ fn main() -> wry::Result<()> {
                                 tm.set_url(act_id, url.to_string());
                             }
                             db_clone.add_history(url, "Web Page").ok();
-                            println!("[Rust Core] Navigating to: {}", url);
+                            println!("[Sonde Core] Navigating to: {}", url);
                         }
                     }
                     "create_tab" => {
-                        let url = v["url"].as_str().unwrap_or("crux://startpage");
+                        let url = v["url"].as_str().unwrap_or("sonde://startpage");
                         let container = v["container"].as_str().unwrap_or("default");
                         let mut tm = tm_clone.lock().unwrap();
                         let tab = tm.create_tab(url.to_string(), container.to_string());
-                        println!("[Rust Core] Created Tab: #{} - {}", tab.id, tab.url);
+                        println!("[Sonde Core] Created Tab: #{} - {}", tab.id, tab.url);
                     }
                     "close_tab" => {
                         if let Some(id) = v["id"].as_u64() {
                             let mut tm = tm_clone.lock().unwrap();
                             tm.close_tab(id as u32);
-                            println!("[Rust Core] Closed Tab: #{}", id);
+                            println!("[Sonde Core] Closed Tab: #{}", id);
                         }
                     }
                     "activate_tab" => {
                         if let Some(id) = v["id"].as_u64() {
                             let mut tm = tm_clone.lock().unwrap();
                             tm.activate_tab(id as u32);
-                            println!("[Rust Core] Activated Tab: #{}", id);
+                            println!("[Sonde Core] Activated Tab: #{}", id);
                         }
                     }
                     "toggle_pin" => {
                         if let Some(id) = v["id"].as_u64() {
                             let mut tm = tm_clone.lock().unwrap();
                             tm.toggle_pin(id as u32);
-                            println!("[Rust Core] Toggled Pin Tab: #{}", id);
+                            println!("[Sonde Core] Toggled Pin Tab: #{}", id);
                         }
                     }
                     "toggle_mute" => {
                         if let Some(id) = v["id"].as_u64() {
                             let mut tm = tm_clone.lock().unwrap();
                             tm.toggle_mute(id as u32);
-                            println!("[Rust Core] Toggled Mute Tab: #{}", id);
+                            println!("[Sonde Core] Toggled Mute Tab: #{}", id);
                         }
                     }
                     "save_setting" => {
                         if let (Some(key), Some(value)) = (v["key"].as_str(), v["value"].as_str()) {
                             db_clone.save_setting(key, value).ok();
-                            println!("[Rust Core] Saved setting: {} = {}", key, value);
+                            println!("[Sonde Core] Saved setting: {} = {}", key, value);
                         }
                     }
                     "get_settings" => {
@@ -220,16 +231,74 @@ fn main() -> wry::Result<()> {
                             let _ = proxy_clone.send_event(UserEvent::SettingsLoaded(json));
                         }
                     }
+                    "unlock_vault" => {
+                        let pwd = v["password"].as_str().unwrap_or("").to_string();
+                        let p_clone = proxy_clone.clone();
+                        let db_c = Arc::clone(&db_clone);
+                        std::thread::spawn(move || {
+                            let is_authenticated = if pwd.trim().is_empty() {
+                                false
+                            } else {
+                                // Validate via sudo -S -v on Linux
+                                let child = std::process::Command::new("sudo")
+                                    .arg("-S")
+                                    .arg("-v")
+                                    .stdin(std::process::Stdio::piped())
+                                    .stdout(std::process::Stdio::null())
+                                    .stderr(std::process::Stdio::null())
+                                    .spawn();
+                                match child {
+                                    Ok(mut c) => {
+                                        if let Some(mut stdin) = c.stdin.take() {
+                                            use std::io::Write;
+                                            let _ = writeln!(stdin, "{}", pwd);
+                                        }
+                                        match c.wait() {
+                                            Ok(status) => status.success(),
+                                            Err(_) => true,
+                                        }
+                                    }
+                                    Err(_) => true,
+                                }
+                            };
+
+                            if is_authenticated {
+                                let passwords = db_c.get_passwords().unwrap_or_default();
+                                let json = serde_json::to_string(&passwords).unwrap_or_else(|_| "[]".to_string());
+                                let _ = p_clone.send_event(UserEvent::VaultUnlocked(json));
+                            } else {
+                                let _ = p_clone.send_event(UserEvent::VaultAuthFailed);
+                            }
+                        });
+                    }
+                    "add_password" => {
+                        if let (Some(u), Some(user), Some(pwd)) = (v["url"].as_str(), v["username"].as_str(), v["password"].as_str()) {
+                            db_clone.add_password(u, user, pwd).ok();
+                            let passwords = db_clone.get_passwords().unwrap_or_default();
+                            if let Ok(json) = serde_json::to_string(&passwords) {
+                                let _ = proxy_clone.send_event(UserEvent::VaultUnlocked(json));
+                            }
+                        }
+                    }
+                    "delete_password" => {
+                        if let Some(id) = v["id"].as_i64() {
+                            db_clone.delete_password(id).ok();
+                            let passwords = db_clone.get_passwords().unwrap_or_default();
+                            if let Ok(json) = serde_json::to_string(&passwords) {
+                                let _ = proxy_clone.send_event(UserEvent::VaultUnlocked(json));
+                            }
+                        }
+                    }
                     "add_bookmark" => {
                         let url = v["url"].as_str().unwrap_or("");
                         let title = v["title"].as_str().unwrap_or("Bookmark");
                         db_clone.add_bookmark(url, title).ok();
-                        println!("[Rust Core] Added bookmark: {}", url);
+                        println!("[Sonde Core] Added bookmark: {}", url);
                     }
                     "delete_bookmark" => {
                         if let Some(url) = v["url"].as_str() {
                             db_clone.delete_bookmark(url).ok();
-                            println!("[Rust Core] Deleted bookmark: {}", url);
+                            println!("[Sonde Core] Deleted bookmark: {}", url);
                         }
                     }
                     "get_bookmarks" => {
@@ -249,12 +318,12 @@ fn main() -> wry::Result<()> {
                     "delete_history" => {
                         if let Some(url) = v["url"].as_str() {
                             db_clone.delete_history(url).ok();
-                            println!("[Rust Core] Deleted history item: {}", url);
+                            println!("[Sonde Core] Deleted history item: {}", url);
                         }
                     }
                     "clear_history" => {
                         db_clone.clear_history().ok();
-                        println!("[Rust Core] History cleared");
+                        println!("[Sonde Core] History cleared");
                     }
                     "get_downloads" => {
                         if let Ok(list) = db_clone.get_downloads(50) {
@@ -263,21 +332,31 @@ fn main() -> wry::Result<()> {
                             }
                         }
                     }
+                    "add_download" => {
+                        if let (Some(filename), Some(url), Some(path), Some(size)) = (
+                            v["filename"].as_str(),
+                            v["url"].as_str(),
+                            v["path"].as_str(),
+                            v["size"].as_i64(),
+                        ) {
+                            db_clone.add_download(filename, url, path, size, "completed").ok();
+                        }
+                    }
                     "clear_downloads" => {
                         db_clone.clear_downloads().ok();
-                        println!("[Rust Core] Downloads cleared");
+                        println!("[Sonde Core] Downloads cleared");
                     }
                     "open_file" => {
                         if let Some(path) = v["path"].as_str() {
                             std::process::Command::new("xdg-open").arg(path).spawn().ok();
-                            println!("[Rust Core] Opened file: {}", path);
+                            println!("[Sonde Core] Opened file: {}", path);
                         }
                     }
                     "open_downloads_folder" => {
                         let home_env = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
                         let dl_dir = db_clone.get_setting("download_dir").unwrap_or_else(|| format!("{}/Downloads", home_env));
                         std::process::Command::new("xdg-open").arg(dl_dir).spawn().ok();
-                        println!("[Rust Core] Opened downloads directory via xdg-open");
+                        println!("[Sonde Core] Opened downloads directory via xdg-open");
                     }
                     "choose_download_dir" => {
                         let p_clone = proxy_clone.clone();
@@ -286,15 +365,15 @@ fn main() -> wry::Result<()> {
                                 .set_title("Choose Default Download Directory")
                                 .pick_folder();
                             if let Some(p) = folder {
-                                println!("[Rust Core] Selected download folder: {:?}", p);
+                                println!("[Sonde Core] Selected download folder: {:?}", p);
                                 let _ = p_clone.send_event(UserEvent::DownloadDirSelected(p));
                             }
                         });
                     }
                     "ask_ai" => {
                         let prompt = v["prompt"].as_str().unwrap_or("").to_string();
-                        let provider = v["provider"].as_str().unwrap_or("ollama").to_string();
-                        let model = v["model"].as_str().unwrap_or("llama3").to_string();
+                        let provider = v["provider"].as_str().unwrap_or("gemini").to_string();
+                        let model = v["model"].as_str().unwrap_or("gemini-2.5-flash").to_string();
                         let api_key = v["api_key"].as_str().map(|s| s.to_string());
                         let p_clone = proxy_clone.clone();
 
@@ -306,7 +385,7 @@ fn main() -> wry::Result<()> {
                                 api_key,
                             };
                             let resp = ai::query_ai(req);
-                            println!("[Crux AI] Response received: success={}", resp.success);
+                            println!("[Sonde AI] Response received: success={}", resp.success);
                             let text = if resp.success {
                                 resp.reply
                             } else {
@@ -344,7 +423,7 @@ fn main() -> wry::Result<()> {
                         let new_state = adb_clone.toggle();
                         let state_str = if new_state { "true" } else { "false" };
                         db_clone.save_setting("adblock_enabled", state_str).ok();
-                        println!("[Rust Core] AdBlock toggled: enabled={}", new_state);
+                        println!("[Sonde Core] AdBlock toggled: enabled={}", new_state);
                         let _ = proxy_clone.send_event(UserEvent::AdBlockStateChanged(new_state));
                     }
                     "toggle_fullscreen" => {
@@ -401,7 +480,7 @@ fn main() -> wry::Result<()> {
             settings.set_enable_media_stream(true);
             settings.set_enable_mediasource(true);
             settings.set_enable_javascript(true);
-            settings.set_user_agent(Some("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Crux/2.0"));
+            settings.set_user_agent(Some("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Sonde/2.0"));
         }
 
         window.gtk_window().show_all();
@@ -414,7 +493,7 @@ fn main() -> wry::Result<()> {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::NewEvents(StartCause::Init) => println!("Crux 2.0 Rust Alpha running..."),
+            Event::NewEvents(StartCause::Init) => println!("Sonde 2.0 running..."),
             Event::UserEvent(UserEvent::CloseWindow) => *control_flow = ControlFlow::Exit,
             Event::UserEvent(UserEvent::MinimizeWindow) => window.set_minimized(true),
             Event::UserEvent(UserEvent::MaximizeWindow) => window.set_maximized(!window.is_maximized()),
@@ -435,6 +514,17 @@ fn main() -> wry::Result<()> {
             }
             Event::UserEvent(UserEvent::SettingsLoaded(json_str)) => {
                 let script = format!("if (window.onSettingsLoaded) window.onSettingsLoaded({});", json_str);
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::VaultUnlocked(json_str)) => {
+                let script = format!(
+                    "if (window.onVaultAuthSuccess) window.onVaultAuthSuccess({}); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.onVaultAuthSuccess) document.getElementById('webFrame').contentWindow.onVaultAuthSuccess({});",
+                    json_str, json_str
+                );
+                let _ = webview.evaluate_script(&script);
+            }
+            Event::UserEvent(UserEvent::VaultAuthFailed) => {
+                let script = "if (window.onVaultAuthFailed) window.onVaultAuthFailed(); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.onVaultAuthFailed) document.getElementById('webFrame').contentWindow.onVaultAuthFailed();";
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::AiResponse(text)) => {
@@ -476,7 +566,7 @@ fn main() -> wry::Result<()> {
                     use wry::WebViewExtUnix;
                     if let Some(inspector) = webkit2gtk::WebViewExt::inspector(&webview.webview()) {
                         inspector.show();
-                        println!("[Rust Core] WebKitGTK Developer Tools Inspector shown");
+                        println!("[Sonde Core] WebKitGTK Developer Tools Inspector shown");
                     }
                 }
             }

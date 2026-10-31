@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Crux Browser</title>
+  <title>Sonde Browser</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -47,7 +47,7 @@
         </div>
 
         <div class="url-bar-container">
-          <input type="text" id="urlInput" class="url-input" placeholder="Поиск в DuckDuckGo или введите адрес..." data-i18n-placeholder="url_placeholder" spellcheck="false">
+          <input type="text" id="urlInput" class="url-input" placeholder="Поиск или ввод адреса..." data-i18n-placeholder="url_placeholder" spellcheck="false">
           <div id="progressBar" class="progress-bar"></div>
         </div>
 
@@ -68,7 +68,7 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             <span data-i18n="reader_btn">ЧТЕНИЕ</span>
           </button>
-          <button id="btnToggleAi" class="btn-nav" title="Toggle Crux AI">
+          <button id="btnToggleAi" class="btn-nav" title="Toggle Sonde AI">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
             <span data-i18n="ai_btn">ИИ</span>
           </button>
@@ -77,7 +77,7 @@
             <span data-i18n="cmd_btn">КОМАНДЫ</span>
           </button>
           <!-- Settings / Menu Button on Far Right Edge -->
-          <button id="btnMenu" class="btn-nav" title="Crux Menu & Settings">
+          <button id="btnMenu" class="btn-nav" title="Sonde Menu & Settings">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
           </button>
         </div>
@@ -158,14 +158,14 @@
             </button>
           </div>
           <article id="readerContent" class="reader-content">
-            <p>Distraction-free reading view enabled for Crux 2.0.</p>
+            <p>Distraction-free reading view enabled for Sonde 2.0.</p>
           </article>
         </div>
 
-        <!-- Collapsible Crux AI Panel -->
+        <!-- Collapsible Sonde AI Panel -->
         <aside id="aiPanel" class="ai-panel hidden">
           <div class="ai-header">
-            <span class="ai-title">CRUX AI</span>
+            <span class="ai-title">SONDE AI</span>
             <button id="btnCloseAi" class="btn-icon" title="Close AI Panel">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
@@ -174,16 +174,25 @@
           <div class="ai-controls">
             <label class="ai-lbl">MODEL:</label>
             <select id="aiModelSelect" class="ai-select">
-              <option value="llama3">Ollama: llama3 (Local)</option>
-              <option value="deepseek-r1">Ollama: deepseek-r1 (Local)</option>
-              <option value="mistral">Ollama: mistral (Local)</option>
-              <option value="deepseek-chat">DeepSeek V3 (Cloud)</option>
-              <option value="gpt-4o-mini">OpenAI: GPT-4o Mini</option>
+              <option value="gemini:gemini-2.5-flash">Google Gemini 2.5 Flash (Cloud)</option>
+              <option value="gemini:gemini-1.5-pro">Google Gemini 1.5 Pro (Cloud)</option>
+              <option value="gemini:gemini-1.5-flash">Google Gemini 1.5 Flash (Cloud)</option>
+              <option value="deepseek:deepseek-chat">DeepSeek V3 (Cloud)</option>
+              <option value="deepseek:deepseek-reasoner">DeepSeek R1 (Cloud)</option>
+              <option value="openai:gpt-4o">OpenAI: GPT-4o (Cloud)</option>
+              <option value="openai:gpt-4o-mini">OpenAI: GPT-4o Mini (Cloud)</option>
+              <option value="ollama:llama3">Ollama: llama3 (Local)</option>
+              <option value="ollama:deepseek-r1">Ollama: deepseek-r1 (Local)</option>
+              <option value="ollama:mistral">Ollama: mistral (Local)</option>
+              <option value="custom">Пользовательская модель... / Custom Model</option>
             </select>
+            <div id="aiCustomModelContainer" class="ai-custom-model-row hidden">
+              <input type="text" id="aiCustomModelInput" class="ai-custom-model-input" placeholder="Имя модели (напр: qwen2.5:14b)">
+            </div>
           </div>
 
           <div id="aiChatHistory" class="ai-history">
-            <div class="ai-msg system">Crux AI ready. Ask any question or summarize web pages.</div>
+            <div class="ai-msg system">Sonde AI ready. Powered by Google Gemini and local LLMs. Ask anything.</div>
           </div>
 
           <div class="ai-actions-row">
@@ -203,6 +212,20 @@
         <span id="vimStatusText" class="vim-status-text" data-i18n="vim_status">[VIM-РЕЖИМ] Нажмите Esc для выхода | j/k: скролл, r: обновить, t: новая вкладка, x: закрыть</span>
         <button id="btnExitVim" class="btn-exit-vim" data-i18n="exit_vim">ВЫЙТИ ИЗ VIM</button>
       </div>
+
+      <!-- Bottom Mini Status Bar -->
+      <footer id="bottomStatusBar" class="bottom-status-bar">
+        <div class="status-bar-left">
+          <span id="statusBarUrl" class="status-bar-text" title="Target URL">Готово</span>
+        </div>
+        <div class="status-bar-right">
+          <div id="statusBarProgress" class="status-bar-progress hidden">
+            <div class="progress-bar-fill" id="statusBarProgressFill"></div>
+          </div>
+          <span id="statusBarZoom" class="status-bar-zoom" title="Zoom">100%</span>
+          <span id="statusBarSecurity" class="status-bar-badge" title="Security">🔒 SECURE</span>
+        </div>
+      </footer>
     </main>
 
     <!-- Anchored Bookmarks Popup -->
@@ -470,12 +493,64 @@
           </div>
 
           <div class="setting-item">
-            <label class="setting-lbl">Crux AI API Key (OpenAI / DeepSeek)</label>
-            <input type="password" id="txtAiApiKey" class="settings-input" placeholder="sk-...">
+            <label class="setting-lbl">Sonde AI API Key (Gemini / OpenAI / DeepSeek)</label>
+            <input type="password" id="txtAiApiKey" class="settings-input" placeholder="AIzaSy... / sk-...">
           </div>
         </div>
         <div class="settings-footer">
           <button id="btnSaveSettings" class="btn-new-tab">SAVE SETTINGS</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- First-Run Onboarding Modal (Overlay) -->
+    <div id="onboardingModal" class="onboarding-overlay hidden">
+      <div class="onboarding-card">
+        <div class="onboarding-header">
+          <div class="onboarding-logo">SONDE 2.0</div>
+          <div class="onboarding-subtitle">Инженерный минималистичный веб-браузер</div>
+        </div>
+
+        <div class="onboarding-section">
+          <div class="onboarding-section-title">ЯЗЫК ИНТЕРФЕЙСА // LANGUAGE</div>
+          <div class="onboarding-row">
+            <button type="button" class="onboarding-btn-choice active" id="onbLangRu" onclick="setOnbLang('ru')">РУССКИЙ</button>
+            <button type="button" class="onboarding-btn-choice" id="onbLangEn" onclick="setOnbLang('en')">ENGLISH</button>
+          </div>
+        </div>
+
+        <div class="onboarding-section">
+          <div class="onboarding-section-title">АКЦЕНТНЫЙ ЦВЕТ // ACCENT COLOR</div>
+          <div class="onboarding-color-palette">
+            <div class="onboarding-swatch active" style="background:#d4a373;" data-color="#d4a373" onclick="setOnbAccent('#d4a373', this)" title="Desert Sand / Песочный (Default)"></div>
+            <div class="onboarding-swatch" style="background:#fe8019;" data-color="#fe8019" onclick="setOnbAccent('#fe8019', this)" title="Amber Orange"></div>
+            <div class="onboarding-swatch" style="background:#10b981;" data-color="#10b981" onclick="setOnbAccent('#10b981', this)" title="Emerald"></div>
+            <div class="onboarding-swatch" style="background:#38bdf8;" data-color="#38bdf8" onclick="setOnbAccent('#38bdf8', this)" title="Sky Blue"></div>
+            <div class="onboarding-swatch" style="background:#a855f7;" data-color="#a855f7" onclick="setOnbAccent('#a855f7', this)" title="Nordic Purple"></div>
+            <div class="onboarding-swatch" style="background:#94a3b8;" data-color="#94a3b8" onclick="setOnbAccent('#94a3b8', this)" title="Slate"></div>
+          </div>
+        </div>
+
+        <div class="onboarding-section">
+          <div class="onboarding-section-title">ПОИСКОВАЯ СИСТЕМА // SEARCH ENGINE</div>
+          <div class="onboarding-row">
+            <button type="button" class="onboarding-btn-choice active" id="onbSearchGoogle" onclick="setOnbSearch('google')">Google</button>
+            <button type="button" class="onboarding-btn-choice" id="onbSearchDdg" onclick="setOnbSearch('duckduckgo')">DuckDuckGo</button>
+            <button type="button" class="onboarding-btn-choice" id="onbSearchYandex" onclick="setOnbSearch('yandex')">Яндекс</button>
+            <button type="button" class="onboarding-btn-choice" id="onbSearchBing" onclick="setOnbSearch('bing')">Bing</button>
+          </div>
+        </div>
+
+        <div class="onboarding-section">
+          <div class="onboarding-section-title">РЕЖИМ ИНТЕРФЕЙСА // UI MODE</div>
+          <div class="onboarding-row">
+            <button type="button" class="onboarding-btn-choice active" id="onbModeMinimal" onclick="setOnbMode('minimal')">Минималистичный</button>
+            <button type="button" class="onboarding-btn-choice" id="onbModeVim" onclick="setOnbMode('vim')">Vim-режим</button>
+          </div>
+        </div>
+
+        <div class="onboarding-footer">
+          <button type="button" class="btn-onboarding-finish" id="btnOnboardingFinish" onclick="finishOnboarding()">НАЧАТЬ РАБОТУ // START BROWSING</button>
         </div>
       </div>
     </div>

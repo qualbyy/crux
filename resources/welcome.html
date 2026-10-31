@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>crux://welcome</title>
+    <title>sonde://welcome</title>
     <style>
         :root, :root[data-theme="dark"] {
             --bg-base: #18181b;
             --bg-surface: #262624;
             --bg-elevated: #2d2d2a;
             --border-muted: #3f3f46;
-            --border-active: var(--accent, #a855f7);
+            --border-active: var(--accent, #d4a373);
             --text-primary: #d4d4d8;
             --text-bright: #f5f5f0;
             --text-muted: #71717a;
-            --accent: #a855f7;
+            --accent: #d4a373;
             --font-mono: "Iosevka Nerd Font", "JetBrains Mono", monospace;
         }
 
@@ -23,7 +23,7 @@
             --bg-surface: #ffffff;
             --bg-elevated: #f1f5f9;
             --border-muted: #cbd5e1;
-            --border-active: var(--accent, #a855f7);
+            --border-active: var(--accent, #d4a373);
             --text-primary: #334155;
             --text-bright: #0f172a;
             --text-muted: #64748b;
@@ -237,10 +237,10 @@
     <div class="container">
         <header class="header">
             <div class="badge-bar">
-                <div>CRUX ONBOARDING // SETUP</div>
+                <div>SONDE ONBOARDING // SETUP</div>
                 <div>RELEASE</div>
             </div>
-            <div class="logo-title">WELCOME TO CRUX</div>
+            <div class="logo-title">WELCOME TO SONDE</div>
             <div class="subtitle">Engineered for speed, privacy, and minimalist power users. Let's configure your experience.</div>
         </header>
 
@@ -263,7 +263,7 @@
         <div class="section-card">
             <div class="section-title">02 // Key Accent Color</div>
             <div class="colors-row">
-                <div class="color-item selected" style="background:#a855f7;" onclick="selectAccent('#a855f7', this)">PURPLE</div>
+                <div class="color-item selected" style="background:#d4a373;" onclick="selectAccent('#d4a373', this)">SAND</div>
                 <div class="color-item" style="background:#10b981;" onclick="selectAccent('#10b981', this)">EMERALD</div>
                 <div class="color-item" style="background:#38bdf8;" onclick="selectAccent('#38bdf8', this)">SKY</div>
                 <div class="color-item" style="background:#fe8019;" onclick="selectAccent('#fe8019', this)">AMBER</div>
@@ -298,7 +298,7 @@
                 Easily import your bookmarks, history, cookies, and saved passwords from existing browsers (Chrome, Firefox, Brave, Edge).
             </div>
             <div>
-                <a href="crux://settings" class="btn-action">
+                <a href="sonde://settings" class="btn-action">
                     <span>OPEN DATA IMPORTER AND VAULT</span>
                 </a>
             </div>
@@ -315,13 +315,13 @@
 
         <!-- Submit -->
         <div class="footer-action">
-            <button class="btn-primary" onclick="launchCrux()">SAVE AND START BROWSING</button>
+            <button class="btn-primary" onclick="launchSonde()">SAVE AND START BROWSING</button>
         </div>
     </div>
 
     <script>
         let currentTheme = 'dark';
-        let currentAccent = '#a855f7';
+        let currentAccent = '#d4a373';
         let currentMode = 'minimal';
         let currentOrientation = 'vertical';
 
@@ -354,20 +354,20 @@
 
         function sendToHost(url) {
             try {
-                window.prompt("CRUX_CMD:" + url);
+                window.prompt("SONDE_CMD:" + url);
             } catch (e) {
                 try {
-                    window.prompt("ZEPHYRIUM_CMD:" + url);
+                    window.prompt("SONDE_CMD:" + url);
                 } catch (e2) {
-                    console.log("CRUX_IPC:" + url);
+                    console.log("SONDE_IPC:" + url);
                 }
             }
         }
         window.sendToHost = sendToHost;
 
-        function launchCrux() {
+        function launchSonde() {
             const key = document.getElementById('geminiKey').value.trim();
-            const target = 'crux://setup?' +
+            const target = 'sonde://setup?' +
                 'theme=' + encodeURIComponent(currentTheme) +
                 '&accent=' + encodeURIComponent(currentAccent) +
                 '&mode=' + encodeURIComponent(currentMode) +
@@ -375,7 +375,7 @@
                 '&api_key=' + encodeURIComponent(key);
             sendToHost(target);
         }
-        window.launchZephyrium = launchCrux;
+        window.launchSonde = launchSonde;
     </script>
 </body>
 </html>
