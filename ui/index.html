@@ -200,22 +200,24 @@
           </div>
 
           <div class="ai-controls">
-            <label class="ai-lbl">MODEL:</label>
-            <select id="aiModelSelect" class="ai-select">
-              <option value="gemini:gemini-2.5-flash">Google Gemini 2.5 Flash (Cloud)</option>
-              <option value="gemini:gemini-1.5-pro">Google Gemini 1.5 Pro (Cloud)</option>
-              <option value="gemini:gemini-1.5-flash">Google Gemini 1.5 Flash (Cloud)</option>
-              <option value="deepseek:deepseek-chat">DeepSeek V3 (Cloud)</option>
-              <option value="deepseek:deepseek-reasoner">DeepSeek R1 (Cloud)</option>
-              <option value="openai:gpt-4o">OpenAI: GPT-4o (Cloud)</option>
-              <option value="openai:gpt-4o-mini">OpenAI: GPT-4o Mini (Cloud)</option>
-              <option value="ollama:llama3">Ollama: llama3 (Local)</option>
-              <option value="ollama:deepseek-r1">Ollama: deepseek-r1 (Local)</option>
-              <option value="ollama:mistral">Ollama: mistral (Local)</option>
-              <option value="custom">Пользовательская модель... / Custom Model</option>
-            </select>
+            <div class="ai-controls-top">
+              <label class="ai-lbl">MODEL:</label>
+              <select id="aiModelSelect" class="ai-select">
+                <option value="gemini:gemini-2.5-flash">Google Gemini 2.5 Flash (Cloud)</option>
+                <option value="gemini:gemini-1.5-pro">Google Gemini 1.5 Pro (Cloud)</option>
+                <option value="gemini:gemini-1.5-flash">Google Gemini 1.5 Flash (Cloud)</option>
+                <option value="deepseek:deepseek-chat">DeepSeek V3 (Cloud)</option>
+                <option value="deepseek:deepseek-reasoner">DeepSeek R1 (Cloud)</option>
+                <option value="openai:gpt-4o">OpenAI: GPT-4o (Cloud)</option>
+                <option value="openai:gpt-4o-mini">OpenAI: GPT-4o Mini (Cloud)</option>
+                <option value="ollama:llama3">Ollama: llama3 (Local)</option>
+                <option value="ollama:deepseek-r1">Ollama: deepseek-r1 (Local)</option>
+                <option value="ollama:mistral">Ollama: mistral (Local)</option>
+                <option value="custom">Пользовательская модель... / Custom Model</option>
+              </select>
+            </div>
             <div id="aiCustomModelContainer" class="ai-custom-model-row hidden">
-              <input type="text" id="aiCustomModelInput" class="ai-custom-model-input" placeholder="Имя модели (напр: qwen2.5:14b)">
+              <input type="text" id="aiCustomModelInput" class="ai-custom-model-input" placeholder="Имя модели (напр: qwen2.5:14b или gpt-4.5)">
             </div>
           </div>
 

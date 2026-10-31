@@ -183,11 +183,29 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     let target = match target_url {
         Some(t) => {
             let trimmed = t.trim();
-            if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+            let mut normalized = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
                 trimmed.to_string()
             } else {
                 format!("https://{}", trimmed)
+            };
+
+            // Fix broken URLs where query parameter starts with & instead of ? (e.g. https://youtube.com&themeRefresh=1)
+            if let Some(scheme_pos) = normalized.find("://") {
+                let rest = &normalized[scheme_pos + 3..];
+                if !rest.contains('?') {
+                    if let Some(amp_pos) = rest.find('&') {
+                        let slash_pos = rest.find('/');
+                        if slash_pos.is_none() || amp_pos < slash_pos.unwrap() {
+                            let fixed_idx = scheme_pos + 3 + amp_pos;
+                            let mut fixed = normalized.clone();
+                            fixed.replace_range(fixed_idx..fixed_idx + 1, "/?");
+                            normalized = fixed;
+                        }
+                    }
+                }
             }
+
+            normalized
         }
         None => {
             let body = "Sonde Proxy: No target URL specified.";

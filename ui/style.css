@@ -480,8 +480,15 @@ body, html {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-muted);
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-controls-top {
+  display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .ai-lbl {
@@ -1886,23 +1893,28 @@ body, html {
 
 /* AI Custom Model Input */
 .ai-custom-model-row {
-  margin-top: 6px;
   display: flex;
-  gap: 6px;
+  width: 100%;
+}
+
+.ai-custom-model-row.hidden {
+  display: none !important;
 }
 
 .ai-custom-model-input {
-  flex: 1;
-  background-color: var(--bg-sidebar);
-  border: 1px solid var(--border-muted);
-  color: var(--text-main);
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  color: var(--text-bright);
   font-family: inherit;
   font-size: 11px;
-  padding: 4px 8px;
+  padding: 6px 10px;
 }
 
 .ai-custom-model-input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
   outline: none;
 }
 

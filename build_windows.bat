@@ -1,45 +1,32 @@
 @echo off
-setlocal enabledelayedexpansion
+REM ========================================================
+REM  Sonde 2.0 — Native Windows Release Build Script
+REM ========================================================
 
-echo ========================================================
-echo       Crux Browser - Windows x86_64 Builder
-echo ========================================================
-echo.
+echo ===^> [Sonde 2.0] Checking Windows build environment...
 
-if not exist ".venv" (
-    echo [1/4] Creating Python virtual environment...
-    python -m venv .venv
-    if errorlevel 1 (
-        echo [ERROR] Failed to create virtual environment. Ensure Python 3.10+ is installed and in PATH.
-        exit /b 1
-    )
-)
-
-echo [2/4] Activating virtual environment and installing dependencies...
-call .venv\Scripts\activate.bat
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-pip install pyinstaller
-
-echo.
-echo [3/4] Building Crux standalone executable with PyInstaller...
-pyinstaller crux.spec --noconfirm --clean
-
-if not exist "dist\crux\crux.exe" (
-    echo.
-    echo [ERROR] Build failed! crux.exe was not generated.
+where cargo >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Cargo / Rust is not found in PATH!
+    echo Please install Rust from https://rustup.rs/
+    pause
     exit /b 1
 )
 
-echo.
-echo [4/4] Packaging portable ZIP distribution...
-powershell -Command "Compress-Archive -Path dist\crux\* -DestinationPath dist\crux-windows-x86_64.zip -Force"
-powershell -Command "(Get-FileHash -Algorithm SHA256 dist\crux-windows-x86_64.zip).Hash | Out-File -FilePath dist\crux-windows-x86_64.zip.sha256 -Encoding ascii"
+cd /d "%~dp0src-tauri"
 
-echo.
-echo ========================================================
-echo Build Succeeded!
-echo Output: dist\crux\crux.exe
-echo Archive: dist\crux-windows-x86_64.zip
-echo ========================================================
-pause
+echo ===^> [Sonde 2.0] Building release binary for Windows (x86_64)...
+cargo build --release
+
+if %ERRORLEVEL% equ 0 (
+    echo.
+    echo ========================================================
+    echo  [SUCCESS] Sonde 2.0 Windows binary built successfully!
+    echo  Binary: src-tauri\target\release\sonde-rs.exe
+    echo ========================================================
+) else (
+    echo.
+    echo [ERROR] Cargo build failed with exit code %ERRORLEVEL%
+    pause
+    exit /b %ERRORLEVEL%
+)

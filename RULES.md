@@ -94,6 +94,8 @@
        git checkout rust-dev
        ```
   3. **Состояние репозитория после релиза**:
-     - `main` — стабильная кодовая база Sonde 2.0 (Rust/Wry).
+     - В `main` остаются исключительно исходники на Rust (`src-tauri/`, `ui/`, `resources/`, `build_linux.sh`, `build_windows.bat`, `build_wine.sh`).
+     - Все устаревшие файлы Python-исходников (`*.py`, `*.qss`, `*.spec`, `dist/`, `build/`, `requirements.txt`) полностью исключены и перемещены в архивную ветку `legacy-python`.
+     - `main` — стабильная чистая кодовая база Sonde 2.0 (Rust/Wry).
      - `legacy-python` (или `crux-legacy`) — зафиксированная архивная версия Crux v1.3.7 с минимальным README и пометкой о прекращении поддержки.
      - `rust-dev` — ветка для дальнейшей разработки версий 2.1.0+ (синхронизация Cloudflare Workers и др.).

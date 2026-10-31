@@ -1,18 +1,19 @@
-name: Crux 2.0 Rust CI
+name: Sonde 2.0 Rust CI
 
 on:
   push:
-    branches: [ rust-dev ]
+    branches: [ rust-dev, main ]
     paths:
       - 'src-tauri/**'
       - 'ui/**'
+      - 'resources/**'
       - '.github/workflows/build-rust.yml'
   pull_request:
-    branches: [ rust-dev ]
+    branches: [ rust-dev, main ]
 
 jobs:
   build-linux:
-    name: Build & Check (Linux)
+    name: Build & Release (Linux)
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Code
@@ -44,12 +45,12 @@ jobs:
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
         with:
-          name: crux-rs-linux-x86_64
-          path: src-tauri/target/release/crux-rs
+          name: sonde-linux-x86_64
+          path: src-tauri/target/release/sonde-rs
           if-no-files-found: error
 
   build-windows:
-    name: Build & Check (Windows)
+    name: Build & Release (Windows)
     runs-on: windows-latest
     steps:
       - name: Checkout Code
@@ -76,6 +77,6 @@ jobs:
       - name: Upload Windows Binary
         uses: actions/upload-artifact@v4
         with:
-          name: crux-rs-windows-x86_64
-          path: src-tauri/target/release/crux-rs.exe
+          name: sonde-windows-x86_64.exe
+          path: src-tauri/target/release/sonde-rs.exe
           if-no-files-found: error
