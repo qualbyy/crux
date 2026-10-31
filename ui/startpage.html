@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>crux://startpage</title>
+    <style>
+        :root, :root[data-theme="dark"] {
+            --bg-base: #18181b;
+            --bg-surface: #262624;
+            --bg-elevated: #2d2d2a;
+            --border-muted: #3f3f46;
+            --border-active: var(--accent, #a855f7);
+            --text-primary: #d4d4d8;
+            --text-bright: #f5f5f0;
+            --text-muted: #71717a;
+            --accent: #a855f7;
+            --accent-warm: #a855f7;
+            --status-success: #10b981;
+            --font-mono: "Iosevka Nerd Font", "JetBrains Mono", monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            border-radius: 0px !important;
+            margin: 0;
+            padding: 0;
+            box-shadow: none !important;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+            user-select: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 720px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-muted);
+            padding-bottom: 16px;
+        }
+
+        .system-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .badge {
+            background: rgba(148, 163, 184, 0.1);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            color: var(--accent);
+            padding: 2px 6px;
+            font-size: 10px;
+        }
+
+        .clock-display {
+            font-size: 52px;
+            font-weight: 300;
+            letter-spacing: -1px;
+            color: var(--text-bright);
+            line-height: 1;
+            margin: 12px 0 4px 0;
+        }
+
+        .date-display {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-input {
+            width: 100%;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-muted);
+            color: var(--text-bright);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            padding: 12px 16px;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--border-active);
+            background: var(--bg-elevated);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-muted);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-muted);
+            padding-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .shortcut-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .key {
+            background: var(--bg-base);
+            border: 1px solid var(--border-muted);
+            color: var(--accent);
+            padding: 2px 6px;
+            font-size: 11px;
+        }
+
+        .desc {
+            color: var(--text-primary);
+        }
+
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .link-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background: var(--bg-base);
+            border: 1px solid var(--border-muted);
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+            cursor: pointer;
+        }
+
+        .link-item:hover {
+            border-color: var(--border-active);
+            background: var(--bg-elevated);
+            color: var(--text-bright);
+        }
+
+        .link-tag {
+            color: var(--accent-warm);
+            font-size: 10px;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--status-success);
+            margin-right: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="system-bar">
+                <div><span class="status-dot"></span>CRUX 2.0</div>
+                <div class="badge">RUST ALPHA</div>
+            </div>
+            <div class="clock-display" id="clock">00:00:00</div>
+            <div class="date-display" id="date">Loading...</div>
+        </header>
+
+        <div class="search-box">
+            <form id="searchForm" onsubmit="handleSearch(event)">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search DuckDuckGo or enter URL... (or press Ctrl+K)" autofocus autocomplete="off" />
+            </form>
+        </div>
+
+        <div class="cards-grid">
+            <div class="card">
+                <div class="card-title">
+                    <span>Quick Navigation</span>
+                    <span style="color: var(--accent-warm);">[WEB]</span>
+                </div>
+                <div class="links-grid">
+                    <a href="https://github.com" class="link-item">
+                        <span class="link-tag">[GIT]</span>
+                        <span>GitHub</span>
+                    </a>
+                    <a href="https://youtube.com" class="link-item">
+                        <span class="link-tag">[YT]</span>
+                        <span>YouTube</span>
+                    </a>
+                    <a href="https://x.com" class="link-item">
+                        <span class="link-tag">[X]</span>
+                        <span>Twitter (X)</span>
+                    </a>
+                    <a href="https://duckduckgo.com" class="link-item">
+                        <span class="link-tag">[DDG]</span>
+                        <span>DuckDuckGo</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>Keybindings</span>
+                    <span style="color: var(--accent);">[HOTKEYS]</span>
+                </div>
+                <ul class="shortcut-list">
+                    <li class="shortcut-item"><span class="desc">Command Palette</span><span class="key">Ctrl+Shift+P</span></li>
+                    <li class="shortcut-item"><span class="desc">New Tab</span><span class="key">Ctrl+T</span></li>
+                    <li class="shortcut-item"><span class="desc">Close Tab</span><span class="key">Ctrl+W</span></li>
+                    <li class="shortcut-item"><span class="desc">Split Screen</span><span class="key">Ctrl+\</span></li>
+                    <li class="shortcut-item"><span class="desc">AI Sidepanel</span><span class="key">Ctrl+B</span></li>
+                    <li class="shortcut-item"><span class="desc">Browser Settings</span><span class="key">Ctrl+,</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('clock').textContent = timeStr;
+            document.getElementById('date').textContent = dateStr;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function handleSearch(e) {
+            e.preventDefault();
+            const q = document.getElementById('searchInput').value.trim();
+            if (!q) return;
+            let target = q;
+            if (q.startsWith('http://') || q.startsWith('https://')) {
+                target = q;
+            } else if (q.includes('.') && !q.includes(' ')) {
+                target = 'https://' + q;
+            } else {
+                target = 'https://duckduckgo.com/?q=' + encodeURIComponent(q);
+            }
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'navigate', url: target }, '*');
+            } else {
+                window.location.href = target;
+            }
+        }
+
+        document.querySelectorAll('.link-item').forEach(a => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                const url = a.getAttribute('href');
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'navigate', url: url }, '*');
+                } else {
+                    window.location.href = url;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

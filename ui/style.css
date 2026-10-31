@@ -691,6 +691,81 @@ body, html {
   justify-content: flex-end;
 }
 
+/* Hidden utility class - high priority override */
+.hidden {
+  display: none !important;
+}
+
+.reader-overlay.hidden {
+  display: none !important;
+}
+
+.dropdown-menu.hidden {
+  display: none !important;
+}
+
+.modal-overlay.hidden {
+  display: none !important;
+}
+
+.ai-panel.hidden {
+  display: none !important;
+}
+
+/* Crux Dropdown Menu (Anchored to Top Right) */
+.dropdown-menu {
+  position: absolute;
+  top: 40px;
+  right: 76px;
+  width: 250px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.85);
+  z-index: 2000;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  animation: scaleUp var(--anim-speed) var(--anim-ease);
+}
+
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 14px;
+  color: var(--text-main);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color var(--anim-speed) ease, color var(--anim-speed) ease;
+}
+
+.menu-item:hover {
+  background-color: var(--bg-active);
+  color: var(--accent);
+}
+
+.menu-label {
+  flex: 1;
+}
+
+.menu-shortcut {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 12px;
+}
+
+.menu-tag {
+  font-size: 10px;
+  color: #10b981;
+  font-weight: bold;
+}
+
+.menu-separator {
+  height: 1px;
+  background-color: var(--border-muted);
+  margin: 4px 0;
+}
+
 /* Tab Mute Button */
 .tab-mute {
   background: transparent;

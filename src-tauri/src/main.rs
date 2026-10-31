@@ -62,10 +62,12 @@ fn main() -> wry::Result<()> {
     let html_content = include_str!("../../ui/index.html");
     let css_content = include_str!("../../ui/style.css");
     let js_content = include_str!("../../ui/main.js");
+    let startpage_content = include_str!("../../ui/startpage.html");
 
+    let startpage_escaped = serde_json::to_string(&startpage_content).unwrap_or_default();
     let embedded_page = html_content
         .replace(r#"<link rel="stylesheet" href="style.css">"#, &format!("<style>{}</style>", css_content))
-        .replace(r#"<script src="main.js"></script>"#, &format!("<script>{}</script>", js_content));
+        .replace(r#"<script src="main.js"></script>"#, &format!("<script>window.CRUX_STARTPAGE_HTML = {};\n{}</script>", startpage_escaped, js_content));
 
     let tm_clone = Arc::clone(&tab_manager);
     let db_clone = Arc::clone(&db);

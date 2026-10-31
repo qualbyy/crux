@@ -17,8 +17,8 @@ let tabs = [
   {
     id: 1,
     title: 'Crux Startpage',
-    url: 'https://duckduckgo.com',
-    history: ['https://duckduckgo.com'],
+    url: 'crux://startpage',
+    history: ['crux://startpage'],
     historyIndex: 0,
     container: 'default',
     is_pinned: false,
@@ -47,7 +47,8 @@ const elements = {
   btnCloseReader: document.getElementById('btnCloseReader'),
   readerTitle: document.getElementById('readerTitle'),
   readerContent: document.getElementById('readerContent'),
-  btnSettings: document.getElementById('btnSettings'),
+  btnMenu: document.getElementById('btnMenu'),
+  appMenu: document.getElementById('appMenu'),
   settingsModal: document.getElementById('settingsModal'),
   btnCloseSettings: document.getElementById('btnCloseSettings'),
   btnSaveSettings: document.getElementById('btnSaveSettings'),
@@ -56,7 +57,6 @@ const elements = {
   adblockToggle: document.getElementById('adblockToggle'),
   txtDownloadDir: document.getElementById('txtDownloadDir'),
   txtAiApiKey: document.getElementById('txtAiApiKey'),
-  btnAiSidebar: document.getElementById('btnAiSidebar'),
   btnBookmark: document.getElementById('btnBookmark'),
   btnToggleAi: document.getElementById('btnToggleAi'),
   aiPanel: document.getElementById('aiPanel'),
@@ -108,6 +108,19 @@ function updateNavButtons() {
   }
 }
 
+function loadTabContent(tab) {
+  if (!tab || !elements.webFrame) return;
+  if (tab.url === 'crux://startpage' || !tab.url || tab.url === 'about:blank') {
+    elements.webFrame.removeAttribute('src');
+    elements.webFrame.srcdoc = window.CRUX_STARTPAGE_HTML || '<!DOCTYPE html><html><body style="background:#18181b;color:#f5f5f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><h1>Crux Startpage</h1></body></html>';
+    if (elements.urlInput) elements.urlInput.value = '';
+  } else {
+    elements.webFrame.removeAttribute('srcdoc');
+    elements.webFrame.src = tab.url;
+    if (elements.urlInput) elements.urlInput.value = tab.url;
+  }
+}
+
 function renderTabs() {
   if (!elements.tabsList) return;
   elements.tabsList.innerHTML = '';
@@ -125,7 +138,7 @@ function renderTabs() {
 
     const title = document.createElement('span');
     title.className = 'tab-title';
-    title.textContent = tab.title || 'New Tab';
+    title.textContent = tab.title || (tab.url === 'crux://startpage' ? 'Crux Startpage' : 'New Tab');
     el.appendChild(title);
 
     // Audio Mute toggle button with SVG icons
@@ -164,34 +177,57 @@ function activateTab(id) {
   renderTabs();
   const current = tabs.find(t => t.id === id);
   if (current) {
-    if (elements.urlInput) elements.urlInput.value = current.url;
-    if (elements.webFrame) elements.webFrame.src = current.url;
+    loadTabContent(current);
     updateNavButtons();
     sendIpc('activate_tab', { id });
   }
 }
 
-function navigateActiveTab(url) {
+function navigateActiveTab(input) {
   const active = tabs.find(t => t.is_active);
   if (!active) return;
+
+  let url = (input || "").trim();
+  if (!url) {
+    url = 'crux://startpage';
+  } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('crux://')) {
+    if (url.includes('.') && !url.includes(' ')) {
+      url = 'https://' + url;
+    } else {
+      url = getSearchUrl(url);
+    }
+  }
+
+  active.url = url;
+  if (url === 'crux://startpage') {
+    active.title = 'Crux Startpage';
+  } else {
+    try {
+      const u = new URL(url);
+      active.title = u.hostname.replace(/^www\./, '');
+    } catch {
+      active.title = url;
+    }
+  }
+
   if (active.history[active.historyIndex] !== url) {
     active.history = active.history.slice(0, active.historyIndex + 1);
     active.history.push(url);
     active.historyIndex = active.history.length - 1;
   }
-  active.url = url;
-  if (elements.urlInput) elements.urlInput.value = url;
-  if (elements.webFrame) elements.webFrame.src = url;
+
+  loadTabContent(active);
   updateNavButtons();
+  renderTabs();
   sendIpc('navigate', { url });
 }
 
-function createTab(url = 'https://duckduckgo.com') {
+function createTab(url = 'crux://startpage') {
   const newId = (tabs.length ? Math.max(...tabs.map(t => t.id)) : 0) + 1;
   tabs.forEach(t => t.is_active = false);
   const tab = {
     id: newId,
-    title: 'New Tab',
+    title: url === 'crux://startpage' ? 'Crux Startpage' : 'New Tab',
     url,
     history: [url],
     historyIndex: 0,
@@ -213,7 +249,7 @@ function closeTab(id) {
     tabs.splice(idx, 1);
     sendIpc('close_tab', { id });
     if (tabs.length === 0) {
-      createTab();
+      createTab('crux://startpage');
       return;
     }
     if (wasActive) {
@@ -240,6 +276,13 @@ function getSearchUrl(query) {
   }
 }
 
+// Listen to messages from startpage iframe
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'navigate' && e.data.url) {
+    navigateActiveTab(e.data.url);
+  }
+});
+
 // Navigation Buttons Handlers
 if (elements.btnBack) {
   elements.btnBack.addEventListener('click', () => {
@@ -248,9 +291,9 @@ if (elements.btnBack) {
       active.historyIndex--;
       const targetUrl = active.history[active.historyIndex];
       active.url = targetUrl;
-      if (elements.urlInput) elements.urlInput.value = targetUrl;
-      if (elements.webFrame) elements.webFrame.src = targetUrl;
+      loadTabContent(active);
       updateNavButtons();
+      renderTabs();
       sendIpc('navigate', { url: targetUrl });
     }
   });
@@ -263,9 +306,9 @@ if (elements.btnForward) {
       active.historyIndex++;
       const targetUrl = active.history[active.historyIndex];
       active.url = targetUrl;
-      if (elements.urlInput) elements.urlInput.value = targetUrl;
-      if (elements.webFrame) elements.webFrame.src = targetUrl;
+      loadTabContent(active);
       updateNavButtons();
+      renderTabs();
       sendIpc('navigate', { url: targetUrl });
     }
   });
@@ -275,13 +318,13 @@ if (elements.btnReload) {
   elements.btnReload.addEventListener('click', () => {
     const active = tabs.find(t => t.is_active);
     if (active && elements.webFrame) {
-      elements.webFrame.src = active.url;
+      loadTabContent(active);
       showToast("Reloading page...");
     }
   });
 }
 
-if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab());
+if (elements.btnNewTab) elements.btnNewTab.addEventListener('click', () => createTab('crux://startpage'));
 if (elements.btnToggleSidebar) {
   elements.btnToggleSidebar.addEventListener('click', () => elements.sidebar.classList.toggle('compact'));
 }
@@ -289,25 +332,18 @@ if (elements.btnToggleSidebar) {
 if (elements.urlInput) {
   elements.urlInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      let input = elements.urlInput.value.trim();
-      if (!input.startsWith('http://') && !input.startsWith('https://') && !input.startsWith('crux://')) {
-        if (input.includes('.') && !input.includes(' ')) {
-          input = 'https://' + input;
-        } else {
-          input = getSearchUrl(input);
-        }
-      }
-      navigateActiveTab(input);
+      navigateActiveTab(elements.urlInput.value);
     }
   });
 }
 
+// Top Bar Bookmark Button
 if (elements.btnBookmark) {
   elements.btnBookmark.addEventListener('click', () => {
     const active = tabs.find(t => t.is_active);
     if (active) {
       sendIpc('add_bookmark', { url: active.url, title: active.title });
-      showToast(`Bookmarked: ${active.url}`);
+      showToast(`★ Bookmarked: ${active.title || active.url}`);
     }
   });
 }
@@ -367,7 +403,6 @@ function toggleSettingsModal() {
   }
 }
 
-if (elements.btnSettings) elements.btnSettings.addEventListener('click', toggleSettingsModal);
 if (elements.btnCloseSettings) elements.btnCloseSettings.addEventListener('click', toggleSettingsModal);
 
 if (elements.btnBrowseDownload) {
@@ -393,6 +428,56 @@ if (elements.btnSaveSettings) {
   });
 }
 
+// App Dropdown Menu (Anchored to Top Right)
+function toggleAppMenu() {
+  if (!elements.appMenu) return;
+  elements.appMenu.classList.toggle('hidden');
+}
+
+function closeAppMenu() {
+  if (elements.appMenu && !elements.appMenu.classList.contains('hidden')) {
+    elements.appMenu.classList.add('hidden');
+  }
+}
+
+if (elements.btnMenu) {
+  elements.btnMenu.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleAppMenu();
+  });
+}
+
+// Menu Items Click Handlers
+const menuActions = {
+  menuNewTab: () => createTab('crux://startpage'),
+  menuSplit: toggleSplitView,
+  menuReader: toggleReaderMode,
+  menuPalette: () => toggleCommandPalette(),
+  menuDevTools: () => showToast("Developer Tools toggled (F12)"),
+  menuDownloads: () => sendIpc('choose_download_dir'),
+  menuHistory: () => sendIpc('get_history'),
+  menuBookmarks: () => sendIpc('get_bookmarks'),
+  menuAi: () => toggleAiPanel(),
+  menuAdBlock: () => showToast("Shield: AdBlocker is active"),
+  menuSettings: () => toggleSettingsModal()
+};
+
+Object.entries(menuActions).forEach(([id, action]) => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('click', () => {
+      closeAppMenu();
+      action();
+    });
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (elements.appMenu && !elements.appMenu.contains(e.target) && e.target !== elements.btnMenu && !elements.btnMenu.contains(e.target)) {
+    closeAppMenu();
+  }
+});
+
 // Window Controls (Frameless Top Bar)
 if (elements.btnWinMin) elements.btnWinMin.addEventListener('click', () => sendIpc('window_minimize'));
 if (elements.btnWinMax) elements.btnWinMax.addEventListener('click', () => sendIpc('window_maximize'));
@@ -400,7 +485,6 @@ if (elements.btnWinClose) elements.btnWinClose.addEventListener('click', () => s
 
 if (elements.dragRegion) {
   elements.dragRegion.addEventListener('mousedown', (e) => {
-    // Only drag when clicking the empty region between buttons/inputs
     if (e.button === 0 && (e.target === elements.dragRegion || e.target.classList.contains('url-bar-container'))) {
       if (e.target.id !== 'urlInput') {
         sendIpc('window_drag');
@@ -421,7 +505,6 @@ function toggleAiPanel() {
 }
 
 if (elements.btnToggleAi) elements.btnToggleAi.addEventListener('click', toggleAiPanel);
-if (elements.btnAiSidebar) elements.btnAiSidebar.addEventListener('click', toggleAiPanel);
 if (elements.btnCloseAi) elements.btnCloseAi.addEventListener('click', toggleAiPanel);
 
 function appendAiMessage(role, text) {
@@ -491,7 +574,7 @@ function toggleCommandPalette() {
 }
 
 const commands = [
-  { name: 'New Tab', action: () => createTab() },
+  { name: 'New Tab', action: () => createTab('crux://startpage') },
   { name: 'Toggle Compact Sidebar', action: () => elements.sidebar.classList.toggle('compact') },
   { name: 'Toggle Split View (Side-by-side)', action: toggleSplitView },
   { name: 'Toggle Reading Mode', action: toggleReaderMode },
@@ -547,12 +630,13 @@ window.addEventListener('keydown', (e) => {
     toggleCommandPalette();
   } else if (e.ctrlKey && e.key.toLowerCase() === 't') {
     e.preventDefault();
-    createTab();
+    createTab('crux://startpage');
   } else if (e.ctrlKey && e.key.toLowerCase() === 'w') {
     e.preventDefault();
     const active = tabs.find(t => t.is_active);
     if (active) closeTab(active.id);
   } else if (e.key === 'Escape') {
+    closeAppMenu();
     if (elements.commandPalette && !elements.commandPalette.classList.contains('hidden')) {
       elements.commandPalette.classList.add('hidden');
     }
@@ -620,4 +704,8 @@ window.onDownloadDirSelected = function(path) {
 
 // Initial Render
 renderTabs();
-console.log("Crux 2.0 Rust Architecture initialized.");
+const initialTab = tabs.find(t => t.is_active);
+if (initialTab) {
+  loadTabContent(initialTab);
+}
+console.log("Crux 2.0 Rust Architecture initialized with original startpage.");
