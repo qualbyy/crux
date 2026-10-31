@@ -48,6 +48,9 @@ enum UserEvent {
     GoForward,
     Reload,
     SetUiHeight(i32),
+    SetSidebarMargin(i32),
+    SetOverlayOrder(bool),
+    SetTabOrientation(String),
     SetZoom(f64),
     PageUrlChanged { id: u32, url: String },
     PageTitleChanged { id: u32, title: String },
@@ -154,6 +157,12 @@ fn percent_decode(input: &str) -> String {
 }
 
 fn main() -> wry::Result<()> {
+    #[cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))]
+    {
+        gtk::glib::set_prgname(Some("sonde"));
+        gtk::glib::set_application_name("Sonde");
+    }
+
     // WebKitGTK Wayland rendering fix to prevent blank/gray screen on Linux Wayland/Hyprland
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
 
@@ -267,6 +276,7 @@ fn main() -> wry::Result<()> {
     builder = builder
         .with_html(embedded_page)
         .with_devtools(true)
+        .with_transparent(true)
         .with_ipc_handler(move |req| {
             let body = req.body();
             if let Ok(v) = serde_json::from_str::<Value>(body) {
@@ -330,6 +340,21 @@ fn main() -> wry::Result<()> {
                             let _ = proxy_clone.send_event(UserEvent::SetUiHeight(h as i32));
                         }
                     }
+                    "set_sidebar_margin" => {
+                        if let Some(w) = v["width"].as_i64() {
+                            let _ = proxy_clone.send_event(UserEvent::SetSidebarMargin(w as i32));
+                        }
+                    }
+                    "set_overlay_order" => {
+                        if let Some(b) = v["ui_on_top"].as_bool() {
+                            let _ = proxy_clone.send_event(UserEvent::SetOverlayOrder(b));
+                        }
+                    }
+                    "set_tab_orientation" => {
+                        if let Some(ori) = v["orientation"].as_str() {
+                            let _ = proxy_clone.send_event(UserEvent::SetTabOrientation(ori.to_string()));
+                        }
+                    }
                     "set_zoom" => {
                         if let Some(z) = v["zoom"].as_f64() {
                             let _ = proxy_clone.send_event(UserEvent::SetZoom(z));
@@ -357,6 +382,14 @@ fn main() -> wry::Result<()> {
                             }
                             if key == "network_proxy" {
                                 proxy::set_network_proxy(value);
+                            }
+                            if key == "tab_orientation" {
+                                let _ = proxy_clone.send_event(UserEvent::SetTabOrientation(value.to_string()));
+                            }
+                            if key == "sidebar_width" {
+                                if let Ok(w) = value.trim_end_matches("px").parse::<i32>() {
+                                    let _ = proxy_clone.send_event(UserEvent::SetSidebarMargin(w));
+                                }
                             }
                             println!("[Sonde Core] Saved setting: {} = {}", key, value);
                         }
@@ -712,7 +745,7 @@ fn main() -> wry::Result<()> {
         target_os = "ios",
         target_os = "android"
     )))]
-    let (webview, content_stack, top_box, initial_wv) = {
+    let (webview, content_stack, ui_box, overlay, initial_wv) = {
         use gtk::prelude::*;
         use tao::platform::unix::WindowExtUnix;
         use wry::WebViewBuilderExtUnix;
@@ -725,15 +758,41 @@ fn main() -> wry::Result<()> {
 
         let vbox = window.default_vbox().expect("Failed to get default vbox from Tao window");
 
-        let top_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        top_box.set_size_request(-1, 74);
-        vbox.pack_start(&top_box, false, false, 0);
+        let overlay = gtk::Overlay::new();
+        overlay.set_hexpand(true);
+        overlay.set_vexpand(true);
+        vbox.pack_start(&overlay, true, true, 0);
+
+        let base_bg = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        base_bg.set_hexpand(true);
+        base_bg.set_vexpand(true);
+        overlay.add(&base_bg);
+
+        let ui_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        ui_box.set_hexpand(true);
+        ui_box.set_vexpand(true);
+        overlay.add_overlay(&ui_box);
 
         let stack = gtk::Stack::new();
         stack.set_transition_type(gtk::StackTransitionType::None);
-        vbox.pack_start(&stack, true, true, 0);
+        stack.set_hexpand(true);
+        stack.set_vexpand(true);
+        overlay.add_overlay(&stack);
 
-        let wv = builder.build_gtk(&top_box)?;
+        let init_orientation = db.get_setting("tab_orientation").unwrap_or_else(|| "vertical".to_string());
+        if init_orientation == "horizontal" {
+            stack.set_margin_start(0);
+            stack.set_margin_top(74);
+        } else {
+            let sb_width: i32 = db.get_setting("sidebar_width").and_then(|w| w.parse().ok()).unwrap_or(240);
+            stack.set_margin_start(sb_width);
+            stack.set_margin_top(38);
+        }
+
+        let wv = builder.build_gtk(&ui_box)?;
+
+        use gtk::gdk;
+        webkit2gtk::WebViewExt::set_background_color(&wv.webview(), &gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
 
         if let Some(settings) = webkit2gtk::WebViewExt::settings(&wv.webview()) {
             settings.set_disable_web_security(true);
@@ -821,7 +880,6 @@ fn main() -> wry::Result<()> {
         });
 
         load_tab_content(&init_wv, &initial_url, &internal_pages);
-        use gtk::gdk;
         webkit2gtk::WebViewExt::set_background_color(&init_wv, &gdk::RGBA::new(0.094, 0.094, 0.106, 1.0));
         stack.add_named(&init_wv, "tab_1");
         init_wv.show();
@@ -870,12 +928,13 @@ fn main() -> wry::Result<()> {
         });
 
         window.gtk_window().show_all();
-        (wv, stack, top_box, init_wv)
+        (wv, stack, ui_box, overlay, init_wv)
     };
 
     let db_for_events = Arc::clone(&db);
     let tab_stack = content_stack;
-    let top_box_ref = top_box;
+    let ui_box_ref = ui_box;
+    let overlay_ref = overlay;
     let mut tab_views: std::collections::HashMap<u32, webkit2gtk::WebView> = std::collections::HashMap::new();
     tab_views.insert(1, initial_wv);
     let mut active_tab_id: u32 = 1;
@@ -1129,8 +1188,36 @@ fn main() -> wry::Result<()> {
             }
             Event::UserEvent(UserEvent::SetUiHeight(h)) => {
                 use gtk::prelude::*;
-                top_box_ref.set_size_request(-1, h);
-                top_box_ref.queue_resize();
+                if h > 74 {
+                    overlay_ref.reorder_overlay(&ui_box_ref, 1);
+                } else {
+                    overlay_ref.reorder_overlay(&tab_stack, 1);
+                }
+            }
+            Event::UserEvent(UserEvent::SetOverlayOrder(ui_on_top)) => {
+                use gtk::prelude::*;
+                if ui_on_top {
+                    overlay_ref.reorder_overlay(&ui_box_ref, 1);
+                } else {
+                    overlay_ref.reorder_overlay(&tab_stack, 1);
+                }
+            }
+            Event::UserEvent(UserEvent::SetSidebarMargin(w)) => {
+                use gtk::prelude::*;
+                tab_stack.set_margin_start(w);
+                tab_stack.queue_resize();
+            }
+            Event::UserEvent(UserEvent::SetTabOrientation(orient)) => {
+                use gtk::prelude::*;
+                if orient == "horizontal" {
+                    tab_stack.set_margin_start(0);
+                    tab_stack.set_margin_top(74);
+                } else {
+                    let sb_w: i32 = db_for_events.get_setting("sidebar_width").and_then(|w| w.parse().ok()).unwrap_or(240);
+                    tab_stack.set_margin_start(sb_w);
+                    tab_stack.set_margin_top(38);
+                }
+                tab_stack.queue_resize();
             }
             Event::UserEvent(UserEvent::SetZoom(level)) => {
                 if let Some(wv) = tab_views.get(&active_tab_id) {

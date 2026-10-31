@@ -18,9 +18,11 @@ if [ -f "$OUTPUT_BIN" ]; then
     ln -sf "$HOME/.local/bin/sonde-rs" "$HOME/.local/bin/sonde"
     ln -sf "$HOME/.local/bin/sonde-rs" "$HOME/.local/bin/sonde-browser"
     
-    # Desktop shortcut
+    # Desktop shortcut and cleanup legacy entries
     if [ -d "$HOME/.local/share/applications" ]; then
+        rm -f "$HOME/.local/share/applications/crux-rust.desktop" "$HOME/.local/share/applications/crux.desktop" || true
         cp "$SCRIPT_DIR/sonde.desktop" "$HOME/.local/share/applications/sonde.desktop" || true
+        update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
     fi
 
     echo "===> [SUCCESS] Sonde binary built and installed:"

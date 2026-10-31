@@ -799,10 +799,12 @@ function setTabOrientation(orient) {
     if (elements.sidebar) elements.sidebar.classList.add('hidden');
     if (elements.horizontalTabBar) elements.horizontalTabBar.classList.remove('hidden');
     renderHorizontalTabs();
+    sendIpc('set_tab_orientation', { orientation: 'horizontal' });
   } else {
     if (elements.sidebar) elements.sidebar.classList.remove('hidden');
     if (elements.horizontalTabBar) elements.horizontalTabBar.classList.add('hidden');
     renderTabs();
+    sendIpc('set_tab_orientation', { orientation: 'vertical' });
   }
   if (elements.chkTabVert) elements.chkTabVert.textContent = tabOrientation === 'vertical' ? '[x]' : '[ ]';
   if (elements.chkTabHoriz) elements.chkTabHoriz.textContent = tabOrientation === 'horizontal' ? '[x]' : '[ ]';
@@ -1075,6 +1077,8 @@ if (elements.btnNewTabHoriz) elements.btnNewTabHoriz.addEventListener('click', (
 if (elements.btnToggleSidebar) {
   elements.btnToggleSidebar.addEventListener('click', () => {
     elements.sidebar.classList.toggle('compact');
+    const isCompact = elements.sidebar.classList.contains('compact');
+    sendIpc('set_sidebar_margin', { width: isCompact ? 52 : 240 });
   });
 }
 
@@ -1643,6 +1647,7 @@ function openTabContextMenu(e, tab) {
   elements.tabContextMenu.style.left = `${x}px`;
   elements.tabContextMenu.style.top = `${y}px`;
   elements.tabContextMenu.classList.remove('hidden');
+  sendIpc('set_ui_height', { height: 350 });
 
   if (elements.popupBackdrop) elements.popupBackdrop.classList.remove('hidden');
 }
@@ -1744,7 +1749,9 @@ document.addEventListener('mouseup', () => {
   if (elements.sidebarResizer) elements.sidebarResizer.classList.remove('resizing');
   document.body.style.cursor = '';
   if (elements.sidebar) {
-    sendIpc('save_setting', { key: 'sidebar_width', value: elements.sidebar.style.width });
+    const widthVal = parseInt(elements.sidebar.style.width, 10) || 240;
+    sendIpc('set_sidebar_margin', { width: widthVal });
+    sendIpc('save_setting', { key: 'sidebar_width', value: `${widthVal}px` });
   }
 });
 

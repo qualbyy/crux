@@ -1376,17 +1376,43 @@ body, html {
 }
 
 /* Native Multi-WebView Architecture */
+html, body {
+  width: 100vw !important;
+  height: 100vh !important;
+  background: transparent !important;
+  overflow: hidden !important;
+}
+
+.app-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  background: transparent !important;
+}
+
+.sidebar {
+  height: 100vh;
+  background-color: var(--bg-sidebar);
+}
+
 .workspace-wrapper {
+  flex: 1;
+  display: flex !important;
+  position: relative;
+  background: transparent !important;
+  pointer-events: none;
+}
+
+.workspace-wrapper > * {
+  pointer-events: auto;
+}
+
+.webview-container {
   display: none !important;
 }
+
 .bottom-status-bar {
   display: none !important;
-}
-html, body {
-  height: auto !important;
-  min-height: 0 !important;
-  background: var(--bg-app) !important;
-  overflow: visible !important;
 }
 
 .action-buttons.collapsed #btnBookmark,
