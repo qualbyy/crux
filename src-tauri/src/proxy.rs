@@ -7,6 +7,30 @@ use crate::adblock::AdBlocker;
 use crate::storage::Database;
 
 static CURRENT_USER_AGENT: OnceLock<Mutex<String>> = OnceLock::new();
+static LAST_PROXY_BASE: OnceLock<Mutex<String>> = OnceLock::new();
+
+fn update_last_proxy_base(target: &str) {
+    if let Ok(u) = reqwest::Url::parse(target) {
+        if let Some(host) = u.host_str() {
+            let base = format!("{}://{}/", u.scheme(), host);
+            let lock = LAST_PROXY_BASE.get_or_init(|| Mutex::new(String::new()));
+            if let Ok(mut g) = lock.lock() {
+                *g = base;
+            }
+        }
+    }
+}
+
+fn get_last_proxy_base() -> Option<String> {
+    if let Some(lock) = LAST_PROXY_BASE.get() {
+        if let Ok(g) = lock.lock() {
+            if !g.is_empty() {
+                return Some(g.clone());
+            }
+        }
+    }
+    None
+}
 
 pub fn set_custom_user_agent(ua: &str) {
     let mutex = CURRENT_USER_AGENT.get_or_init(|| {
@@ -134,29 +158,39 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     let method = parts.next().unwrap_or("GET");
     let path = parts.next().unwrap_or("/");
 
-    if method == "OPTIONS" {
-        let resp = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Max-Age: 86400\r\nConnection: close\r\n\r\n";
-        let _ = stream.write_all(resp.as_bytes());
-        return;
-    }
-
     let mut forwarded_headers: Vec<(String, String)> = Vec::new();
     let mut referer: Option<String> = None;
+    let mut req_origin: Option<String> = None;
     let mut content_length: usize = 0;
 
     for line in lines {
+        if line.trim().is_empty() {
+            break;
+        }
         if let Some(colon) = line.find(':') {
             let key = line[..colon].trim();
             let val = line[colon + 1..].trim();
             let key_lower = key.to_lowercase();
 
-            if key_lower == "host" || key_lower == "connection" || key_lower == "accept-encoding" || key_lower == "user-agent" {
+            if key_lower == "host"
+                || key_lower == "connection"
+                || key_lower == "accept-encoding"
+                || key_lower == "user-agent"
+                || key_lower == "cookie"
+                || key_lower == "origin"
+                || key_lower.starts_with("sec-fetch-")
+            {
+                if key_lower == "origin" {
+                    req_origin = Some(val.to_string());
+                }
                 continue;
             }
             if key_lower == "referer" {
                 referer = Some(val.to_string());
                 let unproxied = parse_query_url(val).unwrap_or_else(|| val.to_string());
-                forwarded_headers.push(("Referer".to_string(), unproxied));
+                if !unproxied.starts_with("http://127.0.0.1") && !unproxied.starts_with("http://localhost") {
+                    forwarded_headers.push(("Referer".to_string(), unproxied));
+                }
                 continue;
             }
             if key_lower == "content-length" {
@@ -166,6 +200,17 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
             }
             forwarded_headers.push((key.to_string(), val.to_string()));
         }
+    }
+
+    let client_origin = req_origin.as_deref().unwrap_or("http://127.0.0.1:39281");
+
+    if method == "OPTIONS" {
+        let resp = format!(
+            "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: {}\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Max-Age: 86400\r\nConnection: close\r\n\r\n",
+            client_origin
+        );
+        let _ = stream.write_all(resp.as_bytes());
+        return;
     }
 
     let mut target_url: Option<String> = parse_query_url(path);
@@ -188,12 +233,25 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
         }
     }
 
-    // Fallback: If not /proxy?url=..., check if referer was a proxy request
+    // Fallback 1: If not /proxy?url=..., check if referer was a proxy request
     if target_url.is_none() {
         if let Some(ref ref_val) = referer {
             let ref_target = parse_query_url(ref_val).unwrap_or_else(|| ref_val.clone());
-            if let Ok(parsed_ref) = reqwest::Url::parse(&ref_target) {
-                if let Ok(joined) = parsed_ref.join(path) {
+            if !ref_target.starts_with("http://127.0.0.1") && !ref_target.starts_with("http://localhost") {
+                if let Ok(parsed_ref) = reqwest::Url::parse(&ref_target) {
+                    if let Ok(joined) = parsed_ref.join(path) {
+                        target_url = Some(joined.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback 2: Check LAST_PROXY_BASE
+    if target_url.is_none() {
+        if let Some(base) = get_last_proxy_base() {
+            if let Ok(parsed_base) = reqwest::Url::parse(&base) {
+                if let Ok(joined) = parsed_base.join(path) {
                     target_url = Some(joined.to_string());
                 }
             }
@@ -225,9 +283,11 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
                 }
             }
 
+            update_last_proxy_base(&normalized);
             normalized
         }
         None => {
+            println!("[PROXY-NO-TARGET] {} {} (Referer: {:?})", method, path, referer);
             let body = "Sonde Proxy: No target URL specified.";
             let resp = format!(
                 "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -240,7 +300,6 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     };
 
     if adblocker.should_block(&target) {
-        println!("[Sonde Proxy] AdBlock blocked: {}", target);
         let resp = "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n";
         let _ = stream.write_all(resp.as_bytes());
         return;
@@ -259,26 +318,34 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
     if (method == "POST" || method == "PUT" || method == "PATCH") && content_length > 0 {
         let header_end = req_str.find("\r\n\r\n").map(|i| i + 4).unwrap_or(n);
-        let body_in_buf = &buf[header_end..n];
+        let body_in_buf = if header_end < n { &buf[header_end..n] } else { &[] };
         let mut post_body = body_in_buf.to_vec();
-        while post_body.len() < content_length {
-            let mut chunk = [0u8; 4096];
-            match stream.read(&mut chunk) {
-                Ok(read_n) if read_n > 0 => {
-                    post_body.extend_from_slice(&chunk[..read_n]);
+        if post_body.len() < content_length {
+            let _ = stream.set_read_timeout(Some(Duration::from_millis(600)));
+            while post_body.len() < content_length {
+                let mut chunk = [0u8; 4096];
+                match stream.read(&mut chunk) {
+                    Ok(read_n) if read_n > 0 => {
+                        post_body.extend_from_slice(&chunk[..read_n]);
+                    }
+                    _ => break,
                 }
-                _ => break,
             }
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(12)));
         }
         req_builder = req_builder.body(post_body);
     }
 
     if let Ok(target_u) = reqwest::Url::parse(&target) {
         if let Some(host) = target_u.host_str() {
+            let scheme = target_u.scheme();
+            let port_str = target_u.port().map(|p| format!(":{}", p)).unwrap_or_default();
+            let origin_str = format!("{}://{}{}", scheme, host, port_str);
             if method != "GET" && method != "HEAD" {
-                let scheme = target_u.scheme();
-                let port_str = target_u.port().map(|p| format!(":{}", p)).unwrap_or_default();
-                req_builder = req_builder.header("Origin", format!("{}://{}{}", scheme, host, port_str));
+                req_builder = req_builder.header("Origin", origin_str.clone());
+            }
+            if !forwarded_headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("referer")) {
+                req_builder = req_builder.header("Referer", format!("{}/", origin_str));
             }
         }
     }
@@ -287,14 +354,17 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     req_builder = req_builder.header("User-Agent", active_ua);
 
     for (k, v) in forwarded_headers {
-        if let Ok(val) = reqwest::header::HeaderValue::from_str(&v) {
-            req_builder = req_builder.header(&k, val);
+        if let Ok(header_name) = reqwest::header::HeaderName::from_bytes(k.as_bytes()) {
+            if let Ok(val) = reqwest::header::HeaderValue::from_str(&v) {
+                req_builder = req_builder.header(header_name, val);
+            }
         }
     }
 
     let resp = match req_builder.send() {
         Ok(r) => r,
         Err(e) => {
+            eprintln!("[Sonde Proxy Error] target={}, method={}, err={:#?}", target, method, e);
             send_error_page(&mut stream, &target, &format!("Failed to load web page: {}", e));
             return;
         }
@@ -365,10 +435,11 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     if !is_html {
         // Stream media / video / binary responses with Range & 206 Partial Content support
         let mut header = format!(
-            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n",
+            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nAccess-Control-Allow-Origin: {}\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n",
             status.as_u16(),
             status.canonical_reason().unwrap_or("OK"),
-            content_type
+            content_type,
+            client_origin
         );
         if let Some(cr) = resp_headers.get("content-range").and_then(|v| v.to_str().ok()) {
             header.push_str(&format!("Content-Range: {}\r\n", cr));
@@ -440,6 +511,85 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     return resolveTargetUrl(u);
   }}
 
+  function toProxyUrl(u) {{
+    if (!u) return u;
+    var str = '';
+    if (typeof u === 'string') {{
+      str = u;
+    }} else if (typeof URL !== 'undefined' && u instanceof URL) {{
+      str = u.href;
+    }} else if (u && typeof u.url === 'string') {{
+      str = u.url;
+    }} else {{
+      try {{ str = String(u); }} catch(e) {{ return u; }}
+    }}
+
+    if (!str || str.startsWith('data:') || str.startsWith('blob:') || str.startsWith('javascript:')) {{
+      return u;
+    }}
+    if (str.indexOf('/proxy?url=') !== -1) {{
+      return u;
+    }}
+
+    var full = resolveTargetUrl(str);
+    if (full.startsWith('http://') || full.startsWith('https://')) {{
+      return 'http://127.0.0.1:39281/proxy?url=' + encodeURIComponent(full);
+    }}
+    return u;
+  }}
+
+  // Hook window.fetch
+  try {{
+    var origFetch = window.fetch;
+    if (origFetch) {{
+      window.fetch = function(resource, init) {{
+        try {{
+          if (typeof resource === 'string' || (typeof URL !== 'undefined' && resource instanceof URL)) {{
+            var pUrl = toProxyUrl(resource);
+            return origFetch.call(this, pUrl, init);
+          }} else if (resource && resource.url) {{
+            var pUrl2 = toProxyUrl(resource.url);
+            if (pUrl2 !== resource.url) {{
+              return origFetch.call(this, new Request(pUrl2, resource), init);
+            }}
+          }}
+        }} catch(e) {{}}
+        return origFetch.call(this, resource, init);
+      }};
+    }}
+  }} catch(e) {{}}
+
+  // Hook XMLHttpRequest
+  try {{
+    var origXhrOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, async, user, password) {{
+      try {{
+        url = toProxyUrl(url);
+      }} catch(e) {{}}
+      return origXhrOpen.call(this, method, url, async !== false, user, password);
+    }};
+  }} catch(e) {{}}
+
+  // Hook navigator.sendBeacon
+  try {{
+    if (navigator.sendBeacon) {{
+      var origBeacon = navigator.sendBeacon;
+      navigator.sendBeacon = function(url, data) {{
+        try {{ url = toProxyUrl(url); }} catch(e) {{}}
+        return origBeacon.call(this, url, data);
+      }};
+    }}
+  }} catch(e) {{}}
+
+  // Disable ServiceWorker registration in proxy mode to prevent cache hijacking
+  try {{
+    if ('serviceWorker' in navigator) {{
+      navigator.serviceWorker.register = function() {{
+        return Promise.reject(new Error('ServiceWorker disabled in Sonde Proxy'));
+      }};
+    }}
+  }} catch(e) {{}}
+
   try {{
     window.top.postMessage({{ type: 'sonde_navigated', url: {final_url_json} }}, '*');
     window.top.postMessage({{ type: 'crux_navigated', url: {final_url_json} }}, '*');
@@ -452,7 +602,9 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
       var res = origPush.apply(this, arguments);
       if (url) {{
         try {{
-          var full = new URL(url, window.location.href).href;
+          var full = resolveTargetUrl(url);
+          targetBase = full;
+          try {{ targetOrigin = new URL(targetBase).origin; }} catch(ex) {{}}
           window.top.postMessage({{ type: 'sonde_navigated', url: full }}, '*');
         }} catch(e) {{}}
       }}
@@ -463,7 +615,9 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
       var res = origReplace.apply(this, arguments);
       if (url) {{
         try {{
-          var full = new URL(url, window.location.href).href;
+          var full = resolveTargetUrl(url);
+          targetBase = full;
+          try {{ targetOrigin = new URL(targetBase).origin; }} catch(ex) {{}}
           window.top.postMessage({{ type: 'sonde_navigated', url: full }}, '*');
         }} catch(e) {{}}
       }}
@@ -471,7 +625,10 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     }};
     window.addEventListener('popstate', function() {{
       try {{
-        window.top.postMessage({{ type: 'sonde_navigated', url: window.location.href }}, '*');
+        var full = resolveTargetUrl(window.location.href);
+        targetBase = full;
+        try {{ targetOrigin = new URL(targetBase).origin; }} catch(ex) {{}}
+        window.top.postMessage({{ type: 'sonde_navigated', url: full }}, '*');
       }} catch(e) {{}}
     }});
   }} catch(e) {{}}
@@ -598,7 +755,7 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
     if (rawHref.startsWith('#') || rawHref.startsWith('javascript:')) return;
     if (a.hash && a.origin === window.location.origin && a.pathname === window.location.pathname && a.search === window.location.search) return;
 
-    if (a.getAttribute('role') === 'button' || a.closest('ytd-compact-video-renderer, ytd-rich-item-renderer, ytd-video-renderer, [data-turbo]')) {{
+    if (a.getAttribute('role') === 'button' || a.closest('ytd-compact-video-renderer, ytd-rich-item-renderer, ytd-video-renderer, ytd-guide-entry-renderer, yt-formatted-string, [data-turbo]')) {{
       return;
     }}
 
@@ -666,10 +823,21 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
         let full_injection = format!("{}{}", injection, extensions_injection);
 
-        if let Some(idx) = mod_body.to_lowercase().find("<head>") {
-            mod_body.insert_str(idx + 6, &full_injection);
-        } else if let Some(idx) = mod_body.to_lowercase().find("<html>") {
-            mod_body.insert_str(idx + 6, &format!("<head>{}</head>", full_injection));
+        let lower = mod_body.to_lowercase();
+        if let Some(head_start) = lower.find("<head") {
+            if let Some(head_end) = lower[head_start..].find('>') {
+                let insert_pos = head_start + head_end + 1;
+                mod_body.insert_str(insert_pos, &full_injection);
+            } else {
+                mod_body.insert_str(0, &full_injection);
+            }
+        } else if let Some(html_start) = lower.find("<html") {
+            if let Some(html_end) = lower[html_start..].find('>') {
+                let insert_pos = html_start + html_end + 1;
+                mod_body.insert_str(insert_pos, &format!("<head>{}</head>", full_injection));
+            } else {
+                mod_body.insert_str(0, &full_injection);
+            }
         } else {
             mod_body.insert_str(0, &full_injection);
         }
@@ -680,11 +848,12 @@ fn handle_client(mut stream: TcpStream, adblocker: Arc<AdBlocker>, client: Arc<r
 
     let body_bytes = modified_body.as_bytes();
     let header = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: {}\r\nAccess-Control-Allow-Methods: *\r\nAccess-Control-Allow-Headers: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Expose-Headers: *\r\nConnection: close\r\n\r\n",
         status.as_u16(),
         status.canonical_reason().unwrap_or("OK"),
         content_type,
-        body_bytes.len()
+        body_bytes.len(),
+        client_origin
     );
 
     let _ = stream.write_all(header.as_bytes());
