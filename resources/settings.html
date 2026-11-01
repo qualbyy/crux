@@ -345,12 +345,25 @@
 
         .toast {
             display: none;
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
             background-color: var(--status-success);
             color: #0f172a;
             font-weight: bold;
-            padding: 8px 16px;
+            padding: 10px 20px;
             font-size: 12px;
-            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 99999;
+            pointer-events: none;
+            animation: fadeInToast 0.2s ease-out;
+        }
+
+        @keyframes fadeInToast {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         table.keybinds-table {
@@ -1176,10 +1189,10 @@
                     <div class="form-row">
                         <div class="label-wrap">
                             <span class="label-title">Безопасный DNS (DNS-over-HTTPS / DoH)</span>
-                            <span class="label-desc">Шифрование DNS-запросов через Cloudflare (1.1.1.1) и Google (8.8.8.8) по HTTPS для защиты от подмены адресов, утечек DNS и блокировок провайдера.</span>
+                            <span class="label-desc">Шифрование DNS-запросов через Cloudflare (1.1.1.1) и Google (8.8.8.8) по HTTPS для защиты от подмены адресов, утечек DNS и блокировок провайдера. Отключите, если используете локальный VPN/прокси с FakeIP.</span>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="setting-doh-enabled" checked onchange="applySettingLive('doh_enabled', this.checked ? 'true' : 'false')">
+                            <input type="checkbox" id="setting-doh-enabled" onchange="applySettingLive('doh_enabled', this.checked ? 'true' : 'false')">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -1528,7 +1541,7 @@
                 document.getElementById('setting-network-proxy').value = s.network_proxy;
             }
             if (document.getElementById('setting-doh-enabled')) {
-                document.getElementById('setting-doh-enabled').checked = s.doh_enabled !== undefined ? (s.doh_enabled === 'true') : true;
+                document.getElementById('setting-doh-enabled').checked = s.doh_enabled !== undefined ? (s.doh_enabled === 'true') : false;
             }
             if (document.getElementById('setting-container-default') && s.container_default) {
                 document.getElementById('setting-container-default').value = s.container_default;
@@ -1979,6 +1992,7 @@
         // --- CREDENTIALS VAULT (PASSWORDS & COOKIES) ---
         let currentPasswords = [];
         let currentCookies = [];
+        let vaultUnlockTimeout = null;
 
         function submitVaultUnlock(e) {
             if (e) e.preventDefault();
@@ -1999,6 +2013,20 @@
                 btn.textContent = (currentLang === 'ru' ? 'ПРОВЕРКА...' : 'VERIFYING...');
                 btn.disabled = true;
             }
+            if (vaultUnlockTimeout) clearTimeout(vaultUnlockTimeout);
+            vaultUnlockTimeout = setTimeout(() => {
+                if (!isVaultUnlocked) {
+                    if (btn) {
+                        btn.textContent = (currentLang === 'ru' ? 'РАЗБЛОКИРОВАТЬ' : 'UNLOCK');
+                        btn.disabled = false;
+                    }
+                    if (err) {
+                        const dict = I18N[currentLang] || I18N['en'];
+                        err.textContent = dict.vault_auth_failed || (currentLang === 'ru' ? 'Ошибка аутентификации.' : 'Authentication failed.');
+                        err.style.display = 'block';
+                    }
+                }
+            }, 8000);
             sendToHost('sonde://action/unlock-vault?password=' + encodeURIComponent(pwd));
         }
         window.submitVaultUnlock = submitVaultUnlock;
@@ -2015,6 +2043,10 @@
         window.promptAddPassword = promptAddPassword;
 
         window.onVaultAuthSuccess = function(passwords) {
+            if (vaultUnlockTimeout) {
+                clearTimeout(vaultUnlockTimeout);
+                vaultUnlockTimeout = null;
+            }
             const btn = document.getElementById('btn-vault-unlock');
             if (btn) {
                 btn.textContent = (currentLang === 'ru' ? 'РАЗБЛОКИРОВАТЬ' : 'UNLOCK');
@@ -2033,6 +2065,10 @@
         };
 
         window.onVaultAuthFailed = function() {
+            if (vaultUnlockTimeout) {
+                clearTimeout(vaultUnlockTimeout);
+                vaultUnlockTimeout = null;
+            }
             const btn = document.getElementById('btn-vault-unlock');
             if (btn) {
                 btn.textContent = (currentLang === 'ru' ? 'РАЗБЛОКИРОВАТЬ' : 'UNLOCK');

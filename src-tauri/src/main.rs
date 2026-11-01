@@ -132,6 +132,10 @@ fn main() -> wry::Result<()> {
         }
     }
 
+    // Restore saved DoH state (default to false to respect system DNS, VPN, Zapret)
+    let doh_saved = db.get_setting("doh_enabled").unwrap_or_else(|| "false".to_string());
+    proxy::set_doh_enabled(doh_saved == "true");
+
     // Start local embedded proxy on 127.0.0.1:39281 to bypass WebKit CSP & frame-ancestors
     proxy::start_proxy(Arc::clone(&adblocker), Arc::clone(&db), 39281);
 
@@ -185,13 +189,16 @@ fn main() -> wry::Result<()> {
     let history_escaped = serde_json::to_string(&history_content).unwrap_or_default().replace('<', "\\u003c");
     let downloads_escaped = serde_json::to_string(&downloads_content).unwrap_or_default().replace('<', "\\u003c");
 
+    let initial_cli_url = std::env::args().nth(1).unwrap_or_default();
+    let initial_cli_url_json = serde_json::to_string(&initial_cli_url).unwrap_or_else(|_| "\"\"".to_string());
+
     let embedded_page = html_content
         .replace(r#"<link rel="stylesheet" href="style.css">"#, &format!("<style>{}</style>", css_content))
         .replace(
             r#"<script src="main.js"></script>"#,
             &format!(
-                "<script>\nwindow.SONDE_APP_VERSION = \"v2.0.0 // BETA\";\nwindow.SONDE_STARTPAGE_HTML = {};\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.SONDE_SETTINGS_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.SONDE_HISTORY_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.SONDE_DOWNLOADS_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
-                startpage_escaped, startpage_escaped, settings_escaped, settings_escaped, history_escaped, history_escaped, downloads_escaped, downloads_escaped, js_content
+                "<script>\nwindow.SONDE_APP_VERSION = \"v2.0.0 // BETA\";\nwindow.SONDE_INITIAL_CLI_URL = {};\nwindow.SONDE_STARTPAGE_HTML = {};\nwindow.CRUX_STARTPAGE_HTML = {};\nwindow.SONDE_SETTINGS_HTML = {};\nwindow.CRUX_SETTINGS_HTML = {};\nwindow.SONDE_HISTORY_HTML = {};\nwindow.CRUX_HISTORY_HTML = {};\nwindow.SONDE_DOWNLOADS_HTML = {};\nwindow.CRUX_DOWNLOADS_HTML = {};\n{}\n</script>",
+                initial_cli_url_json, startpage_escaped, startpage_escaped, settings_escaped, settings_escaped, history_escaped, history_escaped, downloads_escaped, downloads_escaped, js_content
             ),
         );
 
@@ -200,7 +207,12 @@ fn main() -> wry::Result<()> {
     let adb_clone = Arc::clone(&adblocker);
     let proxy_clone = proxy.clone();
 
-    let mut builder = WebViewBuilder::new();
+    let home_env = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let data_dir = PathBuf::from(&home_env).join(".cache").join("sonde");
+    let _ = std::fs::create_dir_all(&data_dir);
+    let mut web_context = wry::WebContext::new(Some(data_dir));
+
+    let mut builder = WebViewBuilder::with_web_context(&mut web_context);
     builder = builder
         .with_html(embedded_page)
         .with_devtools(true)
@@ -288,9 +300,12 @@ fn main() -> wry::Result<()> {
                             let is_authenticated = if pwd.trim().is_empty() {
                                 false
                             } else {
-                                // Validate via sudo -S -v on Linux
+                                // Validate via sudo -k -S -p '' -v on Linux
                                 let child = std::process::Command::new("sudo")
+                                    .arg("-k")
                                     .arg("-S")
+                                    .arg("-p")
+                                    .arg("")
                                     .arg("-v")
                                     .stdin(std::process::Stdio::piped())
                                     .stdout(std::process::Stdio::null())
@@ -304,10 +319,10 @@ fn main() -> wry::Result<()> {
                                         }
                                         match c.wait() {
                                             Ok(status) => status.success(),
-                                            Err(_) => true,
+                                            Err(_) => false,
                                         }
                                     }
-                                    Err(_) => true,
+                                    Err(_) => false,
                                 }
                             };
 
@@ -676,6 +691,7 @@ pub fn apply_webkit_proxy(_proxy_url: Option<&str>) {}
             settings.set_enable_media_stream(true);
             settings.set_enable_mediasource(true);
             settings.set_enable_javascript(true);
+            settings.set_enable_page_cache(false);
             let active_ua = proxy::get_current_user_agent();
             settings.set_user_agent(Some(&active_ua));
         }
@@ -718,14 +734,32 @@ pub fn apply_webkit_proxy(_proxy_url: Option<&str>) {}
             }
             Event::UserEvent(UserEvent::VaultUnlocked(json_str)) => {
                 let script = format!(
-                    "if (window.onVaultAuthSuccess) window.onVaultAuthSuccess({}); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.onVaultAuthSuccess) document.getElementById('webFrame').contentWindow.onVaultAuthSuccess({});",
-                    json_str, json_str
+                    r#"
+                    if (window.onVaultAuthSuccess) {{ window.onVaultAuthSuccess({0}); }}
+                    document.querySelectorAll('iframe').forEach(function(f) {{
+                        try {{
+                            if (f.contentWindow && f.contentWindow.onVaultAuthSuccess) {{
+                                f.contentWindow.onVaultAuthSuccess({0});
+                            }}
+                        }} catch(e) {{}}
+                    }});
+                    "#,
+                    json_str
                 );
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::VaultAuthFailed) => {
-                let script = "if (window.onVaultAuthFailed) window.onVaultAuthFailed(); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.onVaultAuthFailed) document.getElementById('webFrame').contentWindow.onVaultAuthFailed();";
-                let _ = webview.evaluate_script(&script);
+                let script = r#"
+                    if (window.onVaultAuthFailed) { window.onVaultAuthFailed(); }
+                    document.querySelectorAll('iframe').forEach(function(f) {
+                        try {
+                            if (f.contentWindow && f.contentWindow.onVaultAuthFailed) {
+                                f.contentWindow.onVaultAuthFailed();
+                            }
+                        } catch(e) {}
+                    });
+                "#;
+                let _ = webview.evaluate_script(script);
             }
             Event::UserEvent(UserEvent::AutofillData(json_str)) => {
                 let script = format!("if (window.onAutofillData) window.onAutofillData({});", json_str);
@@ -733,15 +767,33 @@ pub fn apply_webkit_proxy(_proxy_url: Option<&str>) {}
             }
             Event::UserEvent(UserEvent::MigrationCompleted(json_str)) => {
                 let script = format!(
-                    "if (window.onMigrationCompleted) window.onMigrationCompleted({}); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.onMigrationCompleted) document.getElementById('webFrame').contentWindow.onMigrationCompleted({});",
-                    json_str, json_str
+                    r#"
+                    if (window.onMigrationCompleted) {{ window.onMigrationCompleted({0}); }}
+                    document.querySelectorAll('iframe').forEach(function(f) {{
+                        try {{
+                            if (f.contentWindow && f.contentWindow.onMigrationCompleted) {{
+                                f.contentWindow.onMigrationCompleted({0});
+                            }}
+                        }} catch(e) {{}}
+                    }});
+                    "#,
+                    json_str
                 );
                 let _ = webview.evaluate_script(&script);
             }
             Event::UserEvent(UserEvent::ExtensionsLoaded(json_str)) => {
                 let script = format!(
-                    "if (window.onExtensionsLoaded) window.onExtensionsLoaded({}); if (document.getElementById('webFrame') && document.getElementById('webFrame').contentWindow && document.getElementById('webFrame').contentWindow.renderExtensions) document.getElementById('webFrame').contentWindow.renderExtensions({});",
-                    json_str, json_str
+                    r#"
+                    if (window.onExtensionsLoaded) {{ window.onExtensionsLoaded({0}); }}
+                    document.querySelectorAll('iframe').forEach(function(f) {{
+                        try {{
+                            if (f.contentWindow && f.contentWindow.renderExtensions) {{
+                                f.contentWindow.renderExtensions({0});
+                            }}
+                        }} catch(e) {{}}
+                    }});
+                    "#,
+                    json_str
                 );
                 let _ = webview.evaluate_script(&script);
             }

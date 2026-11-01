@@ -1030,6 +1030,8 @@ function navigateActiveTab(input) {
   renderHorizontalTabs();
   sendIpc('navigate', { url });
 }
+window.navigateActiveTab = navigateActiveTab;
+window.createTab = createTab;
 
 function createTab(url = 'sonde://startpage', container = 'default') {
   const newId = (tabs.length ? Math.max(...tabs.map(t => t.id)) : 0) + 1;
@@ -2771,6 +2773,15 @@ window.addEventListener('message', (e) => {
       renderTabs();
       renderHorizontalTabs();
     }
+  } else if (e.data.type === 'sonde_log' && e.data.msg) {
+    console.log(e.data.msg);
+  } else if ((e.data.type === 'sonde_title' || e.data.type === 'crux_title') && e.data.title) {
+    const active = tabs.find(t => t.is_active);
+    if (active && active.title !== e.data.title) {
+      active.title = e.data.title;
+      renderTabs();
+      renderHorizontalTabs();
+    }
   } else if (e.data.type === 'sonde_key' || e.data.type === 'crux_key') {
     handleGlobalShortcut(e.data);
   } else if (e.data.type === 'sonde_click' || e.data.type === 'crux_click') {
@@ -2800,6 +2811,26 @@ window.onAiResponse = function(text, success) {
 window.onBookmarksLoaded = function(bookmarks) {
   currentBookmarks = bookmarks || [];
   renderBookmarksList(currentBookmarks);
+};
+
+window.onVaultAuthSuccess = function(passwords) {
+  document.querySelectorAll('iframe').forEach(f => {
+    try {
+      if (f.contentWindow && f.contentWindow.onVaultAuthSuccess) {
+        f.contentWindow.onVaultAuthSuccess(passwords);
+      }
+    } catch(e) {}
+  });
+};
+
+window.onVaultAuthFailed = function() {
+  document.querySelectorAll('iframe').forEach(f => {
+    try {
+      if (f.contentWindow && f.contentWindow.onVaultAuthFailed) {
+        f.contentWindow.onVaultAuthFailed();
+      }
+    } catch(e) {}
+  });
 };
 
 window.onHistoryLoaded = function(history) {
@@ -3058,6 +3089,18 @@ renderTabs();
 renderHorizontalTabs();
 const initialTab = tabs.find(t => t.is_active);
 if (initialTab) {
+  if (window.SONDE_INITIAL_CLI_URL && window.SONDE_INITIAL_CLI_URL.trim().length > 0) {
+    const rawUrl = window.SONDE_INITIAL_CLI_URL.trim();
+    initialTab.url = rawUrl;
+    try {
+      const parsed = new URL(rawUrl);
+      initialTab.title = parsed.hostname.replace(/^www\./, '');
+    } catch {
+      initialTab.title = rawUrl;
+    }
+    renderTabs();
+    renderHorizontalTabs();
+  }
   loadTabContent(initialTab);
 }
 applyLanguage(currentLanguage);
