@@ -121,6 +121,120 @@ pub fn parse_container_param(path: &str) -> String {
 
 static CONTAINER_CLIENTS: OnceLock<Mutex<std::collections::HashMap<String, Arc<reqwest::blocking::Client>>>> = OnceLock::new();
 static UPSTREAM_PROXY: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+static DOH_CACHE: OnceLock<Mutex<std::collections::HashMap<String, (std::net::IpAddr, std::time::Instant)>>> = OnceLock::new();
+static DOH_ENABLED: OnceLock<std::sync::atomic::AtomicBool> = OnceLock::new();
+static DOH_CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
+
+pub fn set_doh_enabled(enabled: bool) {
+    let flag = DOH_ENABLED.get_or_init(|| std::sync::atomic::AtomicBool::new(true));
+    flag.store(enabled, std::sync::atomic::Ordering::Relaxed);
+    println!("[Sonde DoH] DNS-over-HTTPS status updated: enabled = {}", enabled);
+}
+
+pub fn is_doh_enabled() -> bool {
+    let flag = DOH_ENABLED.get_or_init(|| std::sync::atomic::AtomicBool::new(true));
+    flag.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn get_doh_client() -> &'static reqwest::blocking::Client {
+    DOH_CLIENT.get_or_init(|| {
+        reqwest::blocking::Client::builder()
+            .timeout(Duration::from_millis(2000))
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+pub fn doh_lookup(domain: &str) -> Option<std::net::IpAddr> {
+    if !is_doh_enabled() {
+        return None;
+    }
+
+    if domain == "localhost" || domain == "127.0.0.1" || domain.parse::<std::net::IpAddr>().is_ok() {
+        return None;
+    }
+
+    let cache_lock = DOH_CACHE.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
+    if let Ok(cache) = cache_lock.lock() {
+        if let Some((ip, timestamp)) = cache.get(domain) {
+            if timestamp.elapsed() < Duration::from_secs(300) {
+                return Some(*ip);
+            }
+        }
+    }
+
+    let client = get_doh_client();
+
+    // Primary: Cloudflare DNS-over-HTTPS (1.1.1.1)
+    let cf_url = format!("https://1.1.1.1/dns-query?name={}&type=A", domain);
+    if let Ok(resp) = client.get(&cf_url).header("Accept", "application/dns-json").send() {
+        if resp.status().is_success() {
+            if let Ok(v) = resp.json::<serde_json::Value>() {
+                if let Some(answers) = v.get("Answer").and_then(|a| a.as_array()) {
+                    for ans in answers {
+                        if let Some(data) = ans.get("data").and_then(|d| d.as_str()) {
+                            if let Ok(ip) = data.parse::<std::net::IpAddr>() {
+                                if let Ok(mut cache) = cache_lock.lock() {
+                                    cache.insert(domain.to_string(), (ip, std::time::Instant::now()));
+                                }
+                                println!("[Sonde DoH] Cloudflare resolved {} -> {}", domain, ip);
+                                return Some(ip);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: Google DNS-over-HTTPS (8.8.8.8)
+    let google_url = format!("https://8.8.8.8/resolve?name={}&type=A", domain);
+    if let Ok(resp) = client.get(&google_url).header("Accept", "application/dns-json").send() {
+        if resp.status().is_success() {
+            if let Ok(v) = resp.json::<serde_json::Value>() {
+                if let Some(answers) = v.get("Answer").and_then(|a| a.as_array()) {
+                    for ans in answers {
+                        if let Some(data) = ans.get("data").and_then(|d| d.as_str()) {
+                            if let Ok(ip) = data.parse::<std::net::IpAddr>() {
+                                if let Ok(mut cache) = cache_lock.lock() {
+                                    cache.insert(domain.to_string(), (ip, std::time::Instant::now()));
+                                }
+                                println!("[Sonde DoH] Google resolved {} -> {}", domain, ip);
+                                return Some(ip);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+struct DohResolver;
+
+impl reqwest::dns::Resolve for DohResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let domain = name.as_str().to_string();
+        Box::pin(async move {
+            if let Some(ip) = doh_lookup(&domain) {
+                let addr = std::net::SocketAddr::new(ip, 0);
+                let addrs: reqwest::dns::Addrs = Box::new(std::iter::once(addr));
+                Ok(addrs)
+            } else {
+                use std::net::ToSocketAddrs;
+                let fallback = format!("{}:0", domain);
+                if let Ok(iter) = fallback.to_socket_addrs() {
+                    let addrs: reqwest::dns::Addrs = Box::new(iter);
+                    Ok(addrs)
+                } else {
+                    Err(From::from(format!("Failed to resolve host {}", domain)))
+                }
+            }
+        })
+    }
+}
 
 fn create_http_client(proxy_url: Option<&str>) -> Arc<reqwest::blocking::Client> {
     let active_ua = get_current_user_agent();
@@ -129,7 +243,8 @@ fn create_http_client(proxy_url: Option<&str>) -> Arc<reqwest::blocking::Client>
         .connect_timeout(Duration::from_secs(7))
         .timeout(Duration::from_secs(25))
         .redirect(reqwest::redirect::Policy::limited(10))
-        .cookie_store(true);
+        .cookie_store(true)
+        .dns_resolver(Arc::new(DohResolver));
 
     if let Some(p_url) = proxy_url {
         let trimmed = p_url.trim();
@@ -183,6 +298,9 @@ pub fn get_client_for_container(container: &str) -> Arc<reqwest::blocking::Clien
 }
 
 pub fn start_proxy(adblocker: Arc<AdBlocker>, db: Arc<Database>, port: u16) {
+    let initial_doh = db.get_setting("doh_enabled").map(|v| v != "false").unwrap_or(true);
+    set_doh_enabled(initial_doh);
+
     if let Some(initial_proxy) = db.get_setting("network_proxy") {
         set_network_proxy(&initial_proxy);
     }

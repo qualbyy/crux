@@ -1165,11 +1165,23 @@
                     <div class="form-row">
                         <div class="label-wrap">
                             <span class="label-title">Вышестоящий сетевой прокси (Upstream SOCKS5 / HTTP Proxy)</span>
-                            <span class="label-desc">Адрес внешнего прокси для обхода блокировок цензуры (например, <code>socks5://127.0.0.1:10808</code> или <code>http://127.0.0.1:10809</code>).</span>
+                            <span class="label-desc">Адрес внешнего прокси для обхода блокировок цензуры (например, <code>socks5://127.0.0.1:10808</code> или <code>http://127.0.0.1:10809</code>). Синхронизируется с движком WebKitGTK.</span>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <input type="text" id="setting-network-proxy" class="form-input" style="width: 250px;" placeholder="socks5://127.0.0.1:10808" onchange="applySettingLive('network_proxy', this.value.trim())">
                         </div>
+                    </div>
+
+                    <!-- DNS-OVER-HTTPS (DoH) -->
+                    <div class="form-row">
+                        <div class="label-wrap">
+                            <span class="label-title">Безопасный DNS (DNS-over-HTTPS / DoH)</span>
+                            <span class="label-desc">Шифрование DNS-запросов через Cloudflare (1.1.1.1) и Google (8.8.8.8) по HTTPS для защиты от подмены адресов, утечек DNS и блокировок провайдера.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-doh-enabled" checked onchange="applySettingLive('doh_enabled', this.checked ? 'true' : 'false')">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
 
                     <!-- USER AGENT & PRESETS -->
@@ -1514,6 +1526,9 @@
             }
             if (document.getElementById('setting-network-proxy') && s.network_proxy !== undefined) {
                 document.getElementById('setting-network-proxy').value = s.network_proxy;
+            }
+            if (document.getElementById('setting-doh-enabled')) {
+                document.getElementById('setting-doh-enabled').checked = s.doh_enabled !== undefined ? (s.doh_enabled === 'true') : true;
             }
             if (document.getElementById('setting-container-default') && s.container_default) {
                 document.getElementById('setting-container-default').value = s.container_default;
@@ -2830,6 +2845,9 @@
             }
             if (document.getElementById('setting-network-proxy')) {
                 params.set('network_proxy', document.getElementById('setting-network-proxy').value.trim());
+            }
+            if (document.getElementById('setting-doh-enabled')) {
+                params.set('doh_enabled', document.getElementById('setting-doh-enabled').checked ? 'true' : 'false');
             }
             if (document.getElementById('setting-container-default')) {
                 params.set('container_default', document.getElementById('setting-container-default').value);

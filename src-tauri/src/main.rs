@@ -266,6 +266,10 @@ fn main() -> wry::Result<()> {
                             }
                             if key == "network_proxy" {
                                 proxy::set_network_proxy(value);
+                                apply_webkit_proxy(Some(value));
+                            }
+                            if key == "doh_enabled" {
+                                proxy::set_doh_enabled(value == "true");
                             }
                             println!("[Sonde Core] Saved setting: {} = {}", key, value);
                         }
@@ -608,6 +612,40 @@ fn main() -> wry::Result<()> {
     ))]
     let webview = builder.build(&window)?;
 
+#[cfg(not(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "android"
+)))]
+pub fn apply_webkit_proxy(proxy_url: Option<&str>) {
+    use webkit2gtk::{NetworkProxyMode, NetworkProxySettings, WebContextExt, WebsiteDataManagerExt};
+
+    if let Some(context) = webkit2gtk::WebContext::default() {
+        if let Some(dm) = context.website_data_manager() {
+            if let Some(p_url) = proxy_url {
+                let trimmed = p_url.trim();
+                if !trimmed.is_empty() {
+                    let mut settings = NetworkProxySettings::new(Some(trimmed), &["127.0.0.1", "localhost"]);
+                    dm.set_network_proxy_settings(NetworkProxyMode::Custom, Some(&mut settings));
+                    println!("[Sonde WebKit] Applied upstream proxy: {}", trimmed);
+                    return;
+                }
+            }
+            dm.set_network_proxy_settings(NetworkProxyMode::Default, None);
+            println!("[Sonde WebKit] Restored default network proxy mode");
+        }
+    }
+}
+
+#[cfg(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "android"
+))]
+pub fn apply_webkit_proxy(_proxy_url: Option<&str>) {}
+
     #[cfg(not(any(
         target_os = "windows",
         target_os = "macos",
@@ -641,6 +679,9 @@ fn main() -> wry::Result<()> {
             let active_ua = proxy::get_current_user_agent();
             settings.set_user_agent(Some(&active_ua));
         }
+
+        let initial_upstream_proxy = db.get_setting("network_proxy");
+        apply_webkit_proxy(initial_upstream_proxy.as_deref());
 
         window.gtk_window().show_all();
         wv
